@@ -1,0 +1,15 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Run Backend" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <option name="ACTIVE_PROFILES" value="dev" />
+    <envs>
+      <env name="DB_PASSWORD" value="haushaltsbuch" />
+      <env name="DB_URL" value="jdbc:postgresql://localhost:5432/postgres" />
+      <env name="DB_USERNAME" value="haushaltsbuch" />
+    </envs>
+    <module name="Consumption" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="de.bochmann.haushaltsbuch.HaushaltsbuchBackendApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

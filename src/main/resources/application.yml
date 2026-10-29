@@ -1,0 +1,119 @@
+spring:
+  application:
+    name: Haushaltsbuch-Backend
+  profiles:
+    # Ohne SPRING_PROFILES_ACTIVE läuft die Anwendung lokal im dev-Profil.
+    default: dev
+    group:
+      # In prod ist die Keycloak-Anbindung immer aktiv.
+      prod: keycloak
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema wird ausschließlich über Flyway gepflegt.
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+haushaltsbuch:
+  security:
+    openapi-public: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  # Docker Compose Support ist vorerst aus, die Anwendung nutzt die lokal laufende
+  # PostgreSQL-Instanz. Auf true setzen, um compose.yaml automatisch zu starten.
+  docker:
+    compose:
+      enabled: ${DOCKER_COMPOSE_ENABLED:false}
+      lifecycle-management: start-only
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/haushaltsbuch}
+    username: ${DB_USERNAME:haushaltsbuch}
+    password: ${DB_PASSWORD:haushaltsbuch}
+
+management:
+  endpoint:
+    health:
+      show-details: always
+
+haushaltsbuch:
+  keycloak:
+    # TODO Keycloak: Realm "haushaltsbuch" in Keycloak anlegen.
+    issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
+    client-id: ${KEYCLOAK_CLIENT_ID:haushaltsbuch-backend}
+    client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+  security:
+    openapi-public: true
+
+---
+# Keycloak-Anbindung. Lokal mit SPRING_PROFILES_ACTIVE=dev,keycloak aktivieren;
+# ohne dieses Profil ist die Security im dev-Profil offen (siehe SecurityConfig).
+spring:
+  config:
+    activate:
+      on-profile: keycloak
+  security:
+    oauth2:
+      # Token-Prüfung (Resource Server) gegen den Keycloak-Realm.
+      resourceserver:
+        jwt:
+          issuer-uri: ${haushaltsbuch.keycloak.issuer-uri}
+          jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
+      # BFF: serverseitiger Login-Flow.
+      client:
+        registration:
+          keycloak:
+            # TODO Keycloak: Client im Realm anlegen (Confidential Client,
+            # Standard Flow, Redirect-URI {baseUrl}/login/oauth2/code/keycloak).
+            client-id: ${haushaltsbuch.keycloak.client-id}
+            client-secret: ${haushaltsbuch.keycloak.client-secret}
+            authorization-grant-type: authorization_code
+            scope: openid, profile, email
+        provider:
+          keycloak:
+            # Endpunkte explizit statt über issuer-uri, damit der Start nicht
+            # von der Erreichbarkeit von Keycloak (OIDC-Discovery) abhängt.
+            authorization-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/auth
+            token-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/token
+            user-info-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/userinfo
+            jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
+            user-name-attribute: preferred_username
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  docker:
+    compose:
+      enabled: false
+
+haushaltsbuch:
+  keycloak:
+    issuer-uri: ${KEYCLOAK_ISSUER_URI}
+    client-id: ${KEYCLOAK_CLIENT_ID}
+    client-secret: ${KEYCLOAK_CLIENT_SECRET}
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
