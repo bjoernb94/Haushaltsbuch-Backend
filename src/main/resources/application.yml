@@ -86,6 +86,9 @@ spring:
             client-id: ${haushaltsbuch.keycloak.client-id}
             client-secret: ${haushaltsbuch.keycloak.client-secret}
             authorization-grant-type: authorization_code
+            # Für eigene Provider setzt Spring Boot keinen Default, muss zur
+            # Redirect-URI des Clients in Keycloak passen.
+            redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
             scope: openid, profile, email
         provider:
           keycloak:

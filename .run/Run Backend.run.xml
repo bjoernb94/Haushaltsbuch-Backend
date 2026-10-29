@@ -6,7 +6,7 @@
       <env name="DB_URL" value="jdbc:postgresql://localhost:5432/postgres" />
       <env name="DB_USERNAME" value="haushaltsbuch" />
     </envs>
-    <module name="Consumption" />
+    <module name="Haushaltsbuch-Backend" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="de.bochmann.haushaltsbuch.HaushaltsbuchBackendApplication" />
     <method v="2">
       <option name="Make" enabled="true" />
