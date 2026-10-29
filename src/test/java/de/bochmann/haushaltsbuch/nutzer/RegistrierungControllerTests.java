@@ -1,0 +1,143 @@
+package de.bochmann.haushaltsbuch.nutzer;
+
+import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.Set;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles({"dev", "keycloak"})
+class RegistrierungControllerTests {
+
+	@Autowired
+	private MockMvc mockMvc;
+
+	@Autowired
+	private NutzerRepository nutzerRepository;
+
+	@Autowired
+	private RegistrierungService registrierungService;
+
+	@MockitoBean
+	private Identitaetsanbieter identitaetsanbieter;
+
+	@Test
+	void registriertNutzerOhneAnmeldung() throws Exception {
+		UUID id = UUID.randomUUID();
+		when(identitaetsanbieter.benutzerAnlegen("max@example.org", "geheim123", "Max", "Muster"))
+				.thenReturn(id);
+
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("max@example.org", "[\"FINANZUEBERSICHT\", \"PORTFOLIO\"]")))
+				.andExpect(status().isCreated());
+
+		assertThat(nutzerRepository.findById(id)).hasValueSatisfying(nutzer -> {
+			assertThat(nutzer.getKomponenten())
+					.containsExactlyInAnyOrder(Komponente.FINANZUEBERSICHT, Komponente.PORTFOLIO);
+			assertThat(nutzer.getAngelegtAm()).isNotNull();
+		});
+	}
+
+	@Test
+	void ohneCsrfTokenAbgelehnt() throws Exception {
+		mockMvc.perform(post("/api/registrierung")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("ohne-csrf@example.org", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void ohneKomponenteUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("leer@example.org", "[]")))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void unbekannteKomponenteUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("unbekannt@example.org", "[\"KALENDER\"]")))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void ungueltigeEmailUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("keine-email", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void vergebeneEmailKonflikt() throws Exception {
+		when(identitaetsanbieter.benutzerAnlegen(eq("vergeben@example.org"), any(), any(), any()))
+				.thenThrow(new EmailBereitsVergebenException("vergeben@example.org"));
+
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("vergeben@example.org", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.detail").value(
+						"Für die E-Mail-Adresse vergeben@example.org existiert bereits ein Konto."));
+	}
+
+	@Test
+	void abgelehntesPasswortUngueltig() throws Exception {
+		when(identitaetsanbieter.benutzerAnlegen(eq("kurz@example.org"), any(), any(), any()))
+				.thenThrow(new RegistrierungAbgelehntException("Invalid password: minimum length 12."));
+
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("kurz@example.org", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail").value("Invalid password: minimum length 12."));
+	}
+
+	@Test
+	void kontoWirdBeiFehlerBeimSpeichernGeloescht() {
+		// Liefert der Identity Provider eine bereits vergebene ID, schlägt das Speichern fehl.
+		UUID id = UUID.randomUUID();
+		when(identitaetsanbieter.benutzerAnlegen(any(), any(), any(), any())).thenReturn(id);
+		var anfrage = new RegistrierungAnfrage("doppelt@example.org", "geheim123", "Max", "Muster",
+				Set.of(Komponente.VERTRAGSUEBERSICHT));
+		registrierungService.registrieren(anfrage);
+
+		assertThatThrownBy(() -> registrierungService.registrieren(anfrage))
+				.isInstanceOf(DataIntegrityViolationException.class);
+		verify(identitaetsanbieter).benutzerLoeschen(id);
+	}
+
+	private static String anfrage(String email, String komponenten) {
+		return """
+				{"email": "%s", "passwort": "geheim123", "vorname": "Max", "name": "Muster",
+				 "komponenten": %s}
+				""".formatted(email, komponenten);
+	}
+
+}

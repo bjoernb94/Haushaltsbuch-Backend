@@ -60,6 +60,8 @@ haushaltsbuch:
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
     client-id: ${KEYCLOAK_CLIENT_ID:haushaltsbuch-backend}
     client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+    # Admin REST API des Realms, über die die Registrierung Konten anlegt.
+    admin-uri: ${KEYCLOAK_ADMIN_URI:http://localhost:8180/admin/realms/haushaltsbuch}
   security:
     openapi-public: true
 
@@ -90,6 +92,16 @@ spring:
             # Redirect-URI des Clients in Keycloak passen.
             redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
             scope: openid, profile, email
+          # Service Account für die Keycloak Admin API (Registrierung, siehe KeycloakAdminConfig).
+          # TODO Keycloak: Am Client "Service accounts roles" aktivieren und die Rolle
+          # realm-management/manage-users zuweisen. Im Realm unter Login "User registration"
+          # ausgeschaltet lassen (Konten entstehen nur über POST /api/registrierung),
+          # "Login with email" an, "Duplicate emails" aus, Passwort-Richtlinie festlegen.
+          keycloak-admin:
+            provider: keycloak
+            client-id: ${haushaltsbuch.keycloak.client-id}
+            client-secret: ${haushaltsbuch.keycloak.client-secret}
+            authorization-grant-type: client_credentials
         provider:
           keycloak:
             # Endpunkte explizit statt über issuer-uri, damit der Start nicht
@@ -114,6 +126,7 @@ haushaltsbuch:
     issuer-uri: ${KEYCLOAK_ISSUER_URI}
     client-id: ${KEYCLOAK_CLIENT_ID}
     client-secret: ${KEYCLOAK_CLIENT_SECRET}
+    admin-uri: ${KEYCLOAK_ADMIN_URI}
 
 springdoc:
   api-docs:
