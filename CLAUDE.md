@@ -50,7 +50,9 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
   checks it per request via `KomponentenAbfrage` (implemented in `nutzer`). New module endpoints must live
-  under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID.
+  under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID and
+  `AngemeldeterNutzer.claims(...)` for name/email: `GET /api/nutzer/ich` reads them from the login token,
+  not from Keycloak (users don't edit their data in Keycloak; a future profile area must update the session).
 - Tests: `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default

@@ -227,6 +227,7 @@ Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
 | Endpunkt                          | Zugriff         | Beschreibung                                    |
 |-----------------------------------|-----------------|-------------------------------------------------|
 | `POST /api/registrierung`         | öffentlich      | Konto in Keycloak und Nutzer anlegen            |
+| `GET /api/nutzer/ich`             | angemeldet      | Profil: `vorname`, `name`, `email`              |
 | `GET /api/nutzer/ich/komponenten` | angemeldet      | Gebuchte Komponenten, z.&nbsp;B. `["PORTFOLIO"]`|
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
@@ -279,6 +280,10 @@ damit keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
 - **Bearer-Token:** Für Anfragen mit Bearer-Token gibt es keinen Logout im Backend; ein Token gilt
   bis zu seinem Ablauf. Die *Access Token Lifespan* im Realm (Standard 5 Minuten) kurz halten und
   vor prod prüfen.
+- **Profilbereich:** Name und E-Mail sollen später in einem eigenen Profilbereich der App
+  geändert werden, nicht direkt in Keycloak. `GET /api/nutzer/ich` liest sie aus dem Token der
+  Anmeldung; nach einer Änderung muss das Backend sie per Admin API in Keycloak schreiben und die
+  Angaben in der Session aktualisieren, sonst zeigt `/ich` bis zur nächsten Anmeldung die alten.
 - **Komponenten ändern:** Komponenten werden bisher nur bei der Registrierung gesetzt; ein
   Endpunkt zum Hinzu- oder Abbuchen fehlt.
 
