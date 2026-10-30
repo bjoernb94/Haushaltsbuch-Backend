@@ -22,6 +22,14 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   `jdbc:postgresql://localhost:5432/postgres` as user `haushaltsbuch` (see `.run/Run_Backend.run.xml`).
   `flyway-maven-plugin` is in the pom only for manual `flyway:info`/`flyway:validate` runs.
 
+## Git workflow
+
+- Never commit to `main` directly. Every change goes on its own branch and reaches `main` via pull request
+  (build must be green). Branch names: `feature/<kurzname>`, `fix/<kurzname>`, `docs/<kurzname>`,
+  `chore/<kurzname>`, prefixed with the issue number if there is one (e.g. `feature/14-haushalt`). Link the
+  issue in the PR with `Closes #<n>`.
+- Before starting work, create the branch from an up-to-date `main` if you are still on `main`.
+
 ## Architecture
 
 - Spring Boot 4.1, Spring Modulith modular monolith. Each direct subpackage of
