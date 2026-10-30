@@ -46,7 +46,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   user in directly. Unauthenticated requests get 401; SPA CSRF cookie (`XSRF-TOKEN`). The token endpoint
   is configured explicitly (not via issuer discovery) so the app and tests start without Keycloak running.
   Keycloak roles are deliberately not mapped to authorities (no roles needed yet; see comment there).
-  Open follow-ups are listed in the README under "Spätere Aufgaben".
+  Open follow-ups are tracked as GitHub issues (with milestones), not in the README.
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
   checks it per request via `KomponentenAbfrage` (implemented in `nutzer`). New module endpoints must live

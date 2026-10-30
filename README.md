@@ -260,32 +260,11 @@ entfernt werden“*; das Konto dann in Keycloak unter *Users* löschen.
 Ein Konto, das direkt in Keycloak angelegt wird, hat keinen Nutzer in unserer Datenbank und
 damit keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
 
-### Spätere Aufgaben
+### Offene Aufgaben
 
-- **Passwort vergessen:** Fehlt noch. Da die Keycloak-Seiten nicht genutzt werden, braucht es
-  einen eigenen Ablauf (Link per E-Mail, eigenes Formular, neues Passwort über die Admin API)
-  und dafür einen Mailserver.
-- **Sofortige Abmeldung bei Ende der Keycloak-Sitzung:** Bisher erkennt das Backend eine in
-  Keycloak beendete Sitzung erst bei der nächsten Erneuerung (spätestens nach Ablauf des
-  Access Tokens). Für sofortige Wirkung den Back-Channel-Logout von Keycloak selbst umsetzen:
-  einen Endpunkt, den Keycloak mit einem Logout-Token aufruft (*Backchannel logout URL* am
-  Client), und die zugehörige Session beenden. Die fertige Lösung von Spring
-  (`oidcLogout`) setzt den hier nicht genutzten `oauth2Login` voraus.
-- **Sessions über Neustarts hinweg:** Sessions liegen im Speicher des Backends. Ein Neustart
-  meldet alle Nutzer ab, mehrere Instanzen teilen sich keine Sessions. Bei Bedarf Spring Session
-  (z.&nbsp;B. mit JDBC) einsetzen.
-- **Zusätzliche Begrenzung der Anmeldeversuche:** Die Sperre in Keycloak gilt je Konto. Gegen
-  das Durchprobieren vieler Konten hilft eine Begrenzung je IP-Adresse vor `/api/anmeldung`
-  (Reverse Proxy oder im Backend).
-- **Bearer-Token:** Für Anfragen mit Bearer-Token gibt es keinen Logout im Backend; ein Token gilt
-  bis zu seinem Ablauf. Die *Access Token Lifespan* im Realm (Standard 5 Minuten) kurz halten und
-  vor prod prüfen.
-- **Profilbereich:** Name und E-Mail sollen später in einem eigenen Profilbereich der App
-  geändert werden, nicht direkt in Keycloak. `GET /api/nutzer/ich` liest sie aus dem Token der
-  Anmeldung; nach einer Änderung muss das Backend sie per Admin API in Keycloak schreiben und die
-  Angaben in der Session aktualisieren, sonst zeigt `/ich` bis zur nächsten Anmeldung die alten.
-- **Komponenten ändern:** Komponenten werden bisher nur bei der Registrierung gesetzt; ein
-  Endpunkt zum Hinzu- oder Abbuchen fehlt.
+Geplante Erweiterungen und bekannte Lücken (z.&nbsp;B. „Passwort vergessen“, Profilbereich,
+Keycloak für prod) werden als [GitHub Issues](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues)
+gepflegt und sind Meilensteinen zugeordnet.
 
 ## Konfiguration
 
