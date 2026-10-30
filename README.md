@@ -222,6 +222,21 @@ Die Nutzer-ID im Code ist immer die Keycloak-ID (Claim `sub`), als `UUID` ermitt
 Keycloak-Rollen werden derzeit nicht ausgewertet. Werden sie später gebraucht (z.&nbsp;B. für einen
 Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
 
+### Haushalte
+
+Festgelegt: Fachdaten gehören einem **Haushalt**, nicht einem einzelnen Nutzer. Ein
+Haushaltsbuch kann so von mehreren Nutzern gemeinsam geführt werden. Daraus folgt:
+
+- Fachtabellen speichern `haushalt_id`, nicht `nutzer_id`. Jeder Zugriff filtert auf den
+  Haushalt des angemeldeten Nutzers; Daten eines fremden Haushalts liefern 404.
+- Gebuchte Komponenten gelten für den ganzen Haushalt.
+- Die Registrierung legt einen Haushalt an, weitere Mitglieder treten per Einladung bei.
+
+Umsetzung noch offen, siehe Issues
+[#14](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/14) (Haushalt als Besitzer der
+Daten) und [#15](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/15) (Mitglieder einladen).
+Bis dahin hängen die Komponenten noch am Nutzer (`nutzer_komponente`).
+
 ## API
 
 | Endpunkt                          | Zugriff         | Beschreibung                                    |

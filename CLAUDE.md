@@ -53,6 +53,9 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID and
   `AngemeldeterNutzer.claims(...)` for name/email: `GET /api/nutzer/ich` reads them from the login token,
   not from Keycloak (users don't edit their data in Keycloak; a future profile area must update the session).
+- Decided: business data belongs to a household (`haushalt_id`), not to a single user, so several users can share
+  one Haushaltsbuch; booked components belong to the household. Not implemented yet (issue #14); until then
+  components still hang on the user. Don't key new business tables on `nutzer_id`.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) exists in every profile (always DOWN without `keycloak`),
   otherwise the group fails validation at startup; it caches its result for 10 s. Spring tests with the `keycloak`
