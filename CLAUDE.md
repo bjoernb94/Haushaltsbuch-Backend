@@ -53,6 +53,10 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID and
   `AngemeldeterNutzer.claims(...)` for name/email: `GET /api/nutzer/ich` reads them from the login token,
   not from Keycloak (users don't edit their data in Keycloak; a future profile area must update the session).
+- `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
+  health indicator (`shared/systemstatus/SystemstatusConfig`) exists in every profile (always DOWN without `keycloak`),
+  otherwise the group fails validation at startup; it caches its result for 10 s. Spring tests with the `keycloak`
+  profile that assert health status must mock the bean `keycloakHealthIndicator` (see `SecurityConfigTests`).
 - Tests: `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default

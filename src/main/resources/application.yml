@@ -28,6 +28,12 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        # Status für die Login-Seite der SPA: öffentlich, nur UP/DOWN je Komponente, ohne Details.
+        systemstatus:
+          include: db, keycloak
+          show-components: always
+          show-details: never
 
 haushaltsbuch:
   security:

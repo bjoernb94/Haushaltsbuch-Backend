@@ -232,8 +232,24 @@ Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
+| `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
 Die vollständige API-Beschreibung liefert die Swagger UI (`/swagger-ui.html`, nur dev).
+
+### Systemstatus
+
+`GET /actuator/health/systemstatus` liefert nur `UP`/`DOWN` je Komponente, ohne Details;
+ist eine Komponente `DOWN`, antwortet der Endpunkt mit 503:
+
+```json
+{ "status": "UP", "components": { "db": { "status": "UP" }, "keycloak": { "status": "UP" } } }
+```
+
+`keycloak` prüft das OIDC-Discovery-Dokument des Realms (Timeout 2&nbsp;s) und merkt sich das
+Ergebnis 10&nbsp;s, damit der öffentliche Endpunkt Keycloak nicht mit Anfragen belastet. Ohne Profil
+`keycloak` ist der Indikator immer `DOWN`, da es dann keine Anmeldung gibt. Da `keycloak` auch in
+`/actuator/health` eingeht, sollten Container-Healthchecks die Probes `liveness`/`readiness`
+verwenden, sonst wird das Backend bei einem Keycloak-Ausfall neu gestartet.
 
 ### Registrierung
 
