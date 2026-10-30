@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.nutzer;
 
 import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
 import de.bochmann.haushaltsbuch.shared.Komponente;
+import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -45,6 +47,9 @@ class RegistrierungControllerTests {
 	@MockitoBean
 	private Identitaetsanbieter identitaetsanbieter;
 
+	@MockitoBean
+	private Anmeldung anmeldung;
+
 	@Test
 	void registriertNutzerOhneAnmeldung() throws Exception {
 		UUID id = UUID.randomUUID();
@@ -61,6 +66,20 @@ class RegistrierungControllerTests {
 					.containsExactlyInAnyOrder(Komponente.FINANZUEBERSICHT, Komponente.PORTFOLIO);
 			assertThat(nutzer.getAngelegtAm()).isNotNull();
 		});
+		verify(anmeldung).anmelden(eq("max@example.org"), eq("geheim123"), any(), any());
+	}
+
+	@Test
+	void registrierungGelingtAuchWennAnmeldungScheitert() throws Exception {
+		when(identitaetsanbieter.benutzerAnlegen(eq("ohne-anmeldung@example.org"), any(), any(), any()))
+				.thenReturn(UUID.randomUUID());
+		doThrow(new IllegalStateException("Keycloak nicht erreichbar"))
+				.when(anmeldung).anmelden(eq("ohne-anmeldung@example.org"), any(), any(), any());
+
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("ohne-anmeldung@example.org", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isCreated());
 	}
 
 	@Test

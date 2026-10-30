@@ -16,9 +16,11 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Import(TestcontainersConfiguration.class)
@@ -72,6 +74,18 @@ class SecurityConfigTests {
 		when(komponentenAbfrage.komponentenVon(any())).thenReturn(Set.of());
 
 		mockMvc.perform(get("/api/vertraege").with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))))
+				.andExpect(status().isForbidden());
+	}
+
+	@Test
+	void anmeldungIstOeffentlich() throws Exception {
+		// Ohne Body 400 statt 401: Die Security lässt den Request durch.
+		mockMvc.perform(post("/api/anmeldung").with(csrf())).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void abmeldungOhneCsrfTokenAbgelehnt() throws Exception {
+		mockMvc.perform(post("/api/abmeldung").with(oidcLogin()))
 				.andExpect(status().isForbidden());
 	}
 

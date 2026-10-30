@@ -37,16 +37,22 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Keycloak is currently disabled: all `spring.security.oauth2.*` config lives in the `keycloak`
   profile. Without it, `SecurityConfig` registers an open (permitAll) chain for local dev;
   `prod` pulls in `keycloak` via a profile group. `SecurityConfigTests` runs with `dev,keycloak`.
-- Security with `keycloak` profile (`shared/security/SecurityConfig`): one filter chain combining BFF login
-  (`oauth2Login`, session cookie, SPA CSRF cookie) and JWT resource server. `/api/**` requires
-  auth and answers 401 instead of redirecting. Provider endpoints are configured explicitly
-  (not via issuer discovery) so the app and tests start without Keycloak running.
+- Security with `keycloak` profile (`shared/security/SecurityConfig`): one filter chain combining session
+  login and JWT resource server. There is no redirect to Keycloak (no `oauth2Login`): the SPA posts
+  email/password to `POST /api/anmeldung`, `Anmeldung`/`KeycloakTokenClient` use Keycloak's password grant
+  ("Direct access grants") and store the refresh token in the HTTP session (`KeycloakSitzung`);
+  `SitzungErneuernFilter` refreshes it when the access token expires and ends the session if Keycloak
+  refuses. `POST /api/abmeldung` returns 204 and also ends the Keycloak session. Registration logs the
+  user in directly. Unauthenticated requests get 401; SPA CSRF cookie (`XSRF-TOKEN`). The token endpoint
+  is configured explicitly (not via issuer discovery) so the app and tests start without Keycloak running.
   Keycloak roles are deliberately not mapped to authorities (no roles needed yet; see comment there).
+  Open follow-ups are listed in the README under "Spätere Aufgaben".
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
   checks it per request via `KomponentenAbfrage` (implemented in `nutzer`). New module endpoints must live
-  under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`); `Authentication#getName()`
-  is `preferred_username` for session logins.
+  under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID.
+- Tests: `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
+  so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 (compose profile `keycloak`). Tests use Testcontainers instead

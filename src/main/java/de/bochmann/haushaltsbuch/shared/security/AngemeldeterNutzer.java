@@ -8,11 +8,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Ermittelt die Benutzer-ID des angemeldeten Nutzers, unabhängig davon, ob er per Session
- * ({@code oauth2Login}) oder per Bearer-Token angemeldet ist.
- * <p>
- * {@link Authentication#getName()} reicht dafür nicht: Beim Session-Login ist das der
- * {@code preferred_username}, nicht der Claim {@code sub}.
+ * Ermittelt die Benutzer-ID des angemeldeten Nutzers (Claim {@code sub}) als {@link UUID},
+ * unabhängig davon, ob er per Session ({@link Anmeldung}) oder per Bearer-Token angemeldet ist.
  */
 public final class AngemeldeterNutzer {
 

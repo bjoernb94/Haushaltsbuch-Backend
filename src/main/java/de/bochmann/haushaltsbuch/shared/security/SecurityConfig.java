@@ -16,7 +16,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.csrf.CsrfTokenRepository;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -26,8 +28,9 @@ import static org.springframework.security.config.Customizer.withDefaults;
  * Mit Profil {@code keycloak} (in {@code prod} immer aktiv) laufen zwei Wege zur
  * Authentifizierung über dieselbe Filterkette:
  * <ul>
- *   <li><b>BFF</b> ({@code oauth2Login}): Das Backend führt den Login-Flow gegen Keycloak
- *   serverseitig aus, das Frontend erhält nur ein Session-Cookie.</li>
+ *   <li><b>Session</b>: Die SPA schickt E-Mail und Passwort an {@code POST /api/anmeldung}, das
+ *   Backend holt die Tokens direkt bei Keycloak ({@link Anmeldung}), das Frontend erhält nur ein
+ *   Session-Cookie. Es gibt keine Weiterleitung zu Keycloak.</li>
  *   <li><b>Resource Server</b> ({@code oauth2ResourceServer}): Requests mit Bearer-Token
  *   (z.&nbsp;B. Tests, andere Clients) werden gegen den Keycloak-Issuer geprüft.</li>
  * </ul>
@@ -44,6 +47,7 @@ class SecurityConfig {
 	@Bean
 	@Profile("keycloak")
 	SecurityFilterChain keycloakSecurityFilterChain(HttpSecurity http, KomponentenAbfrage komponentenAbfrage,
+			KeycloakTokenClient tokenClient, CsrfTokenRepository csrfTokenRepository,
 			@Value("${haushaltsbuch.security.openapi-public:false}") boolean openApiPublic) throws Exception {
 		http.authorizeHttpRequests(auth -> {
 			auth.requestMatchers("/actuator/health/**", "/actuator/info").permitAll();
@@ -51,7 +55,7 @@ class SecurityConfig {
 				auth.requestMatchers(OPENAPI_PATHS).permitAll();
 			}
 			// Eigenes Registrierungsformular der SPA; legt das Konto über die Keycloak Admin API an.
-			auth.requestMatchers(HttpMethod.POST, "/api/registrierung").permitAll();
+			auth.requestMatchers(HttpMethod.POST, "/api/registrierung", "/api/anmeldung").permitAll();
 			// Fachbereiche nur mit gebuchter Komponente, sonst 403.
 			auth.requestMatchers("/api/buchungen/**").access(gebucht(Komponente.FINANZUEBERSICHT, komponentenAbfrage));
 			auth.requestMatchers("/api/vertraege/**").access(gebucht(Komponente.VERTRAGSUEBERSICHT, komponentenAbfrage));
@@ -61,26 +65,30 @@ class SecurityConfig {
 			auth.anyRequest().authenticated();
 		});
 
-		// BFF: Login-Flow serverseitig. Die Client-Registrierung "keycloak"
-		// (Realm, Client-ID, Client-Secret) wird in application.yml konfiguriert.
-		http.oauth2Login(withDefaults());
+		// Prüft bei Session-Anmeldungen regelmäßig, ob die Sitzung bei Keycloak noch besteht.
+		http.addFilterBefore(new SitzungErneuernFilter(tokenClient), SecurityContextHolderFilter.class);
+
+		// POST /api/abmeldung beendet die Session im Backend und die Sitzung bei Keycloak.
+		http.logout(logout -> logout
+				.logoutUrl("/api/abmeldung")
+				.addLogoutHandler(new KeycloakLogoutHandler(tokenClient))
+				.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)));
 
 		// Keycloak-Rollen werden bewusst nicht ausgewertet; der Zugriff auf Fachbereiche hängt an den
 		// gebuchten Komponenten. Werden später Rollen gebraucht (z. B. Admin-Bereich): Keycloak liefert
 		// sie unter "realm_access.roles" bzw. "resource_access.<client-id>.roles". Dann einen
 		// JwtAuthenticationConverter mit eigenem GrantedAuthoritiesConverter registrieren
-		// (rs.jwt(jwt -> jwt.jwtAuthenticationConverter(...))) und für oauth2Login analog einen
-		// GrantedAuthoritiesMapper bereitstellen.
+		// (rs.jwt(jwt -> jwt.jwtAuthenticationConverter(...))) und in Anmeldung die Authorities
+		// des DefaultOidcUser aus dem Access Token befüllen.
 		http.oauth2ResourceServer(rs -> rs.jwt(withDefaults()));
 
-		// API-Aufrufe ohne Anmeldung erhalten 401 statt eines Redirects auf die Login-Seite.
-		http.exceptionHandling(ex -> ex.defaultAuthenticationEntryPointFor(
-				new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
-				PathPatternRequestMatcher.withDefaults().matcher("/api/**")));
+		// Ohne Anmeldung 401; eine Login-Seite im Backend gibt es nicht.
+		http.exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
 
 		// Session-Cookie im BFF-Muster erfordert CSRF-Schutz; das Token wird als Cookie
 		// (XSRF-TOKEN) an die SPA ausgeliefert und als Header X-XSRF-TOKEN zurückerwartet.
-		http.csrf(csrf -> csrf.spa());
+		// Eigenes Repository, damit die Anmeldung das Token erneuern kann.
+		http.csrf(csrf -> csrf.spa().csrfTokenRepository(csrfTokenRepository));
 
 		return http.build();
 	}

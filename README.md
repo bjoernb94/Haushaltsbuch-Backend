@@ -47,8 +47,15 @@ möglich. In `prod` ist `keycloak` über eine Profilgruppe immer aktiv.
    ```bash
    SPRING_PROFILES_ACTIVE=dev,keycloak KEYCLOAK_CLIENT_SECRET=<secret> ./mvnw spring-boot:run
    ```
-3. Login testen: http://localhost:8080/oauth2/authorization/keycloak leitet zur Anmeldeseite
-   von Keycloak weiter.
+3. Anmeldung testen, z.&nbsp;B. mit curl (CSRF-Token aus dem Cookie holen, dann anmelden):
+
+   ```bash
+   curl -s -c /tmp/kc.txt http://localhost:8080/actuator/health >/dev/null
+   XSRF=$(awk '/XSRF-TOKEN/{print $7}' /tmp/kc.txt)
+   curl -i -b /tmp/kc.txt -c /tmp/kc.txt -H "X-XSRF-TOKEN: $XSRF" -H 'Content-Type: application/json' \
+     -d '{"email":"max@example.org","passwort":"Geheim123!"}' http://localhost:8080/api/anmeldung
+   curl -b /tmp/kc.txt http://localhost:8080/api/nutzer/ich/komponenten
+   ```
 
 ### Docker Compose
 
@@ -103,16 +110,23 @@ Einmalig pro Keycloak-Instanz in der Admin-Konsole (lokal http://localhost:8180,
 4. **Client anlegen:** *Clients* → *Create client*:
    - *Client type* `OpenID Connect`, *Client ID* `haushaltsbuch-backend`
    - *Client authentication* **an** (Confidential Client)
-   - *Authentication flow*: *Standard flow* **an**, *Service accounts roles* **an**,
-     *Direct access grants* **aus**
-   - *Valid redirect URIs*: `http://localhost:8080/login/oauth2/code/keycloak`
-     (in prod die echte Basis-URL des Backends)
+   - *Authentication flow*: *Direct access grants* **an** (Anmeldung mit E-Mail und Passwort
+     über das Backend), *Service accounts roles* **an** (Registrierung), *Standard flow* **aus**
+     (es gibt keine Weiterleitung zu Keycloak, Redirect-URIs werden daher nicht gebraucht)
 5. **Rolle für den Service Account:** *Clients* → `haushaltsbuch-backend` → Reiter
    *Service account roles* → *Assign role* → Filter *Filter by clients* → `manage-users` von
    `realm-management` zuweisen. Ohne diese Rolle schlägt die Registrierung mit einem Fehler der
    Admin API fehl. Die Rolle deckt auch das Löschen ab (siehe [Registrierung](#registrierung)).
 6. **Client-Secret:** Reiter *Credentials* → *Client Secret* kopieren und als
    `KEYCLOAK_CLIENT_SECRET` setzen.
+7. **Sperre nach Fehlversuchen:** *Realm settings* → Reiter *Security defenses* →
+   *Brute force detection* einschalten. Das Login-Formular der SPA prüft Passwörter über das
+   Backend; ohne Sperre ließen sie sich dort beliebig durchprobieren. Der Keycloak-Standard
+   (30 Fehlversuche) ist großzügig, vor prod niedriger ansetzen (z.&nbsp;B. 5–10).
+8. **Keine Pflichtschritte:** Unter *Authentication* → *Required actions* keine Aktion als
+   *Default action* aktivieren und Konten nicht mit temporärem Passwort anlegen. Die Seiten, auf
+   denen Keycloak solche Schritte abfragt, werden nie angezeigt; ein Konto mit offenem
+   Pflichtschritt kann sich nicht anmelden (Antwort 403, `grund` `NICHT_EINGERICHTET`).
 
 Benutzer werden mit der E-Mail-Adresse als Benutzername angelegt.
 
@@ -123,7 +137,7 @@ exportieren und beim Start mit `--import-realm` wieder einspielen, statt die Sch
 
 - Keycloak mit `start` statt `start-dev`, mit HTTPS und eigenem Hostnamen betreiben.
 - Den Bootstrap-Admin durch ein echtes Admin-Konto ersetzen.
-- Redirect-URI des Clients auf die echte Basis-URL des Backends setzen.
+- Backend und Keycloak nur über HTTPS verbinden: Das Backend schickt Passwörter an Keycloak.
 - `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` und `KEYCLOAK_ADMIN_URI`
   setzen; im Profil `prod` gibt es keine Defaults.
 
@@ -131,18 +145,56 @@ exportieren und beim Start mit `--import-realm` wieder einspielen, statt die Sch
 
 Mit Profil `keycloak` gibt es zwei Wege der Anmeldung über dieselbe Filterkette:
 
-- **Session (BFF):** Das Backend führt den Login gegen Keycloak serverseitig aus
-  (Start über `/oauth2/authorization/keycloak`), die SPA erhält nur ein Session-Cookie.
-  Schreibende Anfragen brauchen dann ein CSRF-Token: Das Backend setzt das Cookie `XSRF-TOKEN`,
-  die SPA schickt den Wert im Header `X-XSRF-TOKEN` zurück.
+- **Session:** Die SPA hat ein eigenes Login-Formular und schickt E-Mail und Passwort an
+  `POST /api/anmeldung`. Das Backend holt damit die Tokens direkt bei Keycloak (Password Grant,
+  in Keycloak *Direct access grants*) und legt die Session an; die SPA erhält nur das
+  Session-Cookie. Es gibt keine Weiterleitung zu Keycloak.
 - **Bearer-Token:** Anfragen mit einem Access Token von Keycloak (z.&nbsp;B. andere Clients, Tests)
   werden gegen den Realm geprüft.
 
-Antworten unter `/api/**`: **401** ohne Anmeldung (statt einer Weiterleitung zur Login-Seite),
-**403** bei fehlender Berechtigung oder fehlendem CSRF-Token.
+### Ablauf für die SPA
+
+- **CSRF:** Das Backend setzt das Cookie `XSRF-TOKEN` (bei jeder Antwort, auch bei 401). Jede
+  schreibende Anfrage, auch Anmeldung und Registrierung, schickt den Wert im Header
+  `X-XSRF-TOKEN` zurück. Nach der Anmeldung wird das Token erneuert; Angular liest es dafür
+  ohnehin vor jeder Anfrage neu aus dem Cookie.
+- **Beim Start:** `GET /api/nutzer/ich/komponenten`. **401** → Login-Seite zeigen, **200** →
+  angemeldet, Bereiche nach der Liste einblenden.
+- **Anmeldung:** `POST /api/anmeldung` mit `{"email": "...", "passwort": "..."}`.
+  - **204**: angemeldet, Session-Cookie gesetzt
+  - **401**, `grund` `UNGUELTIG`: E-Mail-Adresse oder Passwort falsch
+  - **403**, `grund` `GESPERRT`: Konto deaktiviert oder nach Fehlversuchen vorübergehend gesperrt
+  - **403**, `grund` `NICHT_EINGERICHTET`: in Keycloak stehen Pflichtschritte aus
+  - **400**: Felder fehlen
+- **Registrierung:** Nach **201** ist der Nutzer direkt angemeldet. Scheitert nur die automatische
+  Anmeldung, bleibt es bei 201 und die SPA zeigt die Login-Seite (erkennbar an der 401 beim
+  nächsten Aufruf).
+- **Abmeldung:** `POST /api/abmeldung` → **204**. Beendet die Session im Backend und die Sitzung
+  bei Keycloak.
+
+Die SPA muss das Backend über denselben Origin erreichen, lokal über den Angular-Dev-Proxy
+(`/api` auf `http://localhost:8080`). Nur dann schickt der Browser Session- und XSRF-Cookie mit;
+CORS ist im Backend nicht konfiguriert.
+
+### Sitzung
+
+Die Session im Backend speichert das Refresh Token von Keycloak. Läuft das Access Token ab
+(Standard 5 Minuten), erneuert das Backend die Sitzung beim nächsten Request bei Keycloak.
+Lehnt Keycloak das ab (Sitzung abgelaufen oder in Keycloak beendet, Konto deaktiviert), wird
+die Session beendet und der Request erhält 401. Ein in Keycloak gesperrter Nutzer ist also
+spätestens nach Ablauf des Access Tokens abgemeldet. Ist Keycloak nicht erreichbar, bleibt die
+Session bestehen und die Erneuerung wird beim nächsten Request wiederholt.
+
+Wie lange eine Anmeldung ohne Aktivität hält, bestimmt das Kürzere aus Session-Timeout des
+Backends (Standard 30 Minuten) und *SSO Session Idle* im Realm (Standard 30 Minuten).
+
+### Antworten und öffentliche Endpunkte
+
+Antworten unter `/api/**`: **401** ohne Anmeldung, **403** bei fehlender Berechtigung oder
+fehlendem CSRF-Token.
 
 Öffentlich ohne Anmeldung sind nur `/actuator/health/**`, `/actuator/info`,
-`POST /api/registrierung` und im dev-Profil die OpenAPI-Dokumentation.
+`POST /api/registrierung`, `POST /api/anmeldung` und im dev-Profil die OpenAPI-Dokumentation.
 
 ### Komponenten
 
@@ -164,9 +216,8 @@ liegen**; ein Endpunkt außerhalb ist für jeden angemeldeten Nutzer erreichbar.
 Die SPA fragt die gebuchten Komponenten über `GET /api/nutzer/ich/komponenten` ab und blendet
 danach Bereiche ein oder aus. Das ist reine Anzeige, der Schutz liegt im Backend.
 
-Die Nutzer-ID im Code ist immer die Keycloak-ID (Claim `sub`), ermittelt über
-`AngemeldeterNutzer.id(...)`. `Authentication#getName()` liefert beim Session-Login den
-Benutzernamen (`preferred_username`), nicht die ID.
+Die Nutzer-ID im Code ist immer die Keycloak-ID (Claim `sub`), als `UUID` ermittelt über
+`AngemeldeterNutzer.id(...)`.
 
 Keycloak-Rollen werden derzeit nicht ausgewertet. Werden sie später gebraucht (z.&nbsp;B. für einen
 Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
@@ -177,7 +228,8 @@ Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
 |-----------------------------------|-----------------|-------------------------------------------------|
 | `POST /api/registrierung`         | öffentlich      | Konto in Keycloak und Nutzer anlegen            |
 | `GET /api/nutzer/ich/komponenten` | angemeldet      | Gebuchte Komponenten, z.&nbsp;B. `["PORTFOLIO"]`|
-| `/oauth2/authorization/keycloak`  | öffentlich      | Startet den Login (Session)                     |
+| `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
+| `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 
 Die vollständige API-Beschreibung liefert die Swagger UI (`/swagger-ui.html`, nur dev).
@@ -197,7 +249,7 @@ Die vollständige API-Beschreibung liefert die Swagger UI (`/swagger-ui.html`, n
 ```
 
 Antworten: **201** angelegt, **400** ungültige Daten oder Passwort von Keycloak abgelehnt,
-**409** E-Mail bereits vergeben. Danach meldet sich der Nutzer über den normalen Login an.
+**409** E-Mail bereits vergeben. Nach 201 ist der Nutzer direkt angemeldet.
 
 Ablauf: Erst wird das Konto über die Keycloak Admin API angelegt, dann der Nutzer mit seinen
 Komponenten gespeichert. Schlägt das Speichern fehl, wird das Konto wieder gelöscht. Schlägt
@@ -207,15 +259,28 @@ entfernt werden“*; das Konto dann in Keycloak unter *Users* löschen.
 Ein Konto, das direkt in Keycloak angelegt wird, hat keinen Nutzer in unserer Datenbank und
 damit keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
 
-### Bekannte Einschränkungen
+### Spätere Aufgaben
 
-- **Logout:** Es ist kein OIDC-Logout bei Keycloak konfiguriert. `POST /logout` beendet nur die
-  Session im Backend; die Session bei Keycloak bleibt bestehen, der nächste Login geht ohne
-  Passwortabfrage durch.
-- **Kein Ändern der Komponenten:** Komponenten werden nur bei der Registrierung gesetzt.
-- **Weiterleitung nach dem Login:** Nach dem Login leitet das Backend auf seine eigene Startseite
-  (bzw. die zuvor angefragte Seite) weiter. Läuft die SPA unter einer anderen Adresse, muss das
-  angepasst werden.
+- **Passwort vergessen:** Fehlt noch. Da die Keycloak-Seiten nicht genutzt werden, braucht es
+  einen eigenen Ablauf (Link per E-Mail, eigenes Formular, neues Passwort über die Admin API)
+  und dafür einen Mailserver.
+- **Sofortige Abmeldung bei Ende der Keycloak-Sitzung:** Bisher erkennt das Backend eine in
+  Keycloak beendete Sitzung erst bei der nächsten Erneuerung (spätestens nach Ablauf des
+  Access Tokens). Für sofortige Wirkung den Back-Channel-Logout von Keycloak selbst umsetzen:
+  einen Endpunkt, den Keycloak mit einem Logout-Token aufruft (*Backchannel logout URL* am
+  Client), und die zugehörige Session beenden. Die fertige Lösung von Spring
+  (`oidcLogout`) setzt den hier nicht genutzten `oauth2Login` voraus.
+- **Sessions über Neustarts hinweg:** Sessions liegen im Speicher des Backends. Ein Neustart
+  meldet alle Nutzer ab, mehrere Instanzen teilen sich keine Sessions. Bei Bedarf Spring Session
+  (z.&nbsp;B. mit JDBC) einsetzen.
+- **Zusätzliche Begrenzung der Anmeldeversuche:** Die Sperre in Keycloak gilt je Konto. Gegen
+  das Durchprobieren vieler Konten hilft eine Begrenzung je IP-Adresse vor `/api/anmeldung`
+  (Reverse Proxy oder im Backend).
+- **Bearer-Token:** Für Anfragen mit Bearer-Token gibt es keinen Logout im Backend; ein Token gilt
+  bis zu seinem Ablauf. Die *Access Token Lifespan* im Realm (Standard 5 Minuten) kurz halten und
+  vor prod prüfen.
+- **Komponenten ändern:** Komponenten werden bisher nur bei der Registrierung gesetzt; ein
+  Endpunkt zum Hinzu- oder Abbuchen fehlt.
 
 ## Konfiguration
 
@@ -235,7 +300,7 @@ gibt es Defaults für die lokale Entwicklung, im Profil `prod` sind alle Variabl
 | `DOCKER_COMPOSE_ENABLED` | `false`                                          |
 
 Die `KEYCLOAK_*`-Variablen werden nur mit Profil `keycloak` ausgewertet. `KEYCLOAK_ADMIN_URI`
-zeigt auf die Admin REST API des Realms, über die die Registrierung Konten anlegt; Login und
+zeigt auf die Admin REST API des Realms, über die die Registrierung Konten anlegt; Anmeldung und
 Admin API nutzen denselben Client und dasselbe Secret.
 
 Die Keycloak-Endpunkte sind explizit konfiguriert statt über OIDC-Discovery. Dadurch startet

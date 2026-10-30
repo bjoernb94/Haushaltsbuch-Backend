@@ -79,17 +79,10 @@ spring:
         jwt:
           issuer-uri: ${haushaltsbuch.keycloak.issuer-uri}
           jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
-      # BFF: serverseitiger Login-Flow.
+      # Die Anmeldung der Nutzer läuft nicht über Spring-OAuth2-Login, sondern über
+      # POST /api/anmeldung (siehe Anmeldung, KeycloakTokenClient).
       client:
         registration:
-          keycloak:
-            client-id: ${haushaltsbuch.keycloak.client-id}
-            client-secret: ${haushaltsbuch.keycloak.client-secret}
-            authorization-grant-type: authorization_code
-            # Für eigene Provider setzt Spring Boot keinen Default, muss zur
-            # Redirect-URI des Clients in Keycloak passen.
-            redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
-            scope: openid, profile, email
           # Service Account für die Keycloak Admin API (Registrierung, siehe KeycloakAdminConfig).
           # Der Client braucht dafür "Service accounts roles" und die Rolle realm-management/manage-users.
           keycloak-admin:
@@ -99,13 +92,9 @@ spring:
             authorization-grant-type: client_credentials
         provider:
           keycloak:
-            # Endpunkte explizit statt über issuer-uri, damit der Start nicht
+            # Endpunkt explizit statt über issuer-uri, damit der Start nicht
             # von der Erreichbarkeit von Keycloak (OIDC-Discovery) abhängt.
-            authorization-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/auth
             token-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/token
-            user-info-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/userinfo
-            jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
-            user-name-attribute: preferred_username
 
 ---
 spring:

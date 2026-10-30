@@ -34,7 +34,7 @@ class KeycloakAdminConfig {
 			OAuth2AuthorizedClientService authorizedClients,
 			@Value("${haushaltsbuch.keycloak.admin-uri}") String adminUri) {
 		// Bewusst kein eigenes OAuth2AuthorizedClientManager-Bean, um das von Spring Security
-		// für den Login-Flow registrierte nicht zu ersetzen.
+		// registrierte nicht zu ersetzen.
 		var clientManager = new AuthorizedClientServiceOAuth2AuthorizedClientManager(clientRegistrations,
 				authorizedClients);
 		var oauth2 = new OAuth2ClientHttpRequestInterceptor(clientManager);
