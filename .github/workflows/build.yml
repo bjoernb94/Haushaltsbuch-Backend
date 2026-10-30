@@ -2,7 +2,10 @@
 name: Build
 
 on:
+  # Nur main: Branches mit offenem PR (z. B. von Dependabot) baut bereits pull_request,
+  # sonst liefe der Build doppelt.
   push:
+    branches: [main]
   pull_request:
 
 jobs:

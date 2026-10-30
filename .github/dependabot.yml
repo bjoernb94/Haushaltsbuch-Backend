@@ -1,0 +1,56 @@
+# Automatische Aktualisierung der Abhängigkeiten. Dependabot öffnet dafür Pull Requests,
+# die der Build-Workflow (.github/workflows/build.yml) prüft.
+version: 2
+updates:
+  # Maven: Spring Boot (Parent) und alle Bibliotheken aus pom.xml
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Spring Boot, Spring Modulith und Spring Security gemeinsam, sie hängen eng zusammen.
+      spring:
+        patterns:
+          - "org.springframework*"
+      testcontainers:
+        patterns:
+          - "org.testcontainers*"
+      # Alle übrigen kleineren Updates in einem PR statt vieler einzelner.
+      sonstige:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # GitHub Actions in .github/workflows (checkout, setup-java, upload-artifact)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Container-Images in compose.yaml (PostgreSQL, Keycloak). Keycloak-Updates vor dem Merge
+  # lokal mit Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"
+    ignore:
+      # Ein PostgreSQL-Major-Update braucht eine Migration der Daten (pg_upgrade oder Dump),
+      # das Volume ist nicht kompatibel. Bewusst von Hand machen.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]

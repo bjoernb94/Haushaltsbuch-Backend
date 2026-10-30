@@ -322,8 +322,13 @@ durch Mocks. `ModularityTests` prüft die Modulstruktur mit Spring Modulith.
 Zum lokalen Start mit Testcontainers statt Docker Compose:
 `TestHaushaltsbuchBackendApplication` (unter `src/test`) ausführen.
 
-Die GitHub Action `.github/workflows/build.yml` führt bei jedem Push und Pull Request
-`./mvnw verify` aus und lädt bei Fehlern die Testberichte hoch.
+Die GitHub Action `.github/workflows/build.yml` führt bei jedem Push auf `main` und bei jedem
+Pull Request `./mvnw verify` aus und lädt bei Fehlern die Testberichte hoch.
+
+Dependabot (`.github/dependabot.yml`) öffnet Pull Requests für neue Versionen: Maven wöchentlich,
+GitHub Actions und die Images aus `compose.yaml` monatlich. Major-Updates von PostgreSQL sind
+ausgenommen, weil sie eine Datenmigration brauchen. Keycloak-Updates vor dem Merge lokal mit
+Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
 
 ### IntelliJ Run Configurations
 
