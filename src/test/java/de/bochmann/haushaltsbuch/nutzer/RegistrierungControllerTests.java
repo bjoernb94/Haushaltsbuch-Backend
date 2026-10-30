@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
 import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

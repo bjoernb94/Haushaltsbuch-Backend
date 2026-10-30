@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
+import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,9 +9,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
@@ -39,7 +43,7 @@ class SecurityConfig {
 
 	@Bean
 	@Profile("keycloak")
-	SecurityFilterChain keycloakSecurityFilterChain(HttpSecurity http,
+	SecurityFilterChain keycloakSecurityFilterChain(HttpSecurity http, KomponentenAbfrage komponentenAbfrage,
 			@Value("${haushaltsbuch.security.openapi-public:false}") boolean openApiPublic) throws Exception {
 		http.authorizeHttpRequests(auth -> {
 			auth.requestMatchers("/actuator/health/**", "/actuator/info").permitAll();
@@ -48,8 +52,11 @@ class SecurityConfig {
 			}
 			// Eigenes Registrierungsformular der SPA; legt das Konto über die Keycloak Admin API an.
 			auth.requestMatchers(HttpMethod.POST, "/api/registrierung").permitAll();
-			// TODO Keycloak: Rollenbasierte Regeln ergänzen, z. B.
-			// auth.requestMatchers("/api/admin/**").hasRole("ADMIN");
+			// Fachbereiche nur mit gebuchter Komponente, sonst 403.
+			auth.requestMatchers("/api/buchungen/**").access(gebucht(Komponente.FINANZUEBERSICHT, komponentenAbfrage));
+			auth.requestMatchers("/api/vertraege/**").access(gebucht(Komponente.VERTRAGSUEBERSICHT, komponentenAbfrage));
+			auth.requestMatchers("/api/versorgung/**").access(gebucht(Komponente.VERSORGUNGSVERTRAEGE, komponentenAbfrage));
+			auth.requestMatchers("/api/portfolio/**").access(gebucht(Komponente.PORTFOLIO, komponentenAbfrage));
 			auth.requestMatchers("/api/**").authenticated();
 			auth.anyRequest().authenticated();
 		});
@@ -58,12 +65,12 @@ class SecurityConfig {
 		// (Realm, Client-ID, Client-Secret) wird in application.yml konfiguriert.
 		http.oauth2Login(withDefaults());
 
-		// TODO Keycloak: Rollen-Mapping für Bearer-Tokens ergänzen. Keycloak liefert
-		// Realm-Rollen unter "realm_access.roles" und Client-Rollen unter
-		// "resource_access.<client-id>.roles"; dafür einen JwtAuthenticationConverter
-		// mit eigenem GrantedAuthoritiesConverter registrieren:
-		// http.oauth2ResourceServer(rs -> rs.jwt(jwt -> jwt.jwtAuthenticationConverter(...)));
-		// Für oauth2Login analog einen GrantedAuthoritiesMapper / OidcUserService bereitstellen.
+		// Keycloak-Rollen werden bewusst nicht ausgewertet; der Zugriff auf Fachbereiche hängt an den
+		// gebuchten Komponenten. Werden später Rollen gebraucht (z. B. Admin-Bereich): Keycloak liefert
+		// sie unter "realm_access.roles" bzw. "resource_access.<client-id>.roles". Dann einen
+		// JwtAuthenticationConverter mit eigenem GrantedAuthoritiesConverter registrieren
+		// (rs.jwt(jwt -> jwt.jwtAuthenticationConverter(...))) und für oauth2Login analog einen
+		// GrantedAuthoritiesMapper bereitstellen.
 		http.oauth2ResourceServer(rs -> rs.jwt(withDefaults()));
 
 		// API-Aufrufe ohne Anmeldung erhalten 401 statt eines Redirects auf die Login-Seite.
@@ -76,6 +83,18 @@ class SecurityConfig {
 		http.csrf(csrf -> csrf.spa());
 
 		return http.build();
+	}
+
+	/**
+	 * Erlaubt den Zugriff nur, wenn der angemeldete Nutzer die Komponente gebucht hat. Die
+	 * Komponenten werden bei jeder Anfrage gelesen, damit Änderungen sofort greifen. Anonyme
+	 * Anfragen werden abgelehnt und erhalten über den Entry Point 401.
+	 */
+	private static AuthorizationManager<RequestAuthorizationContext> gebucht(Komponente komponente,
+			KomponentenAbfrage komponentenAbfrage) {
+		return (authentication, kontext) -> new AuthorizationDecision(AngemeldeterNutzer.id(authentication.get())
+				.map(id -> komponentenAbfrage.komponentenVon(id).contains(komponente))
+				.orElse(false));
 	}
 
 	/**

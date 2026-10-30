@@ -41,7 +41,12 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   (`oauth2Login`, session cookie, SPA CSRF cookie) and JWT resource server. `/api/**` requires
   auth and answers 401 instead of redirecting. Provider endpoints are configured explicitly
   (not via issuer discovery) so the app and tests start without Keycloak running.
-  Keycloak role mapping is still a TODO in that class.
+  Keycloak roles are deliberately not mapped to authorities (no roles needed yet; see comment there).
+- Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
+  roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
+  checks it per request via `KomponentenAbfrage` (implemented in `nutzer`). New module endpoints must live
+  under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`); `Authentication#getName()`
+  is `preferred_username` for session logins.
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 (compose profile `keycloak`). Tests use Testcontainers instead

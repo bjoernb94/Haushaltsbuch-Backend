@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import de.bochmann.haushaltsbuch.shared.Komponente;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;

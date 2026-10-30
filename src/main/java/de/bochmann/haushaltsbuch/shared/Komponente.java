@@ -1,4 +1,4 @@
-package de.bochmann.haushaltsbuch.nutzer;
+package de.bochmann.haushaltsbuch.shared;
 
 /**
  * Komponenten der Anwendung, die ein Nutzer bei der Registrierung auswählt.

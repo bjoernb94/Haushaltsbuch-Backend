@@ -56,7 +56,7 @@ management:
 
 haushaltsbuch:
   keycloak:
-    # TODO Keycloak: Realm "haushaltsbuch" in Keycloak anlegen.
+    # Einrichtung von Realm und Client: siehe README, Abschnitt "Keycloak einrichten".
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
     client-id: ${KEYCLOAK_CLIENT_ID:haushaltsbuch-backend}
     client-secret: ${KEYCLOAK_CLIENT_SECRET:}
@@ -83,8 +83,6 @@ spring:
       client:
         registration:
           keycloak:
-            # TODO Keycloak: Client im Realm anlegen (Confidential Client,
-            # Standard Flow, Redirect-URI {baseUrl}/login/oauth2/code/keycloak).
             client-id: ${haushaltsbuch.keycloak.client-id}
             client-secret: ${haushaltsbuch.keycloak.client-secret}
             authorization-grant-type: authorization_code
@@ -93,10 +91,7 @@ spring:
             redirect-uri: '{baseUrl}/login/oauth2/code/{registrationId}'
             scope: openid, profile, email
           # Service Account für die Keycloak Admin API (Registrierung, siehe KeycloakAdminConfig).
-          # TODO Keycloak: Am Client "Service accounts roles" aktivieren und die Rolle
-          # realm-management/manage-users zuweisen. Im Realm unter Login "User registration"
-          # ausgeschaltet lassen (Konten entstehen nur über POST /api/registrierung),
-          # "Login with email" an, "Duplicate emails" aus, Passwort-Richtlinie festlegen.
+          # Der Client braucht dafür "Service accounts roles" und die Rolle realm-management/manage-users.
           keycloak-admin:
             provider: keycloak
             client-id: ${haushaltsbuch.keycloak.client-id}
