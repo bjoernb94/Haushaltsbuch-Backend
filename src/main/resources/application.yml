@@ -92,7 +92,7 @@ management:
 
 haushaltsbuch:
   keycloak:
-    # Einrichtung von Realm und Client: siehe README, Abschnitt "Keycloak einrichten".
+    # Einrichtung von Realm und Client: siehe docs/betrieb.md, Abschnitt "Keycloak einrichten".
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
     client-id: ${KEYCLOAK_CLIENT_ID:haushaltsbuch-backend}
     # Passt zum Realm-Import (docker/keycloak/import); nur für dev.
