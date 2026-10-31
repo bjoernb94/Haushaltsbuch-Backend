@@ -277,9 +277,11 @@ schlicht „nicht gefunden“ (404).
   einmal je Request ermittelt (`HaushaltAbfrage`, implementiert im Modul `haushalt` per JDBC).
 - **Ohne Request** (Listener, Jobs): `HaushaltKontext.fuer(haushaltId, () -> …)`; die Transaktion
   muss darin beginnen.
-- **Ohne Haushalt** (anonym, Registrierung, Konto ohne Haushalt): Platzhalter
-  `HaushaltKontext.KEIN_HAUSHALT`, weil Hibernate für jede Session einen Wert verlangt. Abfragen auf
-  Fachdaten liefern dann nichts; Speichern schlägt fehl.
+- **Ohne Haushalt**: Platzhalter `HaushaltKontext.KEIN_HAUSHALT`, weil Hibernate für jede Session
+  einen Wert verlangt. Abfragen auf Fachdaten liefern dann nichts; Speichern schlägt fehl. Das
+  betrifft anonyme Requests (auch die Registrierung, die den Haushalt erst anlegt) und Code ohne
+  Request und ohne `fuer(...)`. Registrierte Nutzer haben immer einen Haushalt; nur Konten, die
+  direkt in Keycloak angelegt wurden, fallen zur Sicherheit ebenfalls darunter.
 - **Nicht gefiltert:** native SQL-Abfragen und Tabellen ohne `FachEntity`. Tabellen mit gemischten
   Zeilen (z.&nbsp;B. Standardkategorien mit `haushalt_id IS NULL` und eigene eines Haushalts) nutzen
   kein `@TenantId` und filtern selbst mit `HaushaltKontext.id()`.
@@ -341,6 +343,16 @@ ist englisch und nur für Entwickler und Logs gedacht.
 Bei `VALIDIERUNG` listet `felder` jeden Verstoß einzeln (ein Feld kann mehrere haben): `code` ist
 der Name der Bean-Validation-Annotation (`NotBlank`, `NotEmpty`, `Size`, `Email` …), `parameter`
 enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
+
+- **Fachliche Prüfungen im Service**, die Bean Validation nicht leisten kann (z.&nbsp;B. unbekannte
+  oder fremde Kategorie), werfen `shared.fehler.UngueltigeEingabeException(feld, code, detail)`. Die
+  Antwort sieht genauso aus, `code` ist ebenfalls ein Name in PascalCase, z.&nbsp;B.
+  `{ "feld": "kategorieId", "code": "Unbekannt", "parameter": {} }`. Diese Codes stehen beim Endpunkt.
+- **Regeln über mehrere Felder** (z.&nbsp;B. Laufzeitende nach Beginn) sind eigene Constraints auf dem
+  Record. Der Validator hängt den Verstoß an das Feld, das die SPA markieren soll
+  (`disableDefaultConstraintViolation()`, `buildConstraintViolationWithTemplate(...).addPropertyNode("laufzeitende")`);
+  sonst ist `feld` leer. `code` ist der Name der Annotation, z.&nbsp;B. `LaufzeitendeNachBeginn`.
+  Beispiel: `FehlerBehandlungTests`.
 
 | `code`                 | Status | Bedeutung                                                     |
 |------------------------|--------|---------------------------------------------------------------|
@@ -469,16 +481,22 @@ Das Datenbankschema wird ausschließlich über Flyway (`src/main/resources/db/mi
 gepflegt; Hibernate prüft es nur (`ddl-auto: validate`). Jede neue Entity braucht daher eine
 Migration, sonst startet die Anwendung nicht.
 
-Namenskonvention: `V<n>__<modul>_<beschreibung>.sql`, z.&nbsp;B. `V3__buchungen_kategorien.sql`.
+Namenskonvention: `V<n>__<modul>_<beschreibung>.sql` mit der nächsten freien Nummer, z.&nbsp;B.
+`V<n>__vertraege_vertrag.sql`.
 Bereits ausgelieferte Migrationen nicht mehr ändern, sondern eine neue anlegen.
 
 Spalten für Geldbeträge und Datum:
 
-| Java                    | Spalte(n)                                                    |
-|-------------------------|--------------------------------------------------------------|
-| `Betrag preis`          | `preis_wert NUMERIC(19, 2)`, `preis_waehrung VARCHAR(3)`     |
-| `LocalDate buchungstag` | `DATE`                                                       |
-| `Instant angelegtAm`    | `TIMESTAMPTZ`                                                |
+| Java                       | Spalte(n)                                                |
+|----------------------------|----------------------------------------------------------|
+| `Betrag preis`             | `preis_wert NUMERIC(19, 2)`, `preis_waehrung VARCHAR(3)` |
+| `LocalDate buchungstag`    | `DATE`                                                   |
+| `Instant angelegtAm`       | `TIMESTAMPTZ`                                            |
+| Enum `Zahlweise zahlweise` | `zahlweise VARCHAR(40)`, `@Enumerated(EnumType.STRING)`  |
+
+Enums werden als Name gespeichert, ohne `CHECK`-Constraint: Maßgeblich ist das Java-Enum, neue
+Werte brauchen so keine Migration. Werte nicht umbenennen oder entfernen, ohne die Daten per
+Migration anzupassen.
 
 Die Namen eingebetteter Werte bildet Hibernate aus Feldname und Komponente
 (`ImplicitNamingStrategyComponentPathImpl`), daher passen mehrere Beträge in eine Tabelle.
@@ -529,7 +547,8 @@ eigenen Spring-Kontext und verlangsamt den Build. Daher gibt es zwei Annotatione
 | Annotation         | Wofür                                              | Kontext                         |
 |--------------------|----------------------------------------------------|---------------------------------|
 | `@IntegrationTest` | Web- und Security-Tests (MockMvc, Filterkette), modulübergreifende Abläufe | ganze Anwendung, ein gemeinsamer Kontext |
-| `@ModuleTest`      | Fachlogik eines Moduls (Services, Repositories)    | nur das Modul der Testklasse (`@ApplicationModuleTest`), einer je Modul |
+| `@ModuleTest`      | Fachlogik eines Moduls (Services, Repositories)    | nur das Modul der Testklasse und `shared` (`@ApplicationModuleTest`), einer je Modul |
+| `@FachmodulTest`   | wie `@ModuleTest`, für Fachmodule mit Fach-Entities | wie `@ModuleTest`, Haushalt-Schnittstellen als Mocks |
 
 `@IntegrationTest` setzt Profil `dev`, Testcontainers und MockMvc und ersetzt alle
 Keycloak-Zugriffe:
@@ -543,8 +562,33 @@ Tests holen sich die Mocks per `@Autowired` und legen ihr Verhalten mit `when(..
 setzt sie nach jedem Test zurück. Eigene `@MockitoBean`s nur in begründeten Ausnahmen, ebenso
 `@DirtiesContext` (Beispiel: `CsrfCookieTests`, das einen frischen Kontext braucht).
 
-`@ModuleTest` startet nur die Beans des eigenen Moduls. Greift das Modul auf Beans anderer Module
-zu, schlägt der Start fehl; diese dann in der Testklasse mit `@MockitoBean` ersetzen.
+`@ModuleTest` startet nur die Beans des eigenen Moduls und von `shared`. `shared` ist ausdrücklich
+eingebunden (`extraIncludes`), weil Spring Modulith sonst alle Beans außerhalb des Moduls entfernt,
+auch `FachdatenConfig` (Auditing, Trennung der Haushalte) und das `Clock`-Bean. Greift das Modul auf
+Beans anderer Module zu, schlägt der Start fehl; diese dann in der Testklasse mit `@MockitoBean`
+ersetzen.
+
+Fachmodule testen ihre Services und Repositories mit `@FachmodulTest`. `shared` braucht
+`HaushaltAbfrage` und `KomponentenAbfrage`, die das Modul `haushalt` implementiert; dort sind beide
+Mocks. Den Haushalt setzt der Test selbst, und die Transaktion beginnt darin, daher Testklasse und
+-methode nicht `@Transactional`:
+
+```java
+@FachmodulTest
+class VertragServiceTests {
+
+	@Test
+	void legtVertragAn() {
+		var vertrag = HaushaltKontext.fuer(UUID.randomUUID(), () -> vertragService.anlegen(anfrage));
+		…
+	}
+
+}
+```
+
+Endpunkte, Security und der Pflicht-Test zur Trennung der Haushalte laufen weiter mit
+`@IntegrationTest`. Reine Berechnungen (z.&nbsp;B. Kündigungstermine) sind Klassen ohne Spring und
+bekommen Unit-Tests mit fester `Clock` bzw. festem Datum.
 Testdaten anderer Module in einem `@IntegrationTest` über deren öffentliche API anlegen
 (z.&nbsp;B. `HaushaltService.anlegen(...)`), nicht über Mocks.
 
@@ -594,8 +638,31 @@ de.bochmann.haushaltsbuch
 ├── portfolio    Depots, Positionen, Kurse
 ├── haushalt     Haushalt, Mitglieder, gebuchte Komponenten
 ├── nutzer       Registrierung, Profil, Konto in Keycloak
-└── shared       Security-Konfiguration, Fehlerbehandlung, gemeinsame Typen (z. B. Komponente, Betrag)
+└── shared       Security, Fehlerbehandlung, Fach-Entities und Trennung der Haushalte (fachdaten),
+                 Betrag (geld), Clock (zeit), Systemstatus, gemeinsame Typen (z. B. Komponente)
 ```
+
+### Aufbau eines Fachmoduls
+
+Innerhalb eines Fachmoduls wird nach Themen in Unterpakete geteilt, jedes Thema mit allem, was
+dazugehört (Entity, Repository, Service, Controller, DTOs). Reine Berechnungen ohne Spring
+bekommen ein eigenes Unterpaket. Beispiel `vertraege`:
+
+```
+vertraege
+├── package-info.java   Modul-Deklaration; im Wurzelpaket nur, was andere Module nutzen dürfen
+├── vertrag             Vertrag, VertragRepository, VertragService, VertragController,
+│                       VertragAnfrage, VertragAntwort, Zahlweise, Vertragsstatus …
+├── kategorie           VertragKategorie, Repository, Controller
+└── berechnung          Kosten, nächste Abbuchung, Kündigung (ohne Spring, mit Unit-Tests)
+```
+
+- Klassen, die nur im eigenen Unterpaket gebraucht werden, bleiben package-private; was ein anderes
+  Unterpaket braucht, ist `public`. Von außerhalb des Moduls sind Unterpakete trotzdem nicht
+  erreichbar, das prüft `ModularityTests`.
+- Braucht ein anderes Modul etwas, liegt es im Wurzelpaket (Service-Fassade, Ereignisse). Ist das
+  nicht sinnvoll, ein Unterpaket mit `@NamedInterface` freigeben.
+- Kleine Module ohne Themen (wie `nutzer`) liegen flach im Wurzelpaket.
 
 ### Module und Abhängigkeiten
 
