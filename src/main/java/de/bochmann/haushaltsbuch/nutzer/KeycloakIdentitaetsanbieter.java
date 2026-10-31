@@ -75,7 +75,7 @@ class KeycloakIdentitaetsanbieter implements Identitaetsanbieter {
 				}
 			}
 		}
-		return "Die Registrierung wurde von Keycloak abgelehnt.";
+		return "Registration was rejected by Keycloak.";
 	}
 
 }

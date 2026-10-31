@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import de.bochmann.haushaltsbuch.shared.fehler.Probleme;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -52,12 +53,12 @@ class RegistrierungController {
 
 	@ExceptionHandler
 	ProblemDetail emailBereitsVergeben(EmailBereitsVergebenException e) {
-		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+		return Probleme.problem(HttpStatus.CONFLICT, "EMAIL_BEREITS_VERGEBEN", e.getMessage());
 	}
 
 	@ExceptionHandler
 	ProblemDetail registrierungAbgelehnt(RegistrierungAbgelehntException e) {
-		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+		return Probleme.problem(HttpStatus.BAD_REQUEST, "REGISTRIERUNG_ABGELEHNT", e.getMessage());
 	}
 
 }

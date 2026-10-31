@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -84,7 +85,9 @@ class RegistrierungControllerTests {
 		mockMvc.perform(post("/api/registrierung")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("ohne-csrf@example.org", "[\"PORTFOLIO\"]")))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("CSRF_TOKEN_UNGUELTIG"));
 	}
 
 	@Test
@@ -92,7 +95,11 @@ class RegistrierungControllerTests {
 		mockMvc.perform(post("/api/registrierung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("leer@example.org", "[]")))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[0].feld").value("komponenten"))
+				.andExpect(jsonPath("$.felder[0].code").value("NotEmpty"));
 	}
 
 	@Test
@@ -100,7 +107,9 @@ class RegistrierungControllerTests {
 		mockMvc.perform(post("/api/registrierung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("unbekannt@example.org", "[\"KALENDER\"]")))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
 	}
 
 	@Test
@@ -108,7 +117,26 @@ class RegistrierungControllerTests {
 		mockMvc.perform(post("/api/registrierung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("keine-email", "[\"PORTFOLIO\"]")))
-				.andExpect(status().isBadRequest());
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[0].feld").value("email"))
+				.andExpect(jsonPath("$.felder[0].code").value("Email"));
+	}
+
+	@Test
+	void zuKurzesPasswortUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"email": "kurz@example.org", "passwort": "kurz", "vorname": "Max", "name": "Muster",
+								 "komponenten": ["PORTFOLIO"]}
+								"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[0].feld").value("passwort"))
+				.andExpect(jsonPath("$.felder[0].code").value("Size"))
+				.andExpect(jsonPath("$.felder[0].parameter.min").value(8));
 	}
 
 	@Test
@@ -120,8 +148,9 @@ class RegistrierungControllerTests {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("vergeben@example.org", "[\"PORTFOLIO\"]")))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.detail").value(
-						"Für die E-Mail-Adresse vergeben@example.org existiert bereits ein Konto."));
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("EMAIL_BEREITS_VERGEBEN"))
+				.andExpect(jsonPath("$.detail").value("An account already exists for email address vergeben@example.org."));
 	}
 
 	@Test
@@ -133,6 +162,7 @@ class RegistrierungControllerTests {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("kurz@example.org", "[\"PORTFOLIO\"]")))
 				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("REGISTRIERUNG_ABGELEHNT"))
 				.andExpect(jsonPath("$.detail").value("Invalid password: minimum length 12."));
 	}
 
