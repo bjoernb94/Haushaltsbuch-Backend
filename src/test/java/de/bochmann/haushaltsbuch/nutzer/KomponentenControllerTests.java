@@ -1,14 +1,10 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
-import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.IntegrationTest;
 import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
@@ -20,10 +16,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@IntegrationTest
 class KomponentenControllerTests {
 
 	@Autowired

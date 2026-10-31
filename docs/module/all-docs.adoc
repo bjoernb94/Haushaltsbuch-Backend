@@ -1,0 +1,31 @@
+== HaushaltsbuchBackendApplication
+plantuml::components.puml[,,format=svg]
+
+== Buchungen
+plantuml::module-buchungen.puml[,,format=svg]
+include::module-buchungen.adoc[]
+
+== Portfolio
+plantuml::module-portfolio.puml[,,format=svg]
+include::module-portfolio.adoc[]
+
+== Shared
+plantuml::module-shared.puml[,,format=svg]
+include::module-shared.adoc[]
+
+== Versorgung
+plantuml::module-versorgung.puml[,,format=svg]
+include::module-versorgung.adoc[]
+
+== Verträge
+plantuml::module-vertraege.puml[,,format=svg]
+include::module-vertraege.adoc[]
+
+== Haushalt
+plantuml::module-haushalt.puml[,,format=svg]
+include::module-haushalt.adoc[]
+
+== Nutzer
+plantuml::module-nutzer.puml[,,format=svg]
+include::module-nutzer.adoc[]
+

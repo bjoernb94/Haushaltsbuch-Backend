@@ -1,23 +1,18 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
-import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.IntegrationTest;
+import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
 import de.bochmann.haushaltsbuch.shared.Komponente;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -28,26 +23,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@IntegrationTest
 class SecurityConfigTests {
 
 	@Autowired
 	private MockMvc mockMvc;
 
-	@MockitoBean
-	private KomponentenAbfrage komponentenAbfrage;
+	@Autowired
+	private HaushaltService haushaltService;
 
-	/** Statt des echten Indikators, damit die Tests nicht von einem laufenden Keycloak abhängen. */
-	@MockitoBean(name = "keycloakHealthIndicator")
+	/** Mock aus {@code @IntegrationTest}, meldet ohne eigene Vorgabe {@code UP}. */
+	@Autowired
+	@Qualifier("keycloakHealthIndicator")
 	private HealthIndicator keycloakHealthIndicator;
-
-	@BeforeEach
-	void keycloakErreichbar() {
-		when(keycloakHealthIndicator.health(anyBoolean())).thenReturn(Health.up().build());
-	}
 
 	@Test
 	void healthIsPublic() throws Exception {
@@ -87,7 +75,7 @@ class SecurityConfigTests {
 	@Test
 	void bereichMitGebuchterKomponenteErlaubt() throws Exception {
 		UUID id = UUID.randomUUID();
-		when(komponentenAbfrage.komponentenVon(id)).thenReturn(Set.of(Komponente.PORTFOLIO));
+		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO));
 
 		// Noch kein Controller unter /api/portfolio: 404 heißt, die Security hat durchgelassen.
 		mockMvc.perform(get("/api/portfolio").with(jwt().jwt(token -> token.subject(id.toString()))))
@@ -97,7 +85,7 @@ class SecurityConfigTests {
 	@Test
 	void bereichOhneGebuchteKomponenteVerboten() throws Exception {
 		UUID id = UUID.randomUUID();
-		when(komponentenAbfrage.komponentenVon(id)).thenReturn(Set.of(Komponente.PORTFOLIO));
+		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO));
 
 		mockMvc.perform(get("/api/buchungen/2026").with(jwt().jwt(token -> token.subject(id.toString()))))
 				.andExpect(status().isForbidden());
@@ -105,8 +93,6 @@ class SecurityConfigTests {
 
 	@Test
 	void bereichFuerUnbekanntenNutzerVerboten() throws Exception {
-		when(komponentenAbfrage.komponentenVon(any())).thenReturn(Set.of());
-
 		mockMvc.perform(get("/api/vertraege").with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))))
 				.andExpect(status().isForbidden());
 	}
@@ -126,7 +112,7 @@ class SecurityConfigTests {
 	@Test
 	void bereichPruefungGiltAuchFuerSessionLogin() throws Exception {
 		UUID id = UUID.randomUUID();
-		when(komponentenAbfrage.komponentenVon(id)).thenReturn(Set.of(Komponente.VERSORGUNGSVERTRAEGE));
+		haushaltService.anlegen(id, Set.of(Komponente.VERSORGUNGSVERTRAEGE));
 
 		mockMvc.perform(get("/api/versorgung").with(oidcLogin().idToken(token -> token.subject(id.toString()))))
 				.andExpect(status().isNotFound());
