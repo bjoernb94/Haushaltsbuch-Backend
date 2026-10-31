@@ -65,7 +65,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Business data belongs to a household (module `haushalt`), not to a single user, so several users can share one
   Haushaltsbuch; booked components belong to the household (`haushalt_komponente`). Registration (`nutzer`) creates
   the household via `HaushaltService` in the same transaction as the user. Business tables store `haushalt_id`
-  (no FK across modules), never `nutzer_id`; get it via `AktuellerHaushalt.id(authentication)` and filter every
+  (no FK across modules), never `nutzer_id` as owner (audit columns `angelegt_von`/`geaendert_von` are fine); get it via `AktuellerHaushalt.id(authentication)` and filter every
   access on it. Another household's IDs must yield 404, not 403.
 - Errors are `ProblemDetail` with a stable German `code` property (e.g. `NICHT_GEFUNDEN`, `EMAIL_BEREITS_VERGEBEN`);
   the SPA translates by code, `detail` is English and developer-only. Build them with `shared.fehler.Probleme.problem(...)`.
@@ -81,6 +81,14 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   Request DTOs use `@NotNull @Valid Betrag`. Business dates are `LocalDate`; "today" is `LocalDate.now(clock)` with
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.
+- Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
+  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204. Business entities extend `shared.fachdaten.FachEntity`
+  (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
+  `FachdatenConfig`; see README for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
+  before changing fields (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too).
+  Audit columns are stored but not exposed yet (#42). Paging only for potentially large lists (`Page` serialized
+  `VIA_DTO`). `FachdatenConfig` is in `shared`, so `@ModuleTest` doesn't load it: tests that persist business
+  entities use `@IntegrationTest`.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module

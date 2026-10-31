@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.csrf.CsrfException;
@@ -89,6 +90,15 @@ class FehlerBehandlung extends ResponseEntityExceptionHandler {
 					"Invalid or missing CSRF token.");
 		}
 		return Probleme.problem(HttpStatus.FORBIDDEN, Probleme.KEIN_ZUGRIFF, "Access denied.");
+	}
+
+	/**
+	 * Zwei Änderungen am selben Datensatz zur gleichen Zeit; die zweite scheitert beim Speichern an
+	 * {@code @Version}. Veraltete Versionen vom Client meldet schon {@link KonfliktException}.
+	 */
+	@ExceptionHandler
+	ProblemDetail konflikt(ObjectOptimisticLockingFailureException e) {
+		return Probleme.problem(HttpStatus.CONFLICT, Probleme.KONFLIKT, "The data was modified in the meantime.");
 	}
 
 	/** Unerwartete Fehler: ohne Interna antworten, Details nur ins Log. */

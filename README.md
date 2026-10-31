@@ -343,6 +343,7 @@ enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
 | `CSRF_TOKEN_UNGUELTIG` | 403    | CSRF-Token fehlt oder ist ungültig                            |
 | `NICHT_GEFUNDEN`       | 404    | Unbekannter Pfad oder Datensatz, auch eines fremden Haushalts |
 | `METHODE_NICHT_ERLAUBT`| 405    | HTTP-Methode nicht unterstützt                                |
+| `KONFLIKT`             | 409    | Daten wurden inzwischen geändert (veraltete `version`)        |
 | `INTERNER_FEHLER`      | 500    | Unerwarteter Fehler; Details nur im Log                       |
 
 Dazu kommen die Codes der einzelnen Endpunkte (siehe [Anmeldung](#ablauf-für-die-spa) und
@@ -376,6 +377,24 @@ Geldbeträge sind überall der Typ `shared.geld.Betrag` mit Wert und Währung:
 Fachliche Daten (Buchungsdatum, Vertragsbeginn) sind `LocalDate`, im JSON ISO-8601 (`2026-10-31`).
 „Heute“ bestimmen Module mit `LocalDate.now(clock)` über das `Clock`-Bean (Zeitzone
 Europe/Berlin). Zeitstempel sind `Instant` und werden in UTC gespeichert.
+
+### Fachendpunkte
+
+Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
+
+- **DTOs:** Controller nehmen und liefern Records (z.&nbsp;B. `VertragAnfrage`, `VertragAntwort`), nie
+  Entities. So gelangen interne Felder (`haushalt_id`, Audit-Spalten) nicht in die API, und
+  berechnete Felder haben einen Platz.
+- **Methoden:** `GET` liest, `POST` legt an (**201** mit `Location`-Header und dem angelegten
+  Objekt), `PUT` ändert mit dem ganzen Objekt (**200** mit dem geänderten Objekt), `DELETE` löscht
+  (**204**). Kein `PATCH`.
+- **IDs:** UUIDs; Pfade unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
+- **Gleichzeitige Änderungen:** Jedes Objekt hat eine `version`. Die SPA schickt sie beim `PUT`
+  zurück; ist sie veraltet, weil ein anderes Mitglied inzwischen geändert hat, antwortet das Backend
+  mit **409** `KONFLIKT`, und die SPA lädt neu.
+- **Paging** nur, wo Listen groß werden können. Dann `Pageable` als Parameter (`?page=0&size=20&sort=…`)
+  und `Page` als Antwort; ausgeliefert als `{"content": [...], "page": {"size", "number",
+  "totalElements", "totalPages"}}`.
 
 ### Registrierung
 
@@ -457,6 +476,22 @@ Die Namen eingebetteter Werte bildet Hibernate aus Feldname und Komponente
 (`ImplicitNamingStrategyComponentPathImpl`), daher passen mehrere Beträge in eine Tabelle.
 
 Migrationen nur für Tests liegen in `src/test/resources/db/migration` mit Versionen ab 1000.
+
+Fach-Entities erben von `shared.fachdaten.FachEntity` (ID, `@Version`, Audit-Spalten) und brauchen in
+ihrer Tabelle diese Spalten:
+
+```sql
+id            UUID PRIMARY KEY,
+version       BIGINT      NOT NULL,
+angelegt_am   TIMESTAMPTZ NOT NULL,
+angelegt_von  UUID,
+geaendert_am  TIMESTAMPTZ NOT NULL,
+geaendert_von UUID
+```
+
+Spring Data füllt die Audit-Spalten automatisch; `*_von` ist die Keycloak-ID des angemeldeten
+Nutzers (leer ohne Anmeldung). Sie werden gespeichert, aber noch nicht ausgeliefert
+([#42](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/42)).
 
 Die Tabelle `nutzer` speichert nur die Keycloak-ID; E-Mail, Name und Passwort liegen
 ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalte).

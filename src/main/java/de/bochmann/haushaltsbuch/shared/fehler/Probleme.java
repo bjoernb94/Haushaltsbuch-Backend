@@ -35,6 +35,9 @@ public final class Probleme {
 
 	public static final String METHODE_NICHT_ERLAUBT = "METHODE_NICHT_ERLAUBT";
 
+	/** Gleichzeitige Änderung: Version veraltet, siehe {@link KonfliktException}. */
+	public static final String KONFLIKT = "KONFLIKT";
+
 	public static final String INTERNER_FEHLER = "INTERNER_FEHLER";
 
 	private Probleme() {
@@ -57,6 +60,7 @@ public final class Probleme {
 			case FORBIDDEN -> KEIN_ZUGRIFF;
 			case NOT_FOUND -> NICHT_GEFUNDEN;
 			case METHOD_NOT_ALLOWED -> METHODE_NICHT_ERLAUBT;
+			case CONFLICT -> KONFLIKT;
 			default -> ANFRAGE_UNGUELTIG;
 		};
 	}
