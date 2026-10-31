@@ -14,7 +14,8 @@ public interface HaushaltAbfrage {
 
 	/**
 	 * @param nutzerId Benutzer-ID aus Keycloak (Claim {@code sub})
-	 * @return die ID des Haushalts, leer wenn der Nutzer keinem angehört
+	 * @return die ID des Haushalts, leer wenn der Nutzer keinem angehört (nach der Registrierung
+	 *         nicht vorgesehen, z.&nbsp;B. bei direkt in Keycloak angelegten Konten)
 	 */
 	Optional<UUID> haushaltVon(UUID nutzerId);
 

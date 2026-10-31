@@ -18,8 +18,11 @@ import java.util.function.Supplier;
  *   <li><b>Ohne Request</b> (z.&nbsp;B. Listener, Jobs): ausdrücklich mit {@link #fuer(UUID, Supplier)};
  *   die Transaktion muss darin beginnen, weil Hibernate den Haushalt beim Öffnen der Session liest.</li>
  * </ul>
- * Ohne Haushalt (anonym, Registrierung, Konto ohne Haushalt) gilt {@link #KEIN_HAUSHALT}: Abfragen
- * auf Fachdaten liefern dann nichts, Speichern schlägt fehl.
+ * Ohne Haushalt gilt {@link #KEIN_HAUSHALT}: Abfragen auf Fachdaten liefern dann nichts, Speichern
+ * schlägt fehl. Das betrifft anonyme Requests (auch die Registrierung, die den Haushalt erst anlegt),
+ * Code ohne Request und ohne {@link #fuer(UUID, Supplier)}. Registrierte Nutzer haben immer einen
+ * Haushalt; nur Keycloak-Konten ohne Eintrag in {@code haushalt_mitglied} (z.&nbsp;B. direkt in
+ * Keycloak angelegt) fallen zur Sicherheit ebenfalls darunter.
  */
 @Component
 public class HaushaltKontext {
