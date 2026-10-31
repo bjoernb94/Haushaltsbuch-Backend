@@ -1,12 +1,9 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
 import de.bochmann.haushaltsbuch.shared.Komponente;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authorization.AuthorizationDecision;
@@ -23,10 +20,7 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 import static org.springframework.security.config.Customizer.withDefaults;
 
 /**
- * Grundgerüst der Security-Konfiguration.
- * <p>
- * Mit Profil {@code keycloak} (in {@code prod} immer aktiv) laufen zwei Wege zur
- * Authentifizierung über dieselbe Filterkette:
+ * Security-Konfiguration. Zwei Wege zur Authentifizierung laufen über dieselbe Filterkette:
  * <ul>
  *   <li><b>Session</b>: Die SPA schickt E-Mail und Passwort an {@code POST /api/anmeldung}, das
  *   Backend holt die Tokens direkt bei Keycloak ({@link Anmeldung}), das Frontend erhält nur ein
@@ -34,19 +28,15 @@ import static org.springframework.security.config.Customizer.withDefaults;
  *   <li><b>Resource Server</b> ({@code oauth2ResourceServer}): Requests mit Bearer-Token
  *   (z.&nbsp;B. Tests, andere Clients) werden gegen den Keycloak-Issuer geprüft.</li>
  * </ul>
- * Ohne Profil {@code keycloak} ist die Anwendung für die lokale Entwicklung offen.
  */
 @Configuration
 @EnableWebSecurity
 class SecurityConfig {
 
-	private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
-
 	private static final String[] OPENAPI_PATHS = {"/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"};
 
 	@Bean
-	@Profile("keycloak")
-	SecurityFilterChain keycloakSecurityFilterChain(HttpSecurity http, KomponentenAbfrage komponentenAbfrage,
+	SecurityFilterChain securityFilterChain(HttpSecurity http, KomponentenAbfrage komponentenAbfrage,
 			KeycloakTokenClient tokenClient, CsrfTokenRepository csrfTokenRepository,
 			@Value("${haushaltsbuch.security.openapi-public:false}") boolean openApiPublic) throws Exception {
 		http.authorizeHttpRequests(auth -> {
@@ -103,19 +93,6 @@ class SecurityConfig {
 		return (authentication, kontext) -> new AuthorizationDecision(AngemeldeterNutzer.id(authentication.get())
 				.map(id -> komponentenAbfrage.komponentenVon(id).contains(komponente))
 				.orElse(false));
-	}
-
-	/**
-	 * Offene Filterkette für die lokale Entwicklung ohne Keycloak. Kann in {@code prod}
-	 * nicht greifen, da dort das Profil {@code keycloak} über eine Profilgruppe aktiv ist.
-	 */
-	@Bean
-	@Profile("!keycloak")
-	SecurityFilterChain openSecurityFilterChain(HttpSecurity http) throws Exception {
-		log.warn("Keycloak-Profil nicht aktiv: alle Endpunkte sind ohne Anmeldung erreichbar.");
-		http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-		http.csrf(csrf -> csrf.spa());
-		return http.build();
 	}
 
 }

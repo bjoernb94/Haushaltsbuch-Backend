@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles({"dev", "keycloak"})
+@ActiveProfiles("dev")
 class ProfilControllerTests {
 
 	private static final String PROFIL = """

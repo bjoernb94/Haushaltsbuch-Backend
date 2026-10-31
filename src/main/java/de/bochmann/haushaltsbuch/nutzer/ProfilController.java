@@ -25,7 +25,7 @@ class ProfilController {
 	@GetMapping
 	Profil meinProfil(Authentication authentication) {
 		Map<String, Object> claims = AngemeldeterNutzer.claims(authentication);
-		// Anonym nur ohne Profil keycloak möglich, dort ist die Security offen.
+		// Kann nicht anonym erreicht werden (SecurityConfig); Absicherung für Tokens ohne Claims.
 		if (claims.isEmpty()) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 		}
