@@ -68,10 +68,19 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   (no FK across modules), never `nutzer_id`; get it via `AktuellerHaushalt.id(authentication)` and filter every
   access on it. Another household's IDs must yield 404, not 403.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
-  health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s. Spring tests that assert
-  health status must mock the bean `keycloakHealthIndicator` (see `SecurityConfigTests`).
-- Tests: `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
+  health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
+- Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module
+  flows, or `@ModuleTest` (`@ApplicationModuleTest`, only the test's module) for a module's services/repositories;
+  both live in `src/test` root package. `@IntegrationTest` mocks all Keycloak access (`Identitaetsanbieter`,
+  `KeycloakTokenClient`, bean `keycloakHealthIndicator`, which `KeycloakErreichbar` stubs `UP` before each test) and
+  spies on `Anmeldung`; tests `@Autowired` these and stub with `when(...)`. Don't add per-class `@MockitoBean`s,
+  properties or profiles without need: each variant is a new context. Create other modules' test data via their
+  public API (e.g. `HaushaltService`), not mocks. One Postgres container is shared by all contexts
+  (`TestcontainersConfiguration` starts it statically; not a `@ServiceConnection` bean, since Boot stops those when a
+  context closes). `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
+- `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
+  commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 with the realm import. Tests use Testcontainers instead

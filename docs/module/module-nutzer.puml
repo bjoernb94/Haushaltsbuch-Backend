@@ -1,0 +1,33 @@
+@startuml
+title <size:24>Nutzer</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+!include <C4/C4_Component>
+
+System_Boundary("HaushaltsbuchBackendApplication_boundary", "HaushaltsbuchBackendApplication", $tags="") {
+  Container_Boundary("HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication_boundary", "HaushaltsbuchBackendApplication", $tags="") {
+    Component(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Haushalt, "Haushalt", $techn="Module", $descr="", $tags="", $link="")
+    Component(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Nutzer, "Nutzer", $techn="Module", $descr="", $tags="", $link="")
+    Component(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Shared, "Shared", $techn="Module", $descr="", $tags="", $link="")
+  }
+
+}
+
+Rel(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Haushalt, HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Shared, "depends on", $techn="", $tags="", $link="")
+Rel(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Nutzer, HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Haushalt, "uses", $techn="", $tags="", $link="")
+Rel(HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Nutzer, HaushaltsbuchBackendApplication.HaushaltsbuchBackendApplication.Shared, "uses", $techn="", $tags="", $link="")
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml

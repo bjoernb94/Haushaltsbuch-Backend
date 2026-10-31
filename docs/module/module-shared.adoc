@@ -1,0 +1,7 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Base package
+|`de.bochmann.haushaltsbuch.shared`
+|Spring components
+|* `d.b.h.s.security.Anmeldung`
+|===

@@ -1,19 +1,15 @@
 package de.bochmann.haushaltsbuch.haushalt;
 
-import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.ModuleTest;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
@@ -22,11 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// Gleiche Konfiguration wie KomponentenControllerTests, damit beide denselben Kontext nutzen.
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@ModuleTest
 class HaushaltTests {
 
 	@Autowired

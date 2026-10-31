@@ -388,9 +388,40 @@ ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalt
 ```
 
 Integrationstests starten PostgreSQL per Testcontainers und benötigen daher eine laufende
-Container-Umgebung. Keycloak wird in den Tests nicht gebraucht: Die Tests simulieren die
-Anmeldung (`jwt()`, `oidcLogin()`) und ersetzen den Zugriff auf die Admin API
-durch Mocks. `ModularityTests` prüft die Modulstruktur mit Spring Modulith.
+Container-Umgebung. Ein Container wird für den ganzen Testlauf geteilt. Keycloak wird in den
+Tests nicht gebraucht: Die Tests simulieren die Anmeldung (`jwt()`, `oidcLogin()`), alle Zugriffe
+auf Keycloak sind Mocks. `ModularityTests` prüft die Modulstruktur mit Spring Modulith und
+schreibt die [Modul-Dokumentation](#module-und-abhängigkeiten).
+
+### Aufbau der Tests
+
+Jede abweichende Konfiguration (eigene `@MockitoBean`s, Properties, Profile) erzeugt einen
+eigenen Spring-Kontext und verlangsamt den Build. Daher gibt es zwei Annotationen
+(unter `src/test`, Paket `de.bochmann.haushaltsbuch`):
+
+| Annotation         | Wofür                                              | Kontext                         |
+|--------------------|----------------------------------------------------|---------------------------------|
+| `@IntegrationTest` | Web- und Security-Tests (MockMvc, Filterkette), modulübergreifende Abläufe | ganze Anwendung, ein gemeinsamer Kontext |
+| `@ModuleTest`      | Fachlogik eines Moduls (Services, Repositories)    | nur das Modul der Testklasse (`@ApplicationModuleTest`), einer je Modul |
+
+`@IntegrationTest` setzt Profil `dev`, Testcontainers und MockMvc und ersetzt alle
+Keycloak-Zugriffe:
+
+- `Identitaetsanbieter` (Admin API) und `KeycloakTokenClient` (Token-Endpunkt) sind Mocks,
+  `Anmeldung` ist ein Spy (arbeitet echt gegen den gemockten Token-Endpunkt, lässt sich aber
+  mit `verify`/`doThrow` steuern).
+- Der Health-Indikator `keycloakHealthIndicator` ist ein Mock und meldet vor jedem Test `UP`.
+
+Tests holen sich die Mocks per `@Autowired` und legen ihr Verhalten mit `when(...)` fest; Spring
+setzt sie nach jedem Test zurück. Eigene `@MockitoBean`s nur in begründeten Ausnahmen, ebenso
+`@DirtiesContext` (Beispiel: `CsrfCookieTests`, das einen frischen Kontext braucht).
+
+`@ModuleTest` startet nur die Beans des eigenen Moduls. Greift das Modul auf Beans anderer Module
+zu, schlägt der Start fehl; diese dann in der Testklasse mit `@MockitoBean` ersetzen.
+Testdaten anderer Module in einem `@IntegrationTest` über deren öffentliche API anlegen
+(z.&nbsp;B. `HaushaltService.anlegen(...)`), nicht über Mocks.
+
+Unit-Tests ohne Spring (z.&nbsp;B. `KeycloakTokenClientTests`) brauchen keine der Annotationen.
 
 Zum lokalen Start mit Testcontainers statt Docker Compose:
 `TestHaushaltsbuchBackendApplication` (unter `src/test`) ausführen.
@@ -439,6 +470,28 @@ de.bochmann.haushaltsbuch
 └── shared       Security-Konfiguration, gemeinsame Typen (z. B. Komponente)
 ```
 
+### Module und Abhängigkeiten
+
+```mermaid
+flowchart LR
+    nutzer[Nutzer] --> haushalt[Haushalt]
+    nutzer --> shared[Shared]
+    haushalt --> shared
+    buchungen[Buchungen] -.-> shared
+    vertraege[Verträge] -.-> shared
+    versorgung[Versorgung] -.-> shared
+    portfolio[Portfolio] -.-> shared
+```
+
+Gestrichelt: Module ohne Code bisher, die `shared` nutzen dürfen. Das Diagramm ist von Hand
+gepflegt; maßgeblich sind die Diagramme, die `ModularityTests` bei jedem Testlauf mit dem
+Documenter von Spring Modulith nach [`docs/module`](docs/module) schreibt (PlantUML, z.&nbsp;B.
+`components.puml` für den Überblick und `module-<name>.puml` je Modul, dazu AsciiDoc mit den
+Komponenten je Modul). Die Dateien sind eingecheckt: Ändern sich Module oder Abhängigkeiten,
+erscheint das im Diff und gehört mit in den Commit; dann auch das Diagramm oben anpassen. Die
+GitHub Action prüft nach dem Build, ob `docs/module` dem eingecheckten Stand entspricht, und
+schlägt sonst fehl.
+
 Regeln, die `ModularityTests` prüft:
 
 - Nur das Wurzelpaket eines Moduls ist seine öffentliche API; Unterpakete sind intern.
@@ -452,4 +505,5 @@ Weitere Dateien:
 - `compose.yaml`: PostgreSQL und Keycloak für die lokale Entwicklung
 - `docker/keycloak/import/`: Realm `haushaltsbuch` für den Import beim Start von Keycloak
 - `docker/postgres/init/`: Init-Skript, das die Keycloak-Datenbank anlegt
+- `docs/module/`: von `ModularityTests` erzeugte Modul-Dokumentation
 - `.github/workflows/build.yml`: Build und Tests in GitHub Actions

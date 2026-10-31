@@ -1,18 +1,13 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
-import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.IntegrationTest;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
@@ -30,10 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@IntegrationTest
 class RegistrierungControllerTests {
 
 	@Autowired
@@ -48,10 +40,11 @@ class RegistrierungControllerTests {
 	@Autowired
 	private RegistrierungService registrierungService;
 
-	@MockitoBean
+	@Autowired
 	private Identitaetsanbieter identitaetsanbieter;
 
-	@MockitoBean
+	/** Spy aus {@code @IntegrationTest}. */
+	@Autowired
 	private Anmeldung anmeldung;
 
 	@Test

@@ -1,13 +1,9 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
-import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -18,10 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Eigener, frischer Kontext: {@code csrf()} aus spring-security-test ersetzt das CSRF-Repository
  * im geteilten Kontext dauerhaft, danach würde hier kein echtes Cookie mehr gesetzt.
  */
-@Import(TestcontainersConfiguration.class)
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("dev")
+@IntegrationTest
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 class CsrfCookieTests {
 

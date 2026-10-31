@@ -24,6 +24,17 @@ jobs:
       - name: Build und Tests
         run: ./mvnw -B verify
 
+      # ModularityTests schreibt die Modul-Doku nach docs/module. Weicht sie vom eingecheckten Stand ab
+      # (geändert, neu oder gelöscht), wurde vergessen, die neu erzeugten Dateien zu committen.
+      - name: Modul-Doku aktuell
+        run: |
+          if [ -n "$(git status --porcelain -- docs/module)" ]; then
+            echo "::error::docs/module ist nicht aktuell. Lokal ./mvnw test -Dtest=ModularityTests ausführen und die Änderungen committen."
+            git status --short -- docs/module
+            git diff -- docs/module
+            exit 1
+          fi
+
       - name: Testberichte hochladen
         if: failure()
         uses: actions/upload-artifact@v7
