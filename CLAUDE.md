@@ -4,6 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the README are in German; keep it that way.
 
+## Documentation
+
+`README.md` is the entry point (setup, start, module overview with the Mermaid diagram). Details live in `docs/`:
+`docs/api.md` (contract for the SPA: login, endpoints, error codes, money/date format, business endpoint rules),
+`docs/entwicklung.md` (conventions: modules, household separation, entities, errors, DB, tests, Git),
+`docs/betrieb.md` (Docker Compose, Keycloak setup, configuration, prod, system status) and
+`docs/entscheidungen/` (ADRs; add a new one for architecture decisions instead of rewriting old ones).
+Each topic lives in exactly one place; link instead of repeating. Update the docs together with the code.
+
 ## Commands
 
 ```bash
@@ -40,7 +49,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Package by business domain, not by technical layer. Business modules split into topic subpackages (e.g.
   `vertraege.vertrag`, `vertraege.kategorie`, `vertraege.berechnung` for Spring-free calculations), each with its
   entity, repository, service, controller and DTOs; what other modules may use goes into the root package. Small
-  modules without topics (`nutzer`) stay flat. See README "Aufbau eines Fachmoduls".
+  modules without topics (`nutzer`) stay flat. See `docs/entwicklung.md` "Aufbau eines Fachmoduls".
 - Schema is managed only by Flyway (`src/main/resources/db/migration`); Hibernate runs with
   `ddl-auto: validate`, so every new entity needs a migration. Enums: `VARCHAR(40)` + `@Enumerated(STRING)`, no
   `CHECK` constraint.
@@ -49,7 +58,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Keycloak is always on, also in dev and tests: there is no `keycloak` profile and no open (permitAll) chain.
   The realm is versioned in `docker/keycloak/import/haushaltsbuch-realm.json` (imported via `--import-realm`, only
   if the realm doesn't exist yet; client secret from `KEYCLOAK_CLIENT_SECRET`, dev default `dev-secret` on both
-  sides). Changes to realm settings belong in that file (and the README reference steps).
+  sides). Changes to realm settings belong in that file (and the reference steps in `docs/betrieb.md`).
 - Security (`shared/security/SecurityConfig`): one filter chain combining session
   login and JWT resource server. There is no redirect to Keycloak (no `oauth2Login`): the SPA posts
   email/password to `POST /api/anmeldung`, `Anmeldung`/`KeycloakTokenClient` use Keycloak's password grant
@@ -59,7 +68,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   user in directly. Unauthenticated requests get 401; SPA CSRF cookie (`XSRF-TOKEN`). The token endpoint
   is configured explicitly (not via issuer discovery) so the app and tests start without Keycloak running.
   Keycloak roles are deliberately not mapped to authorities (no roles needed yet; see comment there).
-  Open follow-ups are tracked as GitHub issues (with milestones), not in the README.
+  Open follow-ups are tracked as GitHub issues (with milestones), not in the docs.
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
   checks it per request via `KomponentenAbfrage` (implemented in `haushalt`). New module endpoints must live
@@ -83,7 +92,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   errors centrally: validation (`VALIDIERUNG` with `felder` = field, constraint name, non-default annotation attributes),
   Spring MVC errors, `NichtGefundenException`, catch-all 500, and the security chain's 401/403/CSRF (entry point and
   access-denied handler delegate to `handlerExceptionResolver`). Module-specific errors stay as `@ExceptionHandler` in
-  the module's controller with their own code. New codes go into the README table. Business checks in services
+  the module's controller with their own code. New codes go into the table in `docs/api.md`. Business checks in services
   (e.g. unknown/foreign category) throw `UngueltigeEingabeException(feld, code, detail)` → same `VALIDIERUNG` +
   `felder` format; field codes are PascalCase like constraint names (`Unbekannt`). Cross-field rules are class-level
   constraints whose validator attaches the violation to a field (`addPropertyNode`), otherwise `feld` is null.
@@ -97,7 +106,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
   `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204. Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
-  `FachdatenConfig`; see README for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
+  `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too).
   Audit columns are stored but not exposed yet (#42). Paging only for potentially large lists (`Page` serialized
   `VIA_DTO`).
