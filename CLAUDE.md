@@ -74,6 +74,13 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   Spring MVC errors, `NichtGefundenException`, catch-all 500, and the security chain's 401/403/CSRF (entry point and
   access-denied handler delegate to `handlerExceptionResolver`). Module-specific errors stay as `@ExceptionHandler` in
   the module's controller with their own code. New codes go into the README table.
+- Money is always `shared.geld.Betrag` (value + `Currency`, `@Embedded`, columns `<feld>_wert NUMERIC(19, 2)` and
+  `<feld>_waehrung VARCHAR(3)` via `ImplicitNamingStrategyComponentPathImpl`; JSON `{"wert": 12.34, "waehrung": "EUR"}`,
+  value as number). Only EUR is allowed for now (`ErlaubteWaehrung`, foreign currencies in #30), but never assume
+  one currency: arithmetic only within a currency, sums group by currency. Rounding `HALF_UP`, only in calculations.
+  Request DTOs use `@NotNull @Valid Betrag`. Business dates are `LocalDate`; "today" is `LocalDate.now(clock)` with
+  the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
+  live in `src/test/resources/db/migration` with versions ≥ 1000.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module

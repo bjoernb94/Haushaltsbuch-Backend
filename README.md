@@ -354,6 +354,29 @@ die Controller des Moduls mit `Probleme.problem(status, code, detail)` und einem
 Ausnahme: Anfragen mit ungültigem Bearer-Token beantwortet der Resource Server weiterhin mit
 leerem 401 und `WWW-Authenticate`-Header; die SPA nutzt die Session und ist davon nicht betroffen.
 
+### Geldbeträge und Datum
+
+Geldbeträge sind überall der Typ `shared.geld.Betrag` mit Wert und Währung:
+
+```json
+{ "wert": 12.34, "waehrung": "EUR" }
+```
+
+- Der Wert ist eine JSON-Zahl mit höchstens 2 Nachkommastellen und darf negativ sein. Summen und
+  andere Berechnungen macht das Backend, die SPA formatiert nur.
+- Vorerst ist nur `EUR` erlaubt; der Typ ist für weitere Währungen ausgelegt (Fremdwährungen:
+  [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)). Rechnen geht nur mit
+  Beträgen derselben Währung, Summen gruppieren nach Währung.
+- Rundung kaufmännisch (`HALF_UP`, 2,345 → 2,35), nur bei Berechnungen; Eingaben mit mehr als 2
+  Nachkommastellen werden abgelehnt.
+- Validierung: Request-DTOs markieren Beträge mit `@NotNull @Valid`. Fehler erscheinen in `felder`,
+  z.&nbsp;B. `{ "feld": "preis.wert", "code": "Digits", "parameter": { "integer": 17, "fraction": 2 } }`
+  oder `{ "feld": "preis.waehrung", "code": "ErlaubteWaehrung" }`.
+
+Fachliche Daten (Buchungsdatum, Vertragsbeginn) sind `LocalDate`, im JSON ISO-8601 (`2026-10-31`).
+„Heute“ bestimmen Module mit `LocalDate.now(clock)` über das `Clock`-Bean (Zeitzone
+Europe/Berlin). Zeitstempel sind `Instant` und werden in UTC gespeichert.
+
 ### Registrierung
 
 `POST /api/registrierung` (CSRF-Token nötig):
@@ -421,6 +444,19 @@ Migration, sonst startet die Anwendung nicht.
 
 Namenskonvention: `V<n>__<modul>_<beschreibung>.sql`, z.&nbsp;B. `V3__buchungen_kategorien.sql`.
 Bereits ausgelieferte Migrationen nicht mehr ändern, sondern eine neue anlegen.
+
+Spalten für Geldbeträge und Datum:
+
+| Java                    | Spalte(n)                                                    |
+|-------------------------|--------------------------------------------------------------|
+| `Betrag preis`          | `preis_wert NUMERIC(19, 2)`, `preis_waehrung VARCHAR(3)`     |
+| `LocalDate buchungstag` | `DATE`                                                       |
+| `Instant angelegtAm`    | `TIMESTAMPTZ`                                                |
+
+Die Namen eingebetteter Werte bildet Hibernate aus Feldname und Komponente
+(`ImplicitNamingStrategyComponentPathImpl`), daher passen mehrere Beträge in eine Tabelle.
+
+Migrationen nur für Tests liegen in `src/test/resources/db/migration` mit Versionen ab 1000.
 
 Die Tabelle `nutzer` speichert nur die Keycloak-ID; E-Mail, Name und Passwort liegen
 ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalte).
@@ -514,7 +550,7 @@ de.bochmann.haushaltsbuch
 ├── portfolio    Depots, Positionen, Kurse
 ├── haushalt     Haushalt, Mitglieder, gebuchte Komponenten
 ├── nutzer       Registrierung, Profil, Konto in Keycloak
-└── shared       Security-Konfiguration, Fehlerbehandlung, gemeinsame Typen (z. B. Komponente)
+└── shared       Security-Konfiguration, Fehlerbehandlung, gemeinsame Typen (z. B. Komponente, Betrag)
 ```
 
 ### Module und Abhängigkeiten

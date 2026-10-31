@@ -3,5 +3,6 @@
 |Base package
 |`de.bochmann.haushaltsbuch.shared`
 |Spring components
-|* `d.b.h.s.security.Anmeldung`
+|* `d.b.h.s.geld.ErlaubteWaehrung.Pruefung`
+* `d.b.h.s.security.Anmeldung`
 |===
