@@ -6,8 +6,4 @@
 |_Services_
 
 * `d.b.h.h.HaushaltService`
-
-_Others_
-
-* `d.b.h.h.AktuellerHaushalt`
 |===

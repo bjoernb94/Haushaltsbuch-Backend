@@ -262,21 +262,29 @@ Haushaltsbuch kann so von mehreren Nutzern gemeinsam geführt werden.
 - Die Registrierung legt einen Haushalt mit dem Nutzer als einzigem Mitglied und den gewählten
   Komponenten an. Gebuchte Komponenten gelten für den ganzen Haushalt.
 - **Fachtabellen speichern `haushalt_id` (UUID), nicht `nutzer_id`**, ohne Fremdschlüssel über
-  Modulgrenzen. Den Haushalt des angemeldeten Nutzers liefert `AktuellerHaushalt` (öffentliche
-  API des Moduls `haushalt`):
+  Modulgrenzen. Daten eines fremden Haushalts liefern **404**, nicht 403, damit keine Rückschlüsse
+  auf fremde Daten möglich sind.
 
-  ```java
-  @GetMapping
-  List<Buchung> buchungen(Authentication authentication) {
-      UUID haushaltId = aktuellerHaushalt.id(authentication);
-      return buchungRepository.findByHaushaltId(haushaltId);
-  }
-  ```
+#### Trennung der Haushalte
 
-  Jeder Zugriff filtert auf diese ID. Daten eines fremden Haushalts liefern **404**, nicht 403,
-  damit keine Rückschlüsse auf fremde Daten möglich sind. Gehört der Nutzer keinem Haushalt an,
-  wirft `id(...)` 403 (Fachbereiche erreicht er dann ohnehin nicht, da ohne Haushalt keine
-  Komponenten gebucht sind).
+Fach-Entities erben von `shared.fachdaten.FachEntity`; deren `haushalt_id` ist eine
+Hibernate-`@TenantId`. Hibernate filtert damit **jede** Abfrage (Repository-Methoden, JPQL,
+Criteria, `findById`, `deleteById`, Massenlöschen per JPQL) auf den aktuellen Haushalt und setzt
+`haushalt_id` beim Anlegen selbst. Fachmodule filtern also nicht selbst; eine fremde ID ist
+schlicht „nicht gefunden“ (404).
+
+- **Aktueller Haushalt** (`HaushaltKontext`): im Request der Haushalt des angemeldeten Nutzers,
+  einmal je Request ermittelt (`HaushaltAbfrage`, implementiert im Modul `haushalt` per JDBC).
+- **Ohne Request** (Listener, Jobs): `HaushaltKontext.fuer(haushaltId, () -> …)`; die Transaktion
+  muss darin beginnen.
+- **Ohne Haushalt** (anonym, Registrierung, Konto ohne Haushalt): Platzhalter
+  `HaushaltKontext.KEIN_HAUSHALT`, weil Hibernate für jede Session einen Wert verlangt. Abfragen auf
+  Fachdaten liefern dann nichts; Speichern schlägt fehl.
+- **Nicht gefiltert:** native SQL-Abfragen und Tabellen ohne `FachEntity`. Tabellen mit gemischten
+  Zeilen (z.&nbsp;B. Standardkategorien mit `haushalt_id IS NULL` und eigene eines Haushalts) nutzen
+  kein `@TenantId` und filtern selbst mit `HaushaltKontext.id()`.
+- **Pflicht-Test je Fachmodul:** Daten als Haushalt A anlegen, als Haushalt B abrufen, ändern und
+  löschen → 404. Testbaustein: `TestHaushalt.anlegen(haushaltService, …)` mit `anmeldung()`.
 
 Weitere Mitglieder einladen:
 [#15](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/15).
@@ -477,11 +485,12 @@ Die Namen eingebetteter Werte bildet Hibernate aus Feldname und Komponente
 
 Migrationen nur für Tests liegen in `src/test/resources/db/migration` mit Versionen ab 1000.
 
-Fach-Entities erben von `shared.fachdaten.FachEntity` (ID, `@Version`, Audit-Spalten) und brauchen in
+Fach-Entities erben von `shared.fachdaten.FachEntity` (ID, Haushalt, `@Version`, Audit-Spalten) und brauchen in
 ihrer Tabelle diese Spalten:
 
 ```sql
 id            UUID PRIMARY KEY,
+haushalt_id   UUID        NOT NULL,  -- mit Index, siehe Trennung der Haushalte
 version       BIGINT      NOT NULL,
 angelegt_am   TIMESTAMPTZ NOT NULL,
 angelegt_von  UUID,

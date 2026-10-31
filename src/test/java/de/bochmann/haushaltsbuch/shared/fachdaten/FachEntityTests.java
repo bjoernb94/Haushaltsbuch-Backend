@@ -12,11 +12,15 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.transaction.support.TransactionOperations;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Auditing und Versionierung der {@link FachEntity} mit der Konfiguration der Anwendung. */
+/**
+ * Auditing und Versionierung der {@link FachEntity} mit der Konfiguration der Anwendung. Alle
+ * Zugriffe laufen für einen festen Haushalt; die Trennung selbst prüft {@link HaushaltTrennungTests}.
+ */
 @IntegrationTest
 class FachEntityTests {
 
@@ -25,6 +29,8 @@ class FachEntityTests {
 
 	@Autowired
 	private TransactionOperations transaktion;
+
+	private final UUID haushalt = UUID.randomUUID();
 
 	@AfterEach
 	void abmelden() {
@@ -35,7 +41,7 @@ class FachEntityTests {
 	void fuelltAuditSpaltenBeimAnlegen() {
 		UUID nutzer = anmelden();
 
-		var gespeichert = repository.saveAndFlush(new FachEntityTestdaten("neu"));
+		var gespeichert = imHaushalt(() -> repository.saveAndFlush(new FachEntityTestdaten("neu")));
 
 		assertThat(gespeichert.getId()).isNotNull();
 		assertThat(gespeichert.getVersion()).isZero();
@@ -47,7 +53,7 @@ class FachEntityTests {
 
 	@Test
 	void ohneAnmeldungOhneNutzer() {
-		var gespeichert = repository.saveAndFlush(new FachEntityTestdaten("job"));
+		var gespeichert = imHaushalt(() -> repository.saveAndFlush(new FachEntityTestdaten("job")));
 
 		assertThat(gespeichert.getAngelegtAm()).isNotNull();
 		assertThat(gespeichert.getAngelegtVon()).isNull();
@@ -56,12 +62,12 @@ class FachEntityTests {
 	@Test
 	void aenderungErhoehtVersionUndMerktSichBearbeiter() {
 		UUID anleger = anmelden();
-		UUID id = repository.saveAndFlush(new FachEntityTestdaten("alt")).getId();
+		UUID id = imHaushalt(() -> repository.saveAndFlush(new FachEntityTestdaten("alt"))).getId();
 		UUID bearbeiter = anmelden();
 
-		transaktion.executeWithoutResult(status -> repository.findById(id).orElseThrow().text = "neu");
+		imHaushalt(() -> transaktion.execute(status -> repository.findById(id).orElseThrow().text = "neu"));
 
-		var geaendert = repository.findById(id).orElseThrow();
+		var geaendert = imHaushalt(() -> repository.findById(id).orElseThrow());
 		assertThat(geaendert.getVersion()).isEqualTo(1);
 		assertThat(geaendert.getAngelegtVon()).isEqualTo(anleger);
 		assertThat(geaendert.getGeaendertVon()).isEqualTo(bearbeiter);
@@ -70,7 +76,7 @@ class FachEntityTests {
 
 	@Test
 	void veralteteVersionVomClientIstKonflikt() {
-		var gespeichert = repository.saveAndFlush(new FachEntityTestdaten("x"));
+		var gespeichert = imHaushalt(() -> repository.saveAndFlush(new FachEntityTestdaten("x")));
 
 		gespeichert.pruefeVersion(0);
 		assertThatThrownBy(() -> gespeichert.pruefeVersion(3)).isInstanceOf(KonfliktException.class);
@@ -78,16 +84,20 @@ class FachEntityTests {
 
 	@Test
 	void gleichzeitigeAenderungIstKonflikt() {
-		UUID id = repository.saveAndFlush(new FachEntityTestdaten("x")).getId();
-		var ersterStand = repository.findById(id).orElseThrow();
-		var zweiterStand = repository.findById(id).orElseThrow();
+		UUID id = imHaushalt(() -> repository.saveAndFlush(new FachEntityTestdaten("x"))).getId();
+		var ersterStand = imHaushalt(() -> repository.findById(id).orElseThrow());
+		var zweiterStand = imHaushalt(() -> repository.findById(id).orElseThrow());
 
 		ersterStand.text = "erster";
-		repository.saveAndFlush(ersterStand);
+		imHaushalt(() -> repository.saveAndFlush(ersterStand));
 		zweiterStand.text = "zweiter";
 
-		assertThatThrownBy(() -> repository.saveAndFlush(zweiterStand))
+		assertThatThrownBy(() -> imHaushalt(() -> repository.saveAndFlush(zweiterStand)))
 				.isInstanceOf(ObjectOptimisticLockingFailureException.class);
+	}
+
+	private <T> T imHaushalt(Supplier<T> arbeit) {
+		return HaushaltKontext.fuer(haushalt, arbeit);
 	}
 
 	private static UUID anmelden() {

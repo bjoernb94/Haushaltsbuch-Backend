@@ -6,11 +6,6 @@ import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.authority.AuthorityUtils;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
 import java.util.UUID;
@@ -25,7 +20,7 @@ class HaushaltTests {
 	private HaushaltService haushaltService;
 
 	@Autowired
-	private AktuellerHaushalt aktuellerHaushalt;
+	private HaushaltMitgliedAbfrage haushaltAbfrage;
 
 	@Autowired
 	private KomponentenAbfrage komponentenAbfrage;
@@ -58,33 +53,16 @@ class HaushaltTests {
 	}
 
 	@Test
-	void aktuellerHaushaltDesAngemeldetenNutzers() {
+	void haushaltDesMitglieds() {
 		UUID nutzerId = UUID.randomUUID();
 		UUID haushaltId = haushaltService.anlegen(nutzerId, Set.of(Komponente.VERTRAGSUEBERSICHT));
 
-		assertThat(aktuellerHaushalt.id(angemeldet(nutzerId))).isEqualTo(haushaltId);
+		assertThat(haushaltAbfrage.haushaltVon(nutzerId)).contains(haushaltId);
 	}
 
 	@Test
-	void ohneHaushaltVerboten() {
-		assertThatThrownBy(() -> aktuellerHaushalt.id(angemeldet(UUID.randomUUID())))
-				.isInstanceOfSatisfying(ResponseStatusException.class,
-						e -> assertThat(e.getStatusCode().value()).isEqualTo(403));
-	}
-
-	@Test
-	void anonymNichtAngemeldet() {
-		var anonym = new AnonymousAuthenticationToken("schluessel", "anonymousUser",
-				AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"));
-
-		assertThatThrownBy(() -> aktuellerHaushalt.id(anonym))
-				.isInstanceOfSatisfying(ResponseStatusException.class,
-						e -> assertThat(e.getStatusCode().value()).isEqualTo(401));
-	}
-
-	private static JwtAuthenticationToken angemeldet(UUID nutzerId) {
-		Jwt jwt = Jwt.withTokenValue("token").header("alg", "none").subject(nutzerId.toString()).build();
-		return new JwtAuthenticationToken(jwt);
+	void ohneHaushaltLeer() {
+		assertThat(haushaltAbfrage.haushaltVon(UUID.randomUUID())).isEmpty();
 	}
 
 }
