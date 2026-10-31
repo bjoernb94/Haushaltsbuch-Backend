@@ -7,7 +7,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.TenantId;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
@@ -18,11 +20,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Basisklasse für Fach-Entities (Verträge, Buchungen …): ID, Version und Audit-Spalten.
+ * Basisklasse für Fach-Entities (Verträge, Buchungen …): ID, Haushalt, Version und Audit-Spalten.
  * <p>
  * Spalten, die jede Tabelle einer Fach-Entity dafür braucht:
  * <pre>
  * id           UUID PRIMARY KEY,
+ * haushalt_id  UUID        NOT NULL,  -- mit Index
  * version      BIGINT      NOT NULL,
  * angelegt_am  TIMESTAMPTZ NOT NULL,
  * angelegt_von UUID,
@@ -32,6 +35,11 @@ import java.util.UUID;
  * Die Audit-Spalten füllt Spring Data ({@link FachdatenConfig}); {@code *_von} ist die Keycloak-ID
  * des angemeldeten Nutzers und leer, wenn ohne Anmeldung gespeichert wird (z.&nbsp;B. Hintergrundjob).
  * Sie werden gespeichert, aber noch nicht ausgeliefert (Issue #42).
+ * <p>
+ * <b>Haushalt:</b> {@code haushalt_id} ist die Hibernate-{@link TenantId}. Hibernate filtert jede
+ * Abfrage (JPQL, Criteria, {@code findById}) auf den Haushalt aus dem {@link HaushaltKontext} und
+ * setzt die Spalte beim Anlegen selbst. Native SQL-Abfragen filtert Hibernate nicht; dort
+ * {@code haushalt_id} selbst einschränken.
  * <p>
  * {@link #version} schützt vor dem stillen Überschreiben gleichzeitiger Änderungen (optimistic
  * locking): Das DTO liefert die Version aus, {@code PUT} schickt sie zurück, und der Service prüft
@@ -44,6 +52,10 @@ public abstract class FachEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
+
+	@TenantId
+	@Column(name = "haushalt_id", nullable = false, updatable = false)
+	private UUID haushaltId;
 
 	@Version
 	@Column(name = "version", nullable = false)
@@ -69,6 +81,10 @@ public abstract class FachEntity {
 		return id;
 	}
 
+	public UUID getHaushaltId() {
+		return haushaltId;
+	}
+
 	public long getVersion() {
 		return version;
 	}
@@ -87,6 +103,15 @@ public abstract class FachEntity {
 
 	public UUID getGeaendertVon() {
 		return geaendertVon;
+	}
+
+	/** Ohne Haushalt (z.&nbsp;B. Job ohne {@link HaushaltKontext#fuer}) darf nichts gespeichert werden. */
+	@PostPersist
+	void pruefeHaushalt() {
+		if (haushaltId == null || HaushaltKontext.KEIN_HAUSHALT.equals(haushaltId)) {
+			throw new IllegalStateException("%s cannot be saved without a household (HaushaltKontext)."
+					.formatted(getClass().getSimpleName()));
+		}
 	}
 
 	/**

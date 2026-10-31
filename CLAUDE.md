@@ -65,8 +65,14 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 - Business data belongs to a household (module `haushalt`), not to a single user, so several users can share one
   Haushaltsbuch; booked components belong to the household (`haushalt_komponente`). Registration (`nutzer`) creates
   the household via `HaushaltService` in the same transaction as the user. Business tables store `haushalt_id`
-  (no FK across modules), never `nutzer_id` as owner (audit columns `angelegt_von`/`geaendert_von` are fine); get it via `AktuellerHaushalt.id(authentication)` and filter every
-  access on it. Another household's IDs must yield 404, not 403.
+  (no FK across modules), never `nutzer_id` as owner (audit columns `angelegt_von`/`geaendert_von` are fine). Another
+  household's IDs must yield 404, not 403. Household separation is automatic: `FachEntity.haushaltId` is a Hibernate
+  `@TenantId`, resolved by `HaushaltTenantResolver` from `HaushaltKontext` (request: logged-in user's household via
+  `HaushaltAbfrage`, implemented in `haushalt` with JDBC since it runs while Hibernate opens a session; jobs/listeners:
+  `HaushaltKontext.fuer(id, ...)` with the transaction started inside; none: `KEIN_HAUSHALT`, reads empty, saving
+  fails). Don't filter business entities by hand; native SQL and tables with mixed rows (standard rows with
+  `haushalt_id IS NULL`) aren't filtered and must use `HaushaltKontext.id()`. Each business module needs a test that
+  another household gets 404 (helper `TestHaushalt`). `@ModuleTest` has no tenant resolver (#44).
 - Errors are `ProblemDetail` with a stable German `code` property (e.g. `NICHT_GEFUNDEN`, `EMAIL_BEREITS_VERGEBEN`);
   the SPA translates by code, `detail` is English and developer-only. Build them with `shared.fehler.Probleme.problem(...)`.
   `shared.fehler.FehlerBehandlung` (`@RestControllerAdvice`, extends `ResponseEntityExceptionHandler`) handles general

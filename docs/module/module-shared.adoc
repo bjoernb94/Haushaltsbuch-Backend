@@ -3,6 +3,7 @@
 |Base package
 |`de.bochmann.haushaltsbuch.shared`
 |Spring components
-|* `d.b.h.s.geld.ErlaubteWaehrung.Pruefung`
+|* `d.b.h.s.fachdaten.HaushaltKontext`
+* `d.b.h.s.geld.ErlaubteWaehrung.Pruefung`
 * `d.b.h.s.security.Anmeldung`
 |===

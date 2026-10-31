@@ -1,6 +1,8 @@
 package de.bochmann.haushaltsbuch.shared.fachdaten;
 
 import de.bochmann.haushaltsbuch.shared.security.AngemeldeterNutzer;
+import org.hibernate.cfg.MultiTenancySettings;
+import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.auditing.DateTimeProvider;
@@ -16,7 +18,8 @@ import java.util.UUID;
 import static org.springframework.data.web.config.EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO;
 
 /**
- * Gemeinsame Konfiguration für Fachdaten: Auditing der {@link FachEntity} und Paging.
+ * Gemeinsame Konfiguration für Fachdaten: Trennung der Haushalte ({@link HaushaltTenantResolver}),
+ * Auditing der {@link FachEntity} und Paging.
  * <p>
  * Liegt in {@code shared} und fehlt daher in Modultests ({@code @ModuleTest}); Tests, die
  * Fach-Entities speichern, laufen mit {@code @IntegrationTest}.
@@ -26,6 +29,12 @@ import static org.springframework.data.web.config.EnableSpringDataWebSupport.Pag
 // Page wird als stabiles DTO ({"content": [...], "page": {...}}) ausgeliefert, nicht als PageImpl.
 @EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)
 class FachdatenConfig {
+
+	@Bean
+	HibernatePropertiesCustomizer haushaltAlsTenant(HaushaltKontext haushaltKontext) {
+		return properties -> properties.put(MultiTenancySettings.MULTI_TENANT_IDENTIFIER_RESOLVER,
+				new HaushaltTenantResolver(haushaltKontext));
+	}
 
 	@Bean
 	AuditorAware<UUID> angemeldeterNutzerAlsAuditor() {
