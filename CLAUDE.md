@@ -33,7 +33,7 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 ## Architecture
 
 - Spring Boot 4.1, Spring Modulith modular monolith. Each direct subpackage of
-  `de.bochmann.haushaltsbuch` (`buchungen`, `vertraege`, `versorgung`, `portfolio`, `nutzer`, `shared`)
+  `de.bochmann.haushaltsbuch` (`buchungen`, `vertraege`, `versorgung`, `portfolio`, `haushalt`, `nutzer`, `shared`)
   is a module, declared in its `package-info.java`. Only the module's root package is its public API;
   subpackages are internal. `shared` is `Type.OPEN`, so all modules may use its types.
   `ModularityTests` (`ApplicationModules.verify()`) fails on cyclic or internal cross-module access.
@@ -57,13 +57,15 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   Open follow-ups are tracked as GitHub issues (with milestones), not in the README.
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and
-  checks it per request via `KomponentenAbfrage` (implemented in `nutzer`). New module endpoints must live
+  checks it per request via `KomponentenAbfrage` (implemented in `haushalt`). New module endpoints must live
   under their module's path. Use `AngemeldeterNutzer.id(...)` for the user ID (`sub`) as UUID and
   `AngemeldeterNutzer.claims(...)` for name/email: `GET /api/nutzer/ich` reads them from the login token,
   not from Keycloak (users don't edit their data in Keycloak; a future profile area must update the session).
-- Decided: business data belongs to a household (`haushalt_id`), not to a single user, so several users can share
-  one Haushaltsbuch; booked components belong to the household. Not implemented yet (issue #14); until then
-  components still hang on the user. Don't key new business tables on `nutzer_id`.
+- Business data belongs to a household (module `haushalt`), not to a single user, so several users can share one
+  Haushaltsbuch; booked components belong to the household (`haushalt_komponente`). Registration (`nutzer`) creates
+  the household via `HaushaltService` in the same transaction as the user. Business tables store `haushalt_id`
+  (no FK across modules), never `nutzer_id`; get it via `AktuellerHaushalt.id(authentication)` and filter every
+  access on it. Another household's IDs must yield 404, not 403.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) exists in every profile (always DOWN without `keycloak`),
   otherwise the group fails validation at startup; it caches its result for 10 s. Spring tests with the `keycloak`

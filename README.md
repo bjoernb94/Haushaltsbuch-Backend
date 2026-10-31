@@ -199,8 +199,8 @@ fehlendem CSRF-Token.
 ### Komponenten
 
 Bei der Registrierung wählt der Nutzer Komponenten; sie entscheiden, welche Fachbereiche er
-nutzen darf. Die Komponenten liegen in unserer Datenbank (`nutzer_komponente`), nicht als
-Rollen in Keycloak. Änderungen greifen so sofort und nicht erst nach einem neuen Login.
+nutzen darf. Die Komponenten gehören seinem Haushalt und liegen in unserer Datenbank
+(`haushalt_komponente`), nicht als Rollen in Keycloak. Änderungen greifen so sofort und nicht erst nach einem neuen Login.
 
 | Komponente             | Modul        | API-Pfad              |
 |------------------------|--------------|-----------------------|
@@ -210,7 +210,7 @@ Rollen in Keycloak. Änderungen greifen so sofort und nicht erst nach einem neue
 | `PORTFOLIO`            | `portfolio`  | `/api/portfolio/**`   |
 
 `SecurityConfig` prüft bei jeder Anfrage auf einen dieser Pfade, ob der Nutzer die Komponente
-gebucht hat, sonst **403**. **Neue Endpunkte eines Fachmoduls müssen unter dessen API-Pfad
+bzw. sein Haushalt die Komponente gebucht hat, sonst **403**. **Neue Endpunkte eines Fachmoduls müssen unter dessen API-Pfad
 liegen**; ein Endpunkt außerhalb ist für jeden angemeldeten Nutzer erreichbar.
 
 Die SPA fragt die gebuchten Komponenten über `GET /api/nutzer/ich/komponenten` ab und blendet
@@ -224,18 +224,33 @@ Admin-Bereich), steht in `SecurityConfig`, wie sie übernommen werden.
 
 ### Haushalte
 
-Festgelegt: Fachdaten gehören einem **Haushalt**, nicht einem einzelnen Nutzer. Ein
-Haushaltsbuch kann so von mehreren Nutzern gemeinsam geführt werden. Daraus folgt:
+Fachdaten gehören einem **Haushalt** (Modul `haushalt`), nicht einem einzelnen Nutzer. Ein
+Haushaltsbuch kann so von mehreren Nutzern gemeinsam geführt werden.
 
-- Fachtabellen speichern `haushalt_id`, nicht `nutzer_id`. Jeder Zugriff filtert auf den
-  Haushalt des angemeldeten Nutzers; Daten eines fremden Haushalts liefern 404.
-- Gebuchte Komponenten gelten für den ganzen Haushalt.
-- Die Registrierung legt einen Haushalt an, weitere Mitglieder treten per Einladung bei.
+- Tabellen: `haushalt` (`id`, optionaler `name`, `angelegt_am`), `haushalt_mitglied`
+  (`haushalt_id`, `nutzer_id`) und `haushalt_komponente`. Vorerst gehört ein Nutzer zu genau
+  einem Haushalt (Unique auf `nutzer_id`); das Schema erlaubt mehrere Mitglieder je Haushalt.
+- Die Registrierung legt einen Haushalt mit dem Nutzer als einzigem Mitglied und den gewählten
+  Komponenten an. Gebuchte Komponenten gelten für den ganzen Haushalt.
+- **Fachtabellen speichern `haushalt_id` (UUID), nicht `nutzer_id`**, ohne Fremdschlüssel über
+  Modulgrenzen. Den Haushalt des angemeldeten Nutzers liefert `AktuellerHaushalt` (öffentliche
+  API des Moduls `haushalt`):
 
-Umsetzung noch offen, siehe Issues
-[#14](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/14) (Haushalt als Besitzer der
-Daten) und [#15](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/15) (Mitglieder einladen).
-Bis dahin hängen die Komponenten noch am Nutzer (`nutzer_komponente`).
+  ```java
+  @GetMapping
+  List<Buchung> buchungen(Authentication authentication) {
+      UUID haushaltId = aktuellerHaushalt.id(authentication);
+      return buchungRepository.findByHaushaltId(haushaltId);
+  }
+  ```
+
+  Jeder Zugriff filtert auf diese ID. Daten eines fremden Haushalts liefern **404**, nicht 403,
+  damit keine Rückschlüsse auf fremde Daten möglich sind. Gehört der Nutzer keinem Haushalt an,
+  wirft `id(...)` 403 (Fachbereiche erreicht er dann ohnehin nicht, da ohne Haushalt keine
+  Komponenten gebucht sind).
+
+Weitere Mitglieder einladen:
+[#15](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/15).
 
 ## API
 
@@ -283,13 +298,13 @@ verwenden, sonst wird das Backend bei einem Keycloak-Ausfall neu gestartet.
 Antworten: **201** angelegt, **400** ungültige Daten oder Passwort von Keycloak abgelehnt,
 **409** E-Mail bereits vergeben. Nach 201 ist der Nutzer direkt angemeldet.
 
-Ablauf: Erst wird das Konto über die Keycloak Admin API angelegt, dann der Nutzer mit seinen
-Komponenten gespeichert. Schlägt das Speichern fehl, wird das Konto wieder gelöscht. Schlägt
+Ablauf: Erst wird das Konto über die Keycloak Admin API angelegt, dann werden in einer
+Transaktion der Nutzer und sein Haushalt mit den Komponenten gespeichert. Schlägt das Speichern fehl, wird das Konto wieder gelöscht. Schlägt
 auch das Löschen fehl, steht im Log *„Konto … konnte nicht gelöscht werden und muss manuell
 entfernt werden“*; das Konto dann in Keycloak unter *Users* löschen.
 
 Ein Konto, das direkt in Keycloak angelegt wird, hat keinen Nutzer in unserer Datenbank und
-damit keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
+damit keinen Haushalt und keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
 
 ### Offene Aufgaben
 
@@ -392,7 +407,8 @@ de.bochmann.haushaltsbuch
 ├── vertraege    Verträge, Laufzeiten, Kündigungsfristen
 ├── versorgung   Strom, Gas, Wasser, Abschläge, Zählerstände
 ├── portfolio    Depots, Positionen, Kurse
-├── nutzer       Registrierung, gebuchte Komponenten
+├── haushalt     Haushalt, Mitglieder, gebuchte Komponenten
+├── nutzer       Registrierung, Profil, Konto in Keycloak
 └── shared       Security-Konfiguration, gemeinsame Typen (z. B. Komponente)
 ```
 
