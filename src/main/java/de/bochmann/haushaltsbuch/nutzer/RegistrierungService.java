@@ -1,16 +1,19 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionOperations;
 
 import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Registriert einen Nutzer in zwei Schritten: Konto im Identity Provider anlegen, dann den
- * Nutzer mit seinen Komponenten speichern. Beide Schritte lassen sich nicht in einer
- * Transaktion zusammenfassen; schlägt das Speichern fehl, wird das Konto wieder gelöscht.
+ * Registriert einen Nutzer in zwei Schritten: Konto im Identity Provider anlegen, dann in einer
+ * Transaktion den Nutzer und seinen Haushalt mit den gewählten Komponenten speichern. Das Konto
+ * lässt sich nicht in diese Transaktion einbeziehen; schlägt das Speichern fehl, wird es wieder
+ * gelöscht.
  */
 @Service
 class RegistrierungService {
@@ -21,16 +24,26 @@ class RegistrierungService {
 
 	private final NutzerRepository nutzerRepository;
 
-	RegistrierungService(Identitaetsanbieter identitaetsanbieter, NutzerRepository nutzerRepository) {
+	private final HaushaltService haushaltService;
+
+	private final TransactionOperations transaktion;
+
+	RegistrierungService(Identitaetsanbieter identitaetsanbieter, NutzerRepository nutzerRepository,
+			HaushaltService haushaltService, TransactionOperations transaktion) {
 		this.identitaetsanbieter = identitaetsanbieter;
 		this.nutzerRepository = nutzerRepository;
+		this.haushaltService = haushaltService;
+		this.transaktion = transaktion;
 	}
 
 	UUID registrieren(RegistrierungAnfrage anfrage) {
 		UUID id = identitaetsanbieter.benutzerAnlegen(anfrage.email(), anfrage.passwort(),
 				anfrage.vorname(), anfrage.name());
 		try {
-			nutzerRepository.save(new Nutzer(id, anfrage.komponenten(), Instant.now()));
+			transaktion.executeWithoutResult(status -> {
+				nutzerRepository.saveAndFlush(new Nutzer(id, Instant.now()));
+				haushaltService.anlegen(id, anfrage.komponenten());
+			});
 		}
 		catch (RuntimeException e) {
 			log.warn("Nutzer {} konnte nicht gespeichert werden, Konto wird wieder gelöscht.", id, e);

@@ -3,6 +3,7 @@ package de.bochmann.haushaltsbuch.nutzer;
 import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
+import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,6 +43,9 @@ class RegistrierungControllerTests {
 	private NutzerRepository nutzerRepository;
 
 	@Autowired
+	private KomponentenAbfrage komponentenAbfrage;
+
+	@Autowired
 	private RegistrierungService registrierungService;
 
 	@MockitoBean
@@ -61,11 +65,11 @@ class RegistrierungControllerTests {
 						.content(anfrage("max@example.org", "[\"FINANZUEBERSICHT\", \"PORTFOLIO\"]")))
 				.andExpect(status().isCreated());
 
-		assertThat(nutzerRepository.findById(id)).hasValueSatisfying(nutzer -> {
-			assertThat(nutzer.getKomponenten())
-					.containsExactlyInAnyOrder(Komponente.FINANZUEBERSICHT, Komponente.PORTFOLIO);
-			assertThat(nutzer.getAngelegtAm()).isNotNull();
-		});
+		assertThat(nutzerRepository.findById(id)).hasValueSatisfying(nutzer ->
+				assertThat(nutzer.getAngelegtAm()).isNotNull());
+		// Die Komponenten gehören dem bei der Registrierung angelegten Haushalt.
+		assertThat(komponentenAbfrage.komponentenVon(id))
+				.containsExactlyInAnyOrder(Komponente.FINANZUEBERSICHT, Komponente.PORTFOLIO);
 		verify(anmeldung).anmelden(eq("max@example.org"), eq("geheim123"), any(), any());
 	}
 

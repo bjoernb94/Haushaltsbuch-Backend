@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
 import de.bochmann.haushaltsbuch.TestcontainersConfiguration;
+import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,13 +30,12 @@ class KomponentenControllerTests {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private NutzerRepository nutzerRepository;
+	private HaushaltService haushaltService;
 
 	@Test
 	void liefertGebuchteKomponentenSortiert() throws Exception {
 		UUID id = UUID.randomUUID();
-		nutzerRepository.save(new Nutzer(id, Set.of(Komponente.PORTFOLIO, Komponente.FINANZUEBERSICHT),
-				Instant.now()));
+		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO, Komponente.FINANZUEBERSICHT));
 
 		mockMvc.perform(get("/api/nutzer/ich/komponenten").with(jwt().jwt(token -> token.subject(id.toString()))))
 				.andExpect(status().isOk())
@@ -46,7 +45,7 @@ class KomponentenControllerTests {
 	@Test
 	void liefertKomponentenAuchBeiSessionLogin() throws Exception {
 		UUID id = UUID.randomUUID();
-		nutzerRepository.save(new Nutzer(id, Set.of(Komponente.VERTRAGSUEBERSICHT), Instant.now()));
+		haushaltService.anlegen(id, Set.of(Komponente.VERTRAGSUEBERSICHT));
 
 		mockMvc.perform(get("/api/nutzer/ich/komponenten")
 						.with(oidcLogin().idToken(token -> token.subject(id.toString()))))
