@@ -25,8 +25,8 @@ public class AktuellerHaushalt {
 
 	/**
 	 * @return die ID des Haushalts, dem der angemeldete Nutzer angehört
-	 * @throws ResponseStatusException 401 bei anonymen Anfragen (nur ohne Profil {@code keycloak}
-	 *         möglich), 403 wenn der Nutzer keinem Haushalt angehört (z.&nbsp;B. Konto direkt in
+	 * @throws ResponseStatusException 401 ohne gültige Benutzer-ID (anonym bzw. Token ohne
+	 *         {@code sub}), 403 wenn der Nutzer keinem Haushalt angehört (z.&nbsp;B. Konto direkt in
 	 *         Keycloak angelegt)
 	 */
 	@Transactional(readOnly = true)

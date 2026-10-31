@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles({"dev", "keycloak"})
+@ActiveProfiles("dev")
 class HaushaltTests {
 
 	@Autowired

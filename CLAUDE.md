@@ -42,10 +42,11 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   `ddl-auto: validate`, so every new entity needs a migration.
 - Config is YAML-only (`application.yml`, profiles `dev` = default, `prod`). Keycloak settings are
   centralised under `haushaltsbuch.keycloak.*` and fed from env vars; `prod` has no defaults.
-- Keycloak is currently disabled: all `spring.security.oauth2.*` config lives in the `keycloak`
-  profile. Without it, `SecurityConfig` registers an open (permitAll) chain for local dev;
-  `prod` pulls in `keycloak` via a profile group. `SecurityConfigTests` runs with `dev,keycloak`.
-- Security with `keycloak` profile (`shared/security/SecurityConfig`): one filter chain combining session
+- Keycloak is always on, also in dev and tests: there is no `keycloak` profile and no open (permitAll) chain.
+  The realm is versioned in `docker/keycloak/import/haushaltsbuch-realm.json` (imported via `--import-realm`, only
+  if the realm doesn't exist yet; client secret from `KEYCLOAK_CLIENT_SECRET`, dev default `dev-secret` on both
+  sides). Changes to realm settings belong in that file (and the README reference steps).
+- Security (`shared/security/SecurityConfig`): one filter chain combining session
   login and JWT resource server. There is no redirect to Keycloak (no `oauth2Login`): the SPA posts
   email/password to `POST /api/anmeldung`, `Anmeldung`/`KeycloakTokenClient` use Keycloak's password grant
   ("Direct access grants") and store the refresh token in the HTTP session (`KeycloakSitzung`);
@@ -67,12 +68,11 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   (no FK across modules), never `nutzer_id`; get it via `AktuellerHaushalt.id(authentication)` and filter every
   access on it. Another household's IDs must yield 404, not 403.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
-  health indicator (`shared/systemstatus/SystemstatusConfig`) exists in every profile (always DOWN without `keycloak`),
-  otherwise the group fails validation at startup; it caches its result for 10 s. Spring tests with the `keycloak`
-  profile that assert health status must mock the bean `keycloakHealthIndicator` (see `SecurityConfigTests`).
+  health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s. Spring tests that assert
+  health status must mock the bean `keycloakHealthIndicator` (see `SecurityConfigTests`).
 - Tests: `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
-  `docker/postgres/init/`) and Keycloak on port 8180 (compose profile `keycloak`). Tests use Testcontainers instead
+  `docker/postgres/init/`) and Keycloak on port 8180 with the realm import. Tests use Testcontainers instead
   (`TestcontainersConfiguration`), Docker Compose support is skipped in tests.

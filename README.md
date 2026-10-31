@@ -29,25 +29,23 @@ zusätzlich `TESTCONTAINERS_RYUK_DISABLED=true` setzen.
 ```
 
 Ohne gesetztes Profil läuft die Anwendung im Profil `dev` gegen eine lokal laufende
-PostgreSQL-Instanz auf `localhost:5432` (Zugangsdaten siehe [Konfiguration](#konfiguration)).
-Backend: http://localhost:8080, Swagger UI unter `/swagger-ui.html`.
+PostgreSQL-Instanz auf `localhost:5432` und Keycloak auf `localhost:8180` (Zugangsdaten und
+Defaults siehe [Konfiguration](#konfiguration)). Backend: http://localhost:8080, Swagger UI unter
+`/swagger-ui.html`.
 
-### Ohne Keycloak
+Keycloak ist immer angebunden, auch lokal; eine offene Konfiguration ohne Anmeldung gibt es
+nicht. Das Backend startet auch ohne laufenden Keycloak, Anmeldung und Registrierung schlagen
+dann aber fehl, und der [Systemstatus](#systemstatus) meldet `keycloak` als `DOWN`.
 
-Ohne das Profil `keycloak` ist die Security im dev-Profil offen: alle Endpunkte sind ohne
-Anmeldung erreichbar, auch die Fachbereiche ohne gebuchte Komponente. Die Registrierung legt
-dann kein Konto in Keycloak an, sondern vergibt nur eine zufällige ID; ein Login ist nicht
-möglich. In `prod` ist `keycloak` über eine Profilgruppe immer aktiv.
+### Lokal mit Keycloak
 
-### Mit Keycloak
-
-1. Keycloak starten und einmalig einrichten, siehe [Keycloak einrichten](#keycloak-einrichten).
-2. Backend mit Profil `keycloak` und dem Client-Secret starten:
-
-   ```bash
-   SPRING_PROFILES_ACTIVE=dev,keycloak KEYCLOAK_CLIENT_SECRET=<secret> ./mvnw spring-boot:run
-   ```
-3. Anmeldung testen, z.&nbsp;B. mit curl (CSRF-Token aus dem Cookie holen, dann anmelden):
+1. Keycloak starten, z.&nbsp;B. per `docker compose up -d keycloak` (siehe
+   [Docker Compose](#docker-compose)). Der Realm wird beim ersten Start automatisch eingerichtet,
+   siehe [Keycloak einrichten](#keycloak-einrichten).
+2. Backend starten: `./mvnw spring-boot:run`. Das Client-Secret ist in dev mit dem Realm-Import
+   abgestimmt (`dev-secret`) und muss nicht gesetzt werden.
+3. Konto über `POST /api/registrierung` anlegen (siehe [Registrierung](#registrierung)), danach
+   Anmeldung testen, z.&nbsp;B. mit curl (CSRF-Token aus dem Cookie holen, dann anmelden):
 
    ```bash
    curl -s -c /tmp/kc.txt http://localhost:8080/actuator/health >/dev/null
@@ -60,14 +58,15 @@ möglich. In `prod` ist `keycloak` über eine Profilgruppe immer aktiv.
 ### Docker Compose
 
 `compose.yaml` enthält PostgreSQL (App-Datenbank plus separate `keycloak`-Datenbank) und
-Keycloak. Der automatische Start durch Spring Boot ist vorerst aus, weil eine eigene
-PostgreSQL-Instanz genutzt wird; einschalten mit `DOCKER_COMPOSE_ENABLED=true`
+Keycloak mit Realm-Import. Der automatische Start durch Spring Boot ist vorerst aus, weil eine
+eigene PostgreSQL-Instanz genutzt wird; einschalten mit `DOCKER_COMPOSE_ENABLED=true`
 (dann darf auf Port 5432 nichts anderes laufen).
 
-Keycloak manuell starten:
+Manuell starten:
 
 ```bash
-docker compose --profile keycloak up -d
+docker compose up -d            # PostgreSQL und Keycloak
+docker compose up -d keycloak   # nur Keycloak (startet den PostgreSQL-Container mit)
 ```
 
 Der Keycloak-Container hängt vom PostgreSQL-Container aus `compose.yaml` ab. Läuft auf Port 5432
@@ -90,11 +89,37 @@ Variablen für `compose.yaml` (per Umgebung oder `.env`-Datei):
 | `KEYCLOAK_PORT`           | `8180`          |
 | `KEYCLOAK_ADMIN`          | `admin`         |
 | `KEYCLOAK_ADMIN_PASSWORD` | `admin`         |
+| `KEYCLOAK_CLIENT_SECRET`  | `dev-secret`    |
 
 ## Keycloak einrichten
 
-Einmalig pro Keycloak-Instanz in der Admin-Konsole (lokal http://localhost:8180, Dev-Zugang
-`admin` / `admin`). Alle Schritte außer dem ersten im Realm `haushaltsbuch`, nicht in `master`.
+Der Realm `haushaltsbuch` liegt versioniert unter `docker/keycloak/import/haushaltsbuch-realm.json`
+und wird beim Start mit `--import-realm` eingespielt (in `compose.yaml` bereits gesetzt). Der Import
+greift nur, wenn es den Realm noch nicht gibt; ein bestehender Realm wird nicht verändert.
+Änderungen an der Datei wirken daher nur auf neue Keycloak-Instanzen, in bestehenden muss man sie
+von Hand nachziehen.
+
+- **Client-Secret:** steht nicht in der Datei, sondern wird beim Import aus der Umgebungsvariablen
+  `KEYCLOAK_CLIENT_SECRET` des Keycloak-Containers gelesen (Default `dev-secret`, passend zum
+  Default des Backends in dev).
+- **Nutzer:** enthält der Import keine, nur den Service Account des Clients.
+- **Einzeln gestarteter Container** (ohne `compose.yaml`): Verzeichnis einbinden und Import
+  aktivieren, z.&nbsp;B.
+
+  ```bash
+  podman run -d --name keycloak -p 8180:8080 \
+    -v ./docker/keycloak/import:/opt/keycloak/data/import:ro,Z \
+    -e KEYCLOAK_CLIENT_SECRET=dev-secret \
+    -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+    quay.io/keycloak/keycloak:26.8.1 start-dev --import-realm
+  ```
+
+  (`:Z` setzt das SELinux-Label, z.&nbsp;B. unter Fedora; ohne Angabe von `KC_DB*` speichert
+  Keycloak in einer internen Datenbank im Container.)
+
+Die folgenden Schritte beschreiben, was der Import einrichtet. Sie dienen als Referenz, z.&nbsp;B.
+um eine bestehende Instanz von Hand anzupassen (Admin-Konsole lokal http://localhost:8180,
+Dev-Zugang `admin` / `admin`, alle Schritte außer dem ersten im Realm `haushaltsbuch`):
 
 1. **Realm anlegen:** Realm-Auswahl oben links → *Create realm* → Name `haushaltsbuch`.
 2. **Login-Einstellungen:** *Realm settings* → Reiter *Login*:
@@ -118,7 +143,7 @@ Einmalig pro Keycloak-Instanz in der Admin-Konsole (lokal http://localhost:8180,
    `realm-management` zuweisen. Ohne diese Rolle schlägt die Registrierung mit einem Fehler der
    Admin API fehl. Die Rolle deckt auch das Löschen ab (siehe [Registrierung](#registrierung)).
 6. **Client-Secret:** Reiter *Credentials* → *Client Secret* kopieren und als
-   `KEYCLOAK_CLIENT_SECRET` setzen.
+   `KEYCLOAK_CLIENT_SECRET` setzen (der Import setzt es aus derselben Variablen).
 7. **Sperre nach Fehlversuchen:** *Realm settings* → Reiter *Security defenses* →
    *Brute force detection* einschalten. Das Login-Formular der SPA prüft Passwörter über das
    Backend; ohne Sperre ließen sie sich dort beliebig durchprobieren. Der Keycloak-Standard
@@ -130,12 +155,15 @@ Einmalig pro Keycloak-Instanz in der Admin-Konsole (lokal http://localhost:8180,
 
 Benutzer werden mit der E-Mail-Adresse als Benutzername angelegt.
 
-Tipp: Eine fertig eingerichtete Realm-Konfiguration lässt sich mit `kc.sh export --realm haushaltsbuch`
-exportieren und beim Start mit `--import-realm` wieder einspielen, statt die Schritte zu wiederholen.
+Außerdem setzt der Import *Require SSL* auf `none` (*Realm settings* → *General*): Hinter dem
+Port-Forwarding von Podman gelten Anfragen nicht als lokal, mit dem Keycloak-Standard `external`
+lehnt Keycloak sie daher ohne HTTPS ab.
 
 ### Für prod zusätzlich
 
 - Keycloak mit `start` statt `start-dev`, mit HTTPS und eigenem Hostnamen betreiben.
+- *Require SSL* im Realm wieder auf `external` oder `all` setzen (der Import setzt `none`).
+- `KEYCLOAK_CLIENT_SECRET` beim Import auf ein eigenes, zufälliges Secret setzen.
 - Den Bootstrap-Admin durch ein echtes Admin-Konto ersetzen.
 - Backend und Keycloak nur über HTTPS verbinden: Das Backend schickt Passwörter an Keycloak.
 - `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET` und `KEYCLOAK_ADMIN_URI`
@@ -143,7 +171,7 @@ exportieren und beim Start mit `--import-realm` wieder einspielen, statt die Sch
 
 ## Anmeldung und Zugriffsschutz
 
-Mit Profil `keycloak` gibt es zwei Wege der Anmeldung über dieselbe Filterkette:
+Es gibt zwei Wege der Anmeldung über dieselbe Filterkette:
 
 - **Session:** Die SPA hat ein eigenes Login-Formular und schickt E-Mail und Passwort an
   `POST /api/anmeldung`. Das Backend holt damit die Tokens direkt bei Keycloak (Password Grant,
@@ -276,8 +304,7 @@ ist eine Komponente `DOWN`, antwortet der Endpunkt mit 503:
 ```
 
 `keycloak` prüft das OIDC-Discovery-Dokument des Realms (Timeout 2&nbsp;s) und merkt sich das
-Ergebnis 10&nbsp;s, damit der öffentliche Endpunkt Keycloak nicht mit Anfragen belastet. Ohne Profil
-`keycloak` ist der Indikator immer `DOWN`, da es dann keine Anmeldung gibt. Da `keycloak` auch in
+Ergebnis 10&nbsp;s, damit der öffentliche Endpunkt Keycloak nicht mit Anfragen belastet. Da `keycloak` auch in
 `/actuator/health` eingeht, sollten Container-Healthchecks die Probes `liveness`/`readiness`
 verwenden, sonst wird das Backend bei einem Keycloak-Ausfall neu gestartet.
 
@@ -315,7 +342,7 @@ gepflegt und sind Meilensteinen zugeordnet.
 ## Konfiguration
 
 Die Konfiguration liegt ausschließlich in `src/main/resources/application.yml`
-(Profile `dev`, `keycloak` und `prod`). Werte kommen aus Umgebungsvariablen; im Profil `dev`
+(Profile `dev` und `prod`). Werte kommen aus Umgebungsvariablen; im Profil `dev`
 gibt es Defaults für die lokale Entwicklung, im Profil `prod` sind alle Variablen Pflicht.
 
 | Variable                 | Dev-Default                                      |
@@ -325,18 +352,18 @@ gibt es Defaults für die lokale Entwicklung, im Profil `prod` sind alle Variabl
 | `DB_PASSWORD`            | `haushaltsbuch`                                  |
 | `KEYCLOAK_ISSUER_URI`    | `http://localhost:8180/realms/haushaltsbuch`     |
 | `KEYCLOAK_CLIENT_ID`     | `haushaltsbuch-backend`                          |
-| `KEYCLOAK_CLIENT_SECRET` | leer                                             |
+| `KEYCLOAK_CLIENT_SECRET` | `dev-secret` (passend zum Realm-Import)          |
 | `KEYCLOAK_ADMIN_URI`     | `http://localhost:8180/admin/realms/haushaltsbuch` |
 | `DOCKER_COMPOSE_ENABLED` | `false`                                          |
 
-Die `KEYCLOAK_*`-Variablen werden nur mit Profil `keycloak` ausgewertet. `KEYCLOAK_ADMIN_URI`
+`KEYCLOAK_ADMIN_URI`
 zeigt auf die Admin REST API des Realms, über die die Registrierung Konten anlegt; Anmeldung und
 Admin API nutzen denselben Client und dasselbe Secret.
 
 Die Keycloak-Endpunkte sind explizit konfiguriert statt über OIDC-Discovery. Dadurch startet
 das Backend auch, wenn Keycloak (noch) nicht erreichbar ist.
 
-Produktiv starten mit `SPRING_PROFILES_ACTIVE=prod`. Dort sind Keycloak immer aktiv, der Docker Compose Support
+Produktiv starten mit `SPRING_PROFILES_ACTIVE=prod`. Dort sind der Docker Compose Support
 sowie Swagger UI und die OpenAPI-Dokumentation deaktiviert.
 
 ### Datenbank
@@ -348,8 +375,8 @@ Migration, sonst startet die Anwendung nicht.
 Namenskonvention: `V<n>__<modul>_<beschreibung>.sql`, z.&nbsp;B. `V3__buchungen_kategorien.sql`.
 Bereits ausgelieferte Migrationen nicht mehr ändern, sondern eine neue anlegen.
 
-Die Tabelle `nutzer` speichert nur die Keycloak-ID und die Komponenten; E-Mail, Name und
-Passwort liegen ausschließlich in Keycloak.
+Die Tabelle `nutzer` speichert nur die Keycloak-ID; E-Mail, Name und Passwort liegen
+ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalte).
 
 ## Build und Tests
 
@@ -361,8 +388,8 @@ Passwort liegen ausschließlich in Keycloak.
 ```
 
 Integrationstests starten PostgreSQL per Testcontainers und benötigen daher eine laufende
-Container-Umgebung. Keycloak wird in den Tests nicht gebraucht: Tests mit Profil `keycloak`
-simulieren die Anmeldung (`jwt()`, `oidcLogin()`) und ersetzen den Zugriff auf die Admin API
+Container-Umgebung. Keycloak wird in den Tests nicht gebraucht: Die Tests simulieren die
+Anmeldung (`jwt()`, `oidcLogin()`) und ersetzen den Zugriff auf die Admin API
 durch Mocks. `ModularityTests` prüft die Modulstruktur mit Spring Modulith.
 
 Zum lokalen Start mit Testcontainers statt Docker Compose:
@@ -423,5 +450,6 @@ Regeln, die `ModularityTests` prüft:
 Weitere Dateien:
 
 - `compose.yaml`: PostgreSQL und Keycloak für die lokale Entwicklung
+- `docker/keycloak/import/`: Realm `haushaltsbuch` für den Import beim Start von Keycloak
 - `docker/postgres/init/`: Init-Skript, das die Keycloak-Datenbank anlegt
 - `.github/workflows/build.yml`: Build und Tests in GitHub Actions

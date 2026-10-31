@@ -28,7 +28,7 @@ class KomponentenController {
 
 	@GetMapping
 	List<Komponente> meineKomponenten(Authentication authentication) {
-		// Anonym nur ohne Profil keycloak möglich, dort ist die Security offen.
+		// Kann nicht anonym erreicht werden (SecurityConfig), nur ein Token ohne gültiges sub.
 		var id = AngemeldeterNutzer.id(authentication)
 				.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 		return komponentenAbfrage.komponentenVon(id).stream().sorted().toList();

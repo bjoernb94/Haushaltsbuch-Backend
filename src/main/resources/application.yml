@@ -4,9 +4,6 @@ spring:
   profiles:
     # Ohne SPRING_PROFILES_ACTIVE läuft die Anwendung lokal im dev-Profil.
     default: dev
-    group:
-      # In prod ist die Keycloak-Anbindung immer aktiv.
-      prod: keycloak
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -18,6 +15,30 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  # Keycloak-Anbindung; die Werte stehen unter haushaltsbuch.keycloak (je Profil).
+  security:
+    oauth2:
+      # Token-Prüfung (Resource Server) gegen den Keycloak-Realm.
+      resourceserver:
+        jwt:
+          issuer-uri: ${haushaltsbuch.keycloak.issuer-uri}
+          jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
+      # Die Anmeldung der Nutzer läuft nicht über Spring-OAuth2-Login, sondern über
+      # POST /api/anmeldung (siehe Anmeldung, KeycloakTokenClient).
+      client:
+        registration:
+          # Service Account für die Keycloak Admin API (Registrierung, siehe KeycloakAdminConfig).
+          # Der Client braucht dafür "Service accounts roles" und die Rolle realm-management/manage-users.
+          keycloak-admin:
+            provider: keycloak
+            client-id: ${haushaltsbuch.keycloak.client-id}
+            client-secret: ${haushaltsbuch.keycloak.client-secret}
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            # Endpunkt explizit statt über issuer-uri, damit der Start nicht
+            # von der Erreichbarkeit von Keycloak (OIDC-Discovery) abhängt.
+            token-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/token
 
 management:
   endpoints:
@@ -65,42 +86,12 @@ haushaltsbuch:
     # Einrichtung von Realm und Client: siehe README, Abschnitt "Keycloak einrichten".
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
     client-id: ${KEYCLOAK_CLIENT_ID:haushaltsbuch-backend}
-    client-secret: ${KEYCLOAK_CLIENT_SECRET:}
+    # Passt zum Realm-Import (docker/keycloak/import); nur für dev.
+    client-secret: ${KEYCLOAK_CLIENT_SECRET:dev-secret}
     # Admin REST API des Realms, über die die Registrierung Konten anlegt.
     admin-uri: ${KEYCLOAK_ADMIN_URI:http://localhost:8180/admin/realms/haushaltsbuch}
   security:
     openapi-public: true
-
----
-# Keycloak-Anbindung. Lokal mit SPRING_PROFILES_ACTIVE=dev,keycloak aktivieren;
-# ohne dieses Profil ist die Security im dev-Profil offen (siehe SecurityConfig).
-spring:
-  config:
-    activate:
-      on-profile: keycloak
-  security:
-    oauth2:
-      # Token-Prüfung (Resource Server) gegen den Keycloak-Realm.
-      resourceserver:
-        jwt:
-          issuer-uri: ${haushaltsbuch.keycloak.issuer-uri}
-          jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
-      # Die Anmeldung der Nutzer läuft nicht über Spring-OAuth2-Login, sondern über
-      # POST /api/anmeldung (siehe Anmeldung, KeycloakTokenClient).
-      client:
-        registration:
-          # Service Account für die Keycloak Admin API (Registrierung, siehe KeycloakAdminConfig).
-          # Der Client braucht dafür "Service accounts roles" und die Rolle realm-management/manage-users.
-          keycloak-admin:
-            provider: keycloak
-            client-id: ${haushaltsbuch.keycloak.client-id}
-            client-secret: ${haushaltsbuch.keycloak.client-secret}
-            authorization-grant-type: client_credentials
-        provider:
-          keycloak:
-            # Endpunkt explizit statt über issuer-uri, damit der Start nicht
-            # von der Erreichbarkeit von Keycloak (OIDC-Discovery) abhängt.
-            token-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/token
 
 ---
 spring:

@@ -25,10 +25,11 @@ services:
 
   keycloak:
     image: 'quay.io/keycloak/keycloak:26.8.1'
-    # Vorerst deaktiviert; starten mit: docker compose --profile keycloak up
-    profiles: ['keycloak']
-    command: ['start-dev']
+    # Spielt den Realm haushaltsbuch aus docker/keycloak/import ein, sofern er noch nicht existiert.
+    command: ['start-dev', '--import-realm']
     environment:
+      # Client-Secret für den Realm-Import; muss zu KEYCLOAK_CLIENT_SECRET des Backends passen.
+      KEYCLOAK_CLIENT_SECRET: '${KEYCLOAK_CLIENT_SECRET:-dev-secret}'
       KC_BOOTSTRAP_ADMIN_USERNAME: '${KEYCLOAK_ADMIN:-admin}'
       KC_BOOTSTRAP_ADMIN_PASSWORD: '${KEYCLOAK_ADMIN_PASSWORD:-admin}'
       KC_DB: 'postgres'
@@ -38,6 +39,8 @@ services:
       KC_HTTP_PORT: '8080'
     ports:
       - '${KEYCLOAK_PORT:-8180}:8080'
+    volumes:
+      - './docker/keycloak/import:/opt/keycloak/data/import:ro'
     depends_on:
       postgres:
         condition: service_healthy
