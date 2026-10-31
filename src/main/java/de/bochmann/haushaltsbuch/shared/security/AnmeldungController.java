@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import de.bochmann.haushaltsbuch.shared.fehler.Probleme;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -46,17 +47,14 @@ class AnmeldungController {
 
 	@ExceptionHandler
 	ProblemDetail anmeldungFehlgeschlagen(AnmeldungFehlgeschlagenException e) {
-		ProblemDetail problem = switch (e.getGrund()) {
-			case UNGUELTIG -> ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED,
-					"E-Mail-Adresse oder Passwort ist falsch.");
-			case GESPERRT -> ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
-					"Das Konto ist gesperrt.");
-			case NICHT_EINGERICHTET -> ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
-					"Das Konto ist noch nicht vollständig eingerichtet.");
+		return switch (e.getGrund()) {
+			case UNGUELTIG -> Probleme.problem(HttpStatus.UNAUTHORIZED, "ANMELDUNG_UNGUELTIG",
+					"Invalid email or password.");
+			case GESPERRT -> Probleme.problem(HttpStatus.FORBIDDEN, "ANMELDUNG_GESPERRT",
+					"Account is disabled or temporarily locked.");
+			case NICHT_EINGERICHTET -> Probleme.problem(HttpStatus.FORBIDDEN, "ANMELDUNG_NICHT_EINGERICHTET",
+					"Account setup is not complete.");
 		};
-		// Für die SPA, damit sie nicht am Text unterscheiden muss.
-		problem.setProperty("grund", e.getGrund());
-		return problem;
 	}
 
 }

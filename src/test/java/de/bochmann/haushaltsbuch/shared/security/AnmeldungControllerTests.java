@@ -13,11 +13,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,8 +52,9 @@ class AnmeldungControllerTests {
 		mockMvc.perform(post("/api/anmeldung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
 				.andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.grund").value("UNGUELTIG"))
-				.andExpect(jsonPath("$.detail").value("E-Mail-Adresse oder Passwort ist falsch."));
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("ANMELDUNG_UNGUELTIG"))
+				.andExpect(jsonPath("$.detail").value("Invalid email or password."));
 	}
 
 	@Test
@@ -62,7 +65,18 @@ class AnmeldungControllerTests {
 		mockMvc.perform(post("/api/anmeldung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
 				.andExpect(status().isForbidden())
-				.andExpect(jsonPath("$.grund").value("GESPERRT"));
+				.andExpect(jsonPath("$.code").value("ANMELDUNG_GESPERRT"));
+	}
+
+	@Test
+	void anmeldungOhneFelderUngueltig() throws Exception {
+		mockMvc.perform(post("/api/anmeldung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("email", "passwort")))
+				.andExpect(jsonPath("$.felder[*].code").value(containsInAnyOrder("NotBlank", "NotBlank")));
 	}
 
 	@Test
@@ -103,7 +117,8 @@ class AnmeldungControllerTests {
 				.thenThrow(new AnmeldungFehlgeschlagenException(Grund.UNGUELTIG, "Session not active"));
 
 		mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
-				.andExpect(status().isUnauthorized());
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("NICHT_ANGEMELDET"));
 
 		assertThat(session.isInvalid()).isTrue();
 	}

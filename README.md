@@ -151,7 +151,7 @@ Dev-Zugang `admin` / `admin`, alle Schritte außer dem ersten im Realm `haushalt
 8. **Keine Pflichtschritte:** Unter *Authentication* → *Required actions* keine Aktion als
    *Default action* aktivieren und Konten nicht mit temporärem Passwort anlegen. Die Seiten, auf
    denen Keycloak solche Schritte abfragt, werden nie angezeigt; ein Konto mit offenem
-   Pflichtschritt kann sich nicht anmelden (Antwort 403, `grund` `NICHT_EINGERICHTET`).
+   Pflichtschritt kann sich nicht anmelden (Antwort 403, `code` `ANMELDUNG_NICHT_EINGERICHTET`).
 
 Benutzer werden mit der E-Mail-Adresse als Benutzername angelegt.
 
@@ -190,10 +190,10 @@ Es gibt zwei Wege der Anmeldung über dieselbe Filterkette:
   angemeldet, Bereiche nach der Liste einblenden.
 - **Anmeldung:** `POST /api/anmeldung` mit `{"email": "...", "passwort": "..."}`.
   - **204**: angemeldet, Session-Cookie gesetzt
-  - **401**, `grund` `UNGUELTIG`: E-Mail-Adresse oder Passwort falsch
-  - **403**, `grund` `GESPERRT`: Konto deaktiviert oder nach Fehlversuchen vorübergehend gesperrt
-  - **403**, `grund` `NICHT_EINGERICHTET`: in Keycloak stehen Pflichtschritte aus
-  - **400**: Felder fehlen
+  - **401**, `code` `ANMELDUNG_UNGUELTIG`: E-Mail-Adresse oder Passwort falsch
+  - **403**, `code` `ANMELDUNG_GESPERRT`: Konto deaktiviert oder nach Fehlversuchen vorübergehend gesperrt
+  - **403**, `code` `ANMELDUNG_NICHT_EINGERICHTET`: in Keycloak stehen Pflichtschritte aus
+  - **400**, `code` `VALIDIERUNG`: Felder fehlen
 - **Registrierung:** Nach **201** ist der Nutzer direkt angemeldet. Scheitert nur die automatische
   Anmeldung, bleibt es bei 201 und die SPA zeigt die Login-Seite (erkennbar an der 401 beim
   nächsten Aufruf).
@@ -218,8 +218,9 @@ Backends (Standard 30 Minuten) und *SSO Session Idle* im Realm (Standard 30 Minu
 
 ### Antworten und öffentliche Endpunkte
 
-Antworten unter `/api/**`: **401** ohne Anmeldung, **403** bei fehlender Berechtigung oder
-fehlendem CSRF-Token.
+Antworten unter `/api/**`: **401** ohne Anmeldung (`NICHT_ANGEMELDET`), **403** bei fehlender
+Berechtigung (`KEIN_ZUGRIFF`) oder fehlendem CSRF-Token (`CSRF_TOKEN_UNGUELTIG`); zum Format siehe
+[Fehlerantworten](#fehlerantworten).
 
 Öffentlich ohne Anmeldung sind nur `/actuator/health/**`, `/actuator/info`,
 `POST /api/registrierung`, `POST /api/anmeldung` und im dev-Profil die OpenAPI-Dokumentation.
@@ -308,6 +309,51 @@ Ergebnis 10&nbsp;s, damit der öffentliche Endpunkt Keycloak nicht mit Anfragen 
 `/actuator/health` eingeht, sollten Container-Healthchecks die Probes `liveness`/`readiness`
 verwenden, sonst wird das Backend bei einem Keycloak-Ausfall neu gestartet.
 
+### Fehlerantworten
+
+Alle Fehler kommen als `ProblemDetail` (RFC 9457, `Content-Type: application/problem+json`). Die
+SPA erkennt den Fehler an `code` und zeigt den Text selbst in der Sprache des Nutzers an; `detail`
+ist englisch und nur für Entwickler und Logs gedacht.
+
+```json
+{
+  "type": "about:blank",
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "Request contains invalid fields.",
+  "instance": "/api/registrierung",
+  "code": "VALIDIERUNG",
+  "felder": [
+    { "feld": "passwort", "code": "Size", "parameter": { "min": 8 } },
+    { "feld": "email", "code": "Email", "parameter": {} }
+  ]
+}
+```
+
+Bei `VALIDIERUNG` listet `felder` jeden Verstoß einzeln (ein Feld kann mehrere haben): `code` ist
+der Name der Bean-Validation-Annotation (`NotBlank`, `NotEmpty`, `Size`, `Email` …), `parameter`
+enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
+
+| `code`                 | Status | Bedeutung                                                     |
+|------------------------|--------|---------------------------------------------------------------|
+| `VALIDIERUNG`          | 400    | Ungültige Felder im Request-Body, siehe `felder`              |
+| `ANFRAGE_UNGUELTIG`    | 400    | Request nicht lesbar (kaputtes JSON, unbekannter Enum-Wert …) |
+| `NICHT_ANGEMELDET`     | 401    | Keine oder abgelaufene Anmeldung                              |
+| `KEIN_ZUGRIFF`         | 403    | Keine Berechtigung, z.&nbsp;B. Komponente nicht gebucht       |
+| `CSRF_TOKEN_UNGUELTIG` | 403    | CSRF-Token fehlt oder ist ungültig                            |
+| `NICHT_GEFUNDEN`       | 404    | Unbekannter Pfad oder Datensatz, auch eines fremden Haushalts |
+| `METHODE_NICHT_ERLAUBT`| 405    | HTTP-Methode nicht unterstützt                                |
+| `INTERNER_FEHLER`      | 500    | Unerwarteter Fehler; Details nur im Log                       |
+
+Dazu kommen die Codes der einzelnen Endpunkte (siehe [Anmeldung](#ablauf-für-die-spa) und
+[Registrierung](#registrierung)). Allgemeine Fehler beantwortet `shared.fehler.FehlerBehandlung`
+zentral; Module werfen dafür z.&nbsp;B. `NichtGefundenException`. Modulspezifische Fehler beantworten
+die Controller des Moduls mit `Probleme.problem(status, code, detail)` und einem eigenen Code
+(`GROSSBUCHSTABEN_MIT_UNTERSTRICH`, deutsch).
+
+Ausnahme: Anfragen mit ungültigem Bearer-Token beantwortet der Resource Server weiterhin mit
+leerem 401 und `WWW-Authenticate`-Header; die SPA nutzt die Session und ist davon nicht betroffen.
+
 ### Registrierung
 
 `POST /api/registrierung` (CSRF-Token nötig):
@@ -322,8 +368,9 @@ verwenden, sonst wird das Backend bei einem Keycloak-Ausfall neu gestartet.
 }
 ```
 
-Antworten: **201** angelegt, **400** ungültige Daten oder Passwort von Keycloak abgelehnt,
-**409** E-Mail bereits vergeben. Nach 201 ist der Nutzer direkt angemeldet.
+Antworten: **201** angelegt, **400** ungültige Daten (`VALIDIERUNG`) oder von Keycloak abgelehnt,
+z.&nbsp;B. wegen der Passwort-Richtlinie (`REGISTRIERUNG_ABGELEHNT`), **409** E-Mail bereits vergeben
+(`EMAIL_BEREITS_VERGEBEN`). Nach 201 ist der Nutzer direkt angemeldet.
 
 Ablauf: Erst wird das Konto über die Keycloak Admin API angelegt, dann werden in einer
 Transaktion der Nutzer und sein Haushalt mit den Komponenten gespeichert. Schlägt das Speichern fehl, wird das Konto wieder gelöscht. Schlägt
@@ -467,7 +514,7 @@ de.bochmann.haushaltsbuch
 ├── portfolio    Depots, Positionen, Kurse
 ├── haushalt     Haushalt, Mitglieder, gebuchte Komponenten
 ├── nutzer       Registrierung, Profil, Konto in Keycloak
-└── shared       Security-Konfiguration, gemeinsame Typen (z. B. Komponente)
+└── shared       Security-Konfiguration, Fehlerbehandlung, gemeinsame Typen (z. B. Komponente)
 ```
 
 ### Module und Abhängigkeiten

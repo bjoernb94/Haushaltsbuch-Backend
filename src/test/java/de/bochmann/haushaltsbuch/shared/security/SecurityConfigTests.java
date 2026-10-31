@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
@@ -20,6 +21,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,7 +71,10 @@ class SecurityConfigTests {
 
 	@Test
 	void apiRequiresAuthentication() throws Exception {
-		mockMvc.perform(get("/api/buchungen")).andExpect(status().isUnauthorized());
+		mockMvc.perform(get("/api/buchungen"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("NICHT_ANGEMELDET"));
 	}
 
 	@Test
@@ -79,7 +84,8 @@ class SecurityConfigTests {
 
 		// Noch kein Controller unter /api/portfolio: 404 heißt, die Security hat durchgelassen.
 		mockMvc.perform(get("/api/portfolio").with(jwt().jwt(token -> token.subject(id.toString()))))
-				.andExpect(status().isNotFound());
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
 	}
 
 	@Test
@@ -88,7 +94,9 @@ class SecurityConfigTests {
 		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO));
 
 		mockMvc.perform(get("/api/buchungen/2026").with(jwt().jwt(token -> token.subject(id.toString()))))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
 	}
 
 	@Test
@@ -106,7 +114,8 @@ class SecurityConfigTests {
 	@Test
 	void abmeldungOhneCsrfTokenAbgelehnt() throws Exception {
 		mockMvc.perform(post("/api/abmeldung").with(oidcLogin()))
-				.andExpect(status().isForbidden());
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("CSRF_TOKEN_UNGUELTIG"));
 	}
 
 	@Test

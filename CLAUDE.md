@@ -67,6 +67,13 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   the household via `HaushaltService` in the same transaction as the user. Business tables store `haushalt_id`
   (no FK across modules), never `nutzer_id`; get it via `AktuellerHaushalt.id(authentication)` and filter every
   access on it. Another household's IDs must yield 404, not 403.
+- Errors are `ProblemDetail` with a stable German `code` property (e.g. `NICHT_GEFUNDEN`, `EMAIL_BEREITS_VERGEBEN`);
+  the SPA translates by code, `detail` is English and developer-only. Build them with `shared.fehler.Probleme.problem(...)`.
+  `shared.fehler.FehlerBehandlung` (`@RestControllerAdvice`, extends `ResponseEntityExceptionHandler`) handles general
+  errors centrally: validation (`VALIDIERUNG` with `felder` = field, constraint name, non-default annotation attributes),
+  Spring MVC errors, `NichtGefundenException`, catch-all 500, and the security chain's 401/403/CSRF (entry point and
+  access-denied handler delegate to `handlerExceptionResolver`). Module-specific errors stay as `@ExceptionHandler` in
+  the module's controller with their own code. New codes go into the README table.
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module

@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
 import de.bochmann.haushaltsbuch.shared.Komponente;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,10 +13,10 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
@@ -38,6 +39,7 @@ class SecurityConfig {
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, KomponentenAbfrage komponentenAbfrage,
 			KeycloakTokenClient tokenClient, CsrfTokenRepository csrfTokenRepository,
+			@Qualifier("handlerExceptionResolver") HandlerExceptionResolver fehlerBehandlung,
 			@Value("${haushaltsbuch.security.openapi-public:false}") boolean openApiPublic) throws Exception {
 		http.authorizeHttpRequests(auth -> {
 			auth.requestMatchers("/actuator/health/**", "/actuator/info").permitAll();
@@ -72,8 +74,11 @@ class SecurityConfig {
 		// des DefaultOidcUser aus dem Access Token befüllen.
 		http.oauth2ResourceServer(rs -> rs.jwt(withDefaults()));
 
-		// Ohne Anmeldung 401; eine Login-Seite im Backend gibt es nicht.
-		http.exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+		// Ohne Anmeldung 401, ohne Berechtigung oder CSRF-Token 403; eine Login-Seite im Backend gibt es
+		// nicht. Die Antwort schreibt die zentrale Fehlerbehandlung (shared.fehler) als ProblemDetail.
+		http.exceptionHandling(ex -> ex
+				.authenticationEntryPoint((request, response, e) -> fehlerBehandlung.resolveException(request, response, null, e))
+				.accessDeniedHandler((request, response, e) -> fehlerBehandlung.resolveException(request, response, null, e)));
 
 		// Session-Cookie im BFF-Muster erfordert CSRF-Schutz; das Token wird als Cookie
 		// (XSRF-TOKEN) an die SPA ausgeliefert und als Header X-XSRF-TOKEN zurückerwartet.
