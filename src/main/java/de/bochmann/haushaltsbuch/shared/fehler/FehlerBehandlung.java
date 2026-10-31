@@ -23,6 +23,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.lang.annotation.Annotation;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +62,14 @@ class FehlerBehandlung extends ResponseEntityExceptionHandler {
 				.map(FehlerBehandlung::feldfehler)
 				.toList());
 		return handleExceptionInternal(ex, problem, headers, status, request);
+	}
+
+	/** Fachliche Prüfung im Service, im selben Format wie {@code @Valid}. */
+	@ExceptionHandler
+	ProblemDetail ungueltigeEingabe(UngueltigeEingabeException e) {
+		ProblemDetail problem = Probleme.problem(HttpStatus.BAD_REQUEST, Probleme.VALIDIERUNG, e.getMessage());
+		problem.setProperty("felder", List.of(new Feldfehler(e.getFeld(), e.getCode(), e.getParameter())));
+		return problem;
 	}
 
 	/**
@@ -109,7 +118,10 @@ class FehlerBehandlung extends ResponseEntityExceptionHandler {
 				"An unexpected error occurred.");
 	}
 
-	/** Ein Verstoß; {@code feld} ist bei Constraints auf der ganzen Klasse {@code null}. */
+	/**
+	 * Ein Verstoß; {@code feld} ist bei Constraints auf der ganzen Klasse {@code null}, außer der
+	 * Validator hängt den Verstoß an ein Feld ({@code addPropertyNode}).
+	 */
 	record Feldfehler(String feld, String code, Map<String, Object> parameter) {
 	}
 

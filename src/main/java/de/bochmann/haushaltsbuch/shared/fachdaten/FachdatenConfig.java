@@ -20,9 +20,6 @@ import static org.springframework.data.web.config.EnableSpringDataWebSupport.Pag
 /**
  * Gemeinsame Konfiguration für Fachdaten: Trennung der Haushalte ({@link HaushaltTenantResolver}),
  * Auditing der {@link FachEntity} und Paging.
- * <p>
- * Liegt in {@code shared} und fehlt daher in Modultests ({@code @ModuleTest}); Tests, die
- * Fach-Entities speichern, laufen mit {@code @IntegrationTest}.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableJpaAuditing(auditorAwareRef = "angemeldeterNutzerAlsAuditor", dateTimeProviderRef = "auditZeit")

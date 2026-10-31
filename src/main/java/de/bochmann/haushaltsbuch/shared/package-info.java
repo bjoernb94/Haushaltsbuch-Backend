@@ -1,5 +1,7 @@
 /**
- * Gemeinsames Modul: Security-Konfiguration, Systemstatus (Health), Fehlerbehandlung und gemeinsame Typen.
+ * Gemeinsames Modul: Security-Konfiguration, Systemstatus (Health), Fehlerbehandlung, Basis der
+ * Fach-Entities mit Trennung der Haushalte ({@code fachdaten}), Geldbeträge ({@code geld}), Zeit
+ * ({@code zeit}) und gemeinsame Typen.
  * <p>
  * Als {@code OPEN} deklariert, damit alle Fachmodule die hier liegenden Typen
  * (inkl. Unterpakete) verwenden dürfen.

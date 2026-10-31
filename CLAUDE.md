@@ -37,9 +37,13 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   is a module, declared in its `package-info.java`. Only the module's root package is its public API;
   subpackages are internal. `shared` is `Type.OPEN`, so all modules may use its types.
   `ModularityTests` (`ApplicationModules.verify()`) fails on cyclic or internal cross-module access.
-- Package by business domain, not by technical layer.
+- Package by business domain, not by technical layer. Business modules split into topic subpackages (e.g.
+  `vertraege.vertrag`, `vertraege.kategorie`, `vertraege.berechnung` for Spring-free calculations), each with its
+  entity, repository, service, controller and DTOs; what other modules may use goes into the root package. Small
+  modules without topics (`nutzer`) stay flat. See README "Aufbau eines Fachmoduls".
 - Schema is managed only by Flyway (`src/main/resources/db/migration`); Hibernate runs with
-  `ddl-auto: validate`, so every new entity needs a migration.
+  `ddl-auto: validate`, so every new entity needs a migration. Enums: `VARCHAR(40)` + `@Enumerated(STRING)`, no
+  `CHECK` constraint.
 - Config is YAML-only (`application.yml`, profiles `dev` = default, `prod`). Keycloak settings are
   centralised under `haushaltsbuch.keycloak.*` and fed from env vars; `prod` has no defaults.
 - Keycloak is always on, also in dev and tests: there is no `keycloak` profile and no open (permitAll) chain.
@@ -72,14 +76,17 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   `HaushaltKontext.fuer(id, ...)` with the transaction started inside; none: `KEIN_HAUSHALT`, reads empty, saving
   fails). Don't filter business entities by hand; native SQL and tables with mixed rows (standard rows with
   `haushalt_id IS NULL`) aren't filtered and must use `HaushaltKontext.id()`. Each business module needs a test that
-  another household gets 404 (helper `TestHaushalt`). `@ModuleTest` has no tenant resolver (#44).
+  another household gets 404 (helper `TestHaushalt`).
 - Errors are `ProblemDetail` with a stable German `code` property (e.g. `NICHT_GEFUNDEN`, `EMAIL_BEREITS_VERGEBEN`);
   the SPA translates by code, `detail` is English and developer-only. Build them with `shared.fehler.Probleme.problem(...)`.
   `shared.fehler.FehlerBehandlung` (`@RestControllerAdvice`, extends `ResponseEntityExceptionHandler`) handles general
   errors centrally: validation (`VALIDIERUNG` with `felder` = field, constraint name, non-default annotation attributes),
   Spring MVC errors, `NichtGefundenException`, catch-all 500, and the security chain's 401/403/CSRF (entry point and
   access-denied handler delegate to `handlerExceptionResolver`). Module-specific errors stay as `@ExceptionHandler` in
-  the module's controller with their own code. New codes go into the README table.
+  the module's controller with their own code. New codes go into the README table. Business checks in services
+  (e.g. unknown/foreign category) throw `UngueltigeEingabeException(feld, code, detail)` → same `VALIDIERUNG` +
+  `felder` format; field codes are PascalCase like constraint names (`Unbekannt`). Cross-field rules are class-level
+  constraints whose validator attaches the violation to a field (`addPropertyNode`), otherwise `feld` is null.
 - Money is always `shared.geld.Betrag` (value + `Currency`, `@Embedded`, columns `<feld>_wert NUMERIC(19, 2)` and
   `<feld>_waehrung VARCHAR(3)` via `ImplicitNamingStrategyComponentPathImpl`; JSON `{"wert": 12.34, "waehrung": "EUR"}`,
   value as number). Only EUR is allowed for now (`ErlaubteWaehrung`, foreign currencies in #30), but never assume
@@ -93,13 +100,15 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
   `FachdatenConfig`; see README for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too).
   Audit columns are stored but not exposed yet (#42). Paging only for potentially large lists (`Page` serialized
-  `VIA_DTO`). `FachdatenConfig` is in `shared`, so `@ModuleTest` doesn't load it: tests that persist business
-  entities use `@IntegrationTest`.
+  `VIA_DTO`).
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module
-  flows, or `@ModuleTest` (`@ApplicationModuleTest`, only the test's module) for a module's services/repositories;
-  both live in `src/test` root package. `@IntegrationTest` mocks all Keycloak access (`Identitaetsanbieter`,
+  flows, or `@ModuleTest` (`@ApplicationModuleTest` with `extraIncludes = "shared"`: Modulith otherwise drops all
+  beans outside the module, incl. `FachdatenConfig` and `Clock`) for a module's services/repositories. Business
+  modules use `@FachmodulTest` (`@ModuleTest` + mocks for `HaushaltAbfrage`/`KomponentenAbfrage`, which `haushalt`
+  implements); tests set the household with `HaushaltKontext.fuer(...)` and must not be `@Transactional`. Pure
+  calculations get plain unit tests. All annotations live in `src/test` root package. `@IntegrationTest` mocks all Keycloak access (`Identitaetsanbieter`,
   `KeycloakTokenClient`, bean `keycloakHealthIndicator`, which `KeycloakErreichbar` stubs `UP` before each test) and
   spies on `Anmeldung`; tests `@Autowired` these and stub with `when(...)`. Don't add per-class `@MockitoBean`s,
   properties or profiles without need: each variant is a new context. Create other modules' test data via their
