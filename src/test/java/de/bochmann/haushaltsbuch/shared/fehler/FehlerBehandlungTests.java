@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -88,6 +89,21 @@ class FehlerBehandlungTests {
 				.andExpect(jsonPath("$.code").value("METHODE_NICHT_ERLAUBT"));
 	}
 
+	@Test
+	void veralteteVersion() throws Exception {
+		mockMvc.perform(get("/test/konflikt"))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("KONFLIKT"));
+	}
+
+	@Test
+	void gleichzeitigeAenderung() throws Exception {
+		mockMvc.perform(get("/test/gleichzeitig"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("KONFLIKT"));
+	}
+
 	@RestController
 	static class TestController {
 
@@ -97,6 +113,16 @@ class FehlerBehandlungTests {
 		@GetMapping("/test/nicht-gefunden")
 		void nichtGefunden() {
 			throw new NichtGefundenException("Buchung 42 not found.");
+		}
+
+		@GetMapping("/test/konflikt")
+		void konflikt() {
+			throw new KonfliktException("Vertrag 42 was modified in the meantime.");
+		}
+
+		@GetMapping("/test/gleichzeitig")
+		void gleichzeitig() {
+			throw new ObjectOptimisticLockingFailureException(Object.class, 42);
 		}
 
 		@GetMapping("/test/unerwartet")
