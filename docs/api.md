@@ -17,6 +17,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
+| `DELETE /api/vertraege/{id}`      | `VERTRAGSUEBERSICHT` | Vertrag löschen, siehe [Verträge](#verträge)    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
@@ -188,9 +189,11 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
 - **IDs:** UUIDs im Standardformat als String, z.&nbsp;B. `7cb7a2b8-38a6-432d-8546-03b3d74f76ec`, im Pfad
   wie im JSON. Eine ID in anderem Format ergibt **400** `ANFRAGE_UNGUELTIG`, eine unbekannte oder fremde
   ID **404** `NICHT_GEFUNDEN`. Pfade liegen unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
-- **Gleichzeitige Änderungen:** Jedes Objekt hat eine `version`. Die SPA schickt sie beim `PUT`
-  zurück (Pflichtfeld, fehlt sie: **400** `VALIDIERUNG`); ist sie veraltet, weil ein anderes Mitglied
-  inzwischen geändert hat, antwortet das Backend mit **409** `KONFLIKT`, und die SPA lädt neu. Die
+- **Gleichzeitige Änderungen:** Jedes Objekt hat eine `version`. Die SPA schickt sie beim `PUT` im
+  Body zurück (Pflichtfeld, fehlt sie: **400** `VALIDIERUNG`) und beim `DELETE` als Parameter
+  (`?version=3`, Pflicht, fehlt sie: **400** `ANFRAGE_UNGUELTIG`); ist sie veraltet, weil ein anderes
+  Mitglied inzwischen geändert hat, antwortet das Backend mit **409** `KONFLIKT`, ändert bzw. löscht
+  nichts, und die SPA lädt neu. So geht keine Änderung unbemerkt verloren. Die
   Antwort auf das `PUT` enthält die neue `version` für die nächste Änderung; ein `PUT` ohne
   tatsächliche Änderung lässt sie gleich. Mitgeschickte Felder, die nur in der Antwort stehen (z.&nbsp;B.
   `id`, berechnete Werte), ignoriert das Backend.
@@ -360,6 +363,17 @@ Anlegen.
 Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` (`NotNull`); veraltete
 `version` → **409** `KONFLIKT`; unbekannte ID oder Vertrag eines anderen Haushalts → **404**
 `NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.
+
+### Vertrag löschen
+
+`DELETE /api/vertraege/{id}?version=3` (CSRF-Token nötig) → **204** ohne Body. Endgültig, ohne
+Papierkorb; wer einen Vertrag behalten, aber nicht mehr zählen will, setzt „Gekündigt“ mit einem
+vergangenen Datum (`gekuendigtZum`, Status dann `BEENDET`).
+
+Fehler: veraltete `version` → **409** `KONFLIKT` (der Vertrag bleibt); `version` fehlt oder ist keine
+Zahl, ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`; unbekannte ID oder Vertrag eines anderen
+Haushalts → **404** `NICHT_GEFUNDEN`, auch beim zweiten Löschen derselben ID (die SPA kann das als
+„schon weg“ behandeln und neu laden).
 
 ### Verträge auflisten
 

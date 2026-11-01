@@ -97,6 +97,19 @@ class VertragService {
 		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();
 	}
 
+	/**
+	 * Löscht den Vertrag endgültig.
+	 *
+	 * @throws NichtGefundenException wie bei {@link #abrufen}, auch wenn er schon gelöscht ist
+	 * @throws KonfliktException wenn {@code version} veraltet ist; dann bleibt der Vertrag
+	 */
+	@Transactional
+	void loeschen(UUID id, long version) {
+		var vertrag = vertrag(id);
+		vertrag.pruefeVersion(version);
+		repository.delete(vertrag);
+	}
+
 	private Vertrag vertrag(UUID id) {
 		return repository.findById(id)
 				.orElseThrow(() -> new NichtGefundenException("Contract %s not found.".formatted(id)));

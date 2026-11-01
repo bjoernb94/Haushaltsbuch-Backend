@@ -228,6 +228,34 @@ class VertragServiceTests {
 				.isInstanceOf(NichtGefundenException.class);
 	}
 
+	@Test
+	void loeschtVertrag() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+
+		HaushaltKontext.fuer(haushalt, () -> {
+			service.loeschen(angelegt.id(), angelegt.version());
+			return null;
+		});
+
+		assertThat(HaushaltKontext.fuer(haushalt, service::auflisten)).isEmpty();
+		assertThatThrownBy(() -> HaushaltKontext.fuer(haushalt, () -> {
+			service.loeschen(angelegt.id(), angelegt.version());
+			return null;
+		})).isInstanceOf(NichtGefundenException.class);
+	}
+
+	@Test
+	void loeschenMitVeralteterVersionKonflikt() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+		HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(), aenderung(0, monatlich())));
+
+		assertThatThrownBy(() -> HaushaltKontext.fuer(haushalt, () -> {
+			service.loeschen(angelegt.id(), 0);
+			return null;
+		})).isInstanceOf(KonfliktException.class);
+		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(angelegt.id())).version()).isEqualTo(1);
+	}
+
 	private void anlegen(String anbieter, String bezeichnung, Zahlweise zahlweise, boolean kuendbar,
 			LocalDate laufzeitende, Verlaengerung verlaengerung, Integer frist, LocalDate gekuendigtZum) {
 		service.anlegen(new VertragAnfrage(anbieter, bezeichnung, VERSICHERUNG, null, euro("10.00"), zahlweise,

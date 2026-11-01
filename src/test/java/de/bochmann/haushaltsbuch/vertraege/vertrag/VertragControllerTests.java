@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -282,6 +283,95 @@ class VertragControllerTests {
 						.content(aenderung(0, "20.00")))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
+	}
+
+	private MockHttpServletRequestBuilder loeschen(String id, Object version, TestHaushalt als) {
+		var anfrage = delete("/api/vertraege/{id}", id).with(csrf()).with(als.anmeldung());
+		return version == null ? anfrage : anfrage.param("version", String.valueOf(version));
+	}
+
+	@Test
+	void loeschtVertrag() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+
+		mockMvc.perform(loeschen(id, 0, haushalt))
+				.andExpect(status().isNoContent())
+				.andExpect(content().string(""));
+
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/vertraege").with(haushalt.anmeldung()))
+				.andExpect(jsonPath("$", hasSize(0)));
+		// Zweites Löschen: schon weg.
+		mockMvc.perform(loeschen(id, 0, haushalt))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+	}
+
+	@Test
+	void loeschenMitVeralteterVersionKonflikt() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+		mockMvc.perform(aendern(id, aenderung(0, "20.00"))).andExpect(status().isOk());
+
+		mockMvc.perform(loeschen(id, 0, haushalt))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("KONFLIKT"));
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.betrag.wert").value(20.00));
+	}
+
+	@Test
+	void loeschenOhneOderMitUngueltigerVersionUngueltig() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+
+		mockMvc.perform(loeschen(id, null, haushalt))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
+		mockMvc.perform(loeschen(id, "abc", haushalt))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isOk());
+	}
+
+	/** Pflicht-Test zur Trennung der Haushalte: Einen fremden Vertrag kann niemand löschen. */
+	@Test
+	void vertragEinesAnderenHaushaltsLoeschenNichtGefunden() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+		var fremder = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+
+		mockMvc.perform(loeschen(id, 0, fremder))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void unbekanntenVertragLoeschenNichtGefunden() throws Exception {
+		mockMvc.perform(loeschen(UUID.randomUUID().toString(), 0, haushalt))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+	}
+
+	@Test
+	void loeschenMitIdOhneUuidFormatUngueltig() throws Exception {
+		mockMvc.perform(loeschen("42", 0, haushalt))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
+	}
+
+	@Test
+	void loeschenOhneGebuchteKomponenteVerboten() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+		var ohne = TestHaushalt.anlegen(haushaltService, Komponente.PORTFOLIO);
+
+		mockMvc.perform(loeschen(id, 0, ohne))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isOk());
 	}
 
 	@Test

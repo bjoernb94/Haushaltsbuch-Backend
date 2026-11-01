@@ -357,6 +357,86 @@
       }
     },
     "/api/vertraege/{id}" : {
+      "delete" : {
+        "operationId" : "vertragLoeschen",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "version",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage, z. B. ID kein UUID-Format (ANFRAGE_UNGUELTIG)."
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF), oder CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN)."
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Inzwischen von jemand anderem geändert, version veraltet (KONFLIKT)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ],
+          "session" : [ ]
+        } ],
+        "tags" : [ "Verträge" ]
+      },
       "get" : {
         "operationId" : "vertragAbrufen",
         "parameters" : [ {
