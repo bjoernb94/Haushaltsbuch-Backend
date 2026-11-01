@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -74,6 +75,12 @@ class OpenApiExportTests {
 				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.parameters[0].schema.format").value("uuid"))
 				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.responses.400").exists())
 				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.responses.404").exists())
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.responses.409").doesNotExist())
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].put.responses.409").exists())
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].put.requestBody.content['application/json'].schema.$ref")
+						.value("#/components/schemas/VertragAenderung"))
+				.andExpect(jsonPath("$.components.schemas.VertragAenderung.required").value(hasItem("version")))
+				.andExpect(jsonPath("$.components.schemas.VertragAnfrage.properties.version").doesNotExist())
 				// Currency als ISO-Code wie im JSON, nicht als Objekt.
 				.andExpect(jsonPath("$.components.schemas.Betrag.properties.waehrung.type").value("string"));
 	}

@@ -424,6 +424,95 @@
           "session" : [ ]
         } ],
         "tags" : [ "Verträge" ]
+      },
+      "put" : {
+        "operationId" : "vertragAendern",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VertragAenderung"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VertragAntwort"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG, z. B. ID kein UUID-Format)."
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF), oder CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN)."
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Inzwischen von jemand anderem geändert, version veraltet (KONFLIKT)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ],
+          "session" : [ ]
+        } ],
+        "tags" : [ "Verträge" ]
       }
     }
   },
@@ -578,6 +667,80 @@
           }
         },
         "required" : [ "email", "komponenten", "name", "passwort", "vorname" ]
+      },
+      "VertragAenderung" : {
+        "type" : "object",
+        "properties" : {
+          "abbuchungAb" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "anbieter" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "beginn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "bezeichnung" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "gekuendigtZum" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "kategorieId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "kuendbar" : {
+            "type" : "boolean"
+          },
+          "kuendigungsfristMonate" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 24,
+            "minimum" : 0
+          },
+          "laufzeitende" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "notiz" : {
+            "type" : "string",
+            "maxLength" : 1000,
+            "minLength" : 0
+          },
+          "verlaengerung" : {
+            "type" : "string",
+            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "vertragsnummer" : {
+            "type" : "string",
+            "maxLength" : 100,
+            "minLength" : 0
+          },
+          "zahlungsweg" : {
+            "type" : "string",
+            "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+          },
+          "zahlweise" : {
+            "type" : "string",
+            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+          }
+        },
+        "required" : [ "abbuchungAb", "anbieter", "betrag", "kategorieId", "kuendbar", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",

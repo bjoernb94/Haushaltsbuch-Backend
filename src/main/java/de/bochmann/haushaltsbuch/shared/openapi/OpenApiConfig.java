@@ -157,6 +157,9 @@ class OpenApiConfig {
 		if (mitId) {
 			fehler(antworten, "404", "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN).");
 		}
+		if (methode == PathItem.HttpMethod.PUT) {
+			fehler(antworten, "409", "Inzwischen von jemand anderem geändert, version veraltet (KONFLIKT).");
+		}
 	}
 
 	private static void fehler(ApiResponses antworten, String status, String beschreibung) {

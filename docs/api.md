@@ -16,6 +16,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
+| `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
@@ -188,8 +189,11 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
   wie im JSON. Eine ID in anderem Format ergibt **400** `ANFRAGE_UNGUELTIG`, eine unbekannte oder fremde
   ID **404** `NICHT_GEFUNDEN`. Pfade liegen unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
 - **Gleichzeitige Änderungen:** Jedes Objekt hat eine `version`. Die SPA schickt sie beim `PUT`
-  zurück; ist sie veraltet, weil ein anderes Mitglied inzwischen geändert hat, antwortet das Backend
-  mit **409** `KONFLIKT`, und die SPA lädt neu.
+  zurück (Pflichtfeld, fehlt sie: **400** `VALIDIERUNG`); ist sie veraltet, weil ein anderes Mitglied
+  inzwischen geändert hat, antwortet das Backend mit **409** `KONFLIKT`, und die SPA lädt neu. Die
+  Antwort auf das `PUT` enthält die neue `version` für die nächste Änderung; ein `PUT` ohne
+  tatsächliche Änderung lässt sie gleich. Mitgeschickte Felder, die nur in der Antwort stehen (z.&nbsp;B.
+  `id`, berechnete Werte), ignoriert das Backend.
 - **Paging** nur, wo Listen groß werden können. Dann `Pageable` als Parameter (`?page=0&size=20&sort=…`)
   und `Page` als Antwort; ausgeliefert als `{"content": [...], "page": {"size", "number",
   "totalElements", "totalPages"}}`.
@@ -336,6 +340,26 @@ Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den übli
 `GET /api/vertraege/{id}` → **200** mit dem Vertrag wie in der [Antwort](#antwort) oben, inkl. `version`
 für das Ändern und `berechnet` zum heutigen Tag. Unbekannte ID oder Vertrag eines anderen Haushalts →
 **404** `NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.
+
+### Vertrag ändern
+
+`PUT /api/vertraege/{id}` (CSRF-Token nötig) mit allen Feldern wie beim [Anlegen](#vertrag-anlegen)
+plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem Vertrag wie in der
+[Antwort](#antwort), inkl. der neuen `version`:
+
+```json
+{ "version": 2, "anbieter": "Musterversicherung AG", "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec", … }
+```
+
+Alle Felder werden ersetzt, auch `abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
+Zahlweise ab diesem Tag ab. Das Formular belegt „Nächste Abbuchung“ daher mit
+`berechnet.naechsteAbbuchung` vor (nur wenn das `null` ist, mit `abbuchungAb`) und lässt das Datum
+bei einem Wechsel der Zahlweise bestätigen. Bei `kuendbar: false` gilt dasselbe Leeren wie beim
+Anlegen.
+
+Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` (`NotNull`); veraltete
+`version` → **409** `KONFLIKT`; unbekannte ID oder Vertrag eines anderen Haushalts → **404**
+`NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.
 
 ### Verträge auflisten
 

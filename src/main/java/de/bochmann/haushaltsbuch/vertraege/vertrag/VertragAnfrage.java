@@ -40,5 +40,5 @@ record VertragAnfrage(
 		Verlaengerung verlaengerung,
 		@Min(0) @Max(24) Integer kuendigungsfristMonate,
 		LocalDate gekuendigtZum,
-		@Size(max = 1000) String notiz) {
+		@Size(max = 1000) String notiz) implements Vertragsangaben {
 }

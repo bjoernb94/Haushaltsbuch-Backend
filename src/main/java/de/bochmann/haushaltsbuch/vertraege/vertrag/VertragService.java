@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.fehler.KonfliktException;
 import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
@@ -61,8 +62,23 @@ class VertragService {
 	 */
 	@Transactional(readOnly = true)
 	VertragAntwort abrufen(UUID id) {
-		var vertrag = repository.findById(id)
-				.orElseThrow(() -> new NichtGefundenException("Contract %s not found.".formatted(id)));
+		return VertragAntwort.aus(vertrag(id), berechnung());
+	}
+
+	/**
+	 * Ersetzt alle Angaben des Vertrags.
+	 *
+	 * @throws NichtGefundenException wie bei {@link #abrufen}
+	 * @throws KonfliktException wenn {@code version} veraltet ist, also inzwischen jemand anderes geändert hat
+	 * @throws UngueltigeEingabeException wie bei {@link #anlegen}
+	 */
+	@Transactional
+	VertragAntwort aendern(UUID id, VertragAenderung aenderung) {
+		var vertrag = vertrag(id);
+		vertrag.pruefeVersion(aenderung.version());
+		vertrag.setzen(aenderung, kategorie(aenderung.kategorieId()));
+		// Hibernate erhöht die Version erst beim Schreiben; die Antwort braucht schon die neue.
+		repository.flush();
 		return VertragAntwort.aus(vertrag, berechnung());
 	}
 
@@ -79,6 +95,11 @@ class VertragService {
 	/** Wie in der SPA: die Bezeichnung, ohne sie der Anbieter. */
 	private static String anzeigeName(VertragAntwort vertrag) {
 		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();
+	}
+
+	private Vertrag vertrag(UUID id) {
+		return repository.findById(id)
+				.orElseThrow(() -> new NichtGefundenException("Contract %s not found.".formatted(id)));
 	}
 
 	private VertragKategorie kategorie(UUID id) {
