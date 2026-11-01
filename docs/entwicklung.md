@@ -199,9 +199,10 @@ ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalt
 
 Integrationstests starten PostgreSQL per Testcontainers und benötigen daher eine laufende
 Container-Umgebung. Ein Container wird für den ganzen Testlauf geteilt. Keycloak wird in den
-Tests nicht gebraucht: Die Tests simulieren die Anmeldung (`jwt()`, `oidcLogin()`), alle Zugriffe
-auf Keycloak sind Mocks. `ModularityTests` prüft die Modulstruktur mit Spring Modulith und
-schreibt die [Modul-Dokumentation](#module).
+Tests nicht gebraucht: Die Tests simulieren die Session-Anmeldung mit `oidcLogin()`
+(Fachmodule: `TestHaushalt.anmeldung()`), alle Zugriffe auf Keycloak sind Mocks. `jwt()` passt
+nicht, weil das Backend keine Bearer-Tokens annimmt. `ModularityTests` prüft die Modulstruktur
+mit Spring Modulith und schreibt die [Modul-Dokumentation](#module).
 
 ### Aufbau der Tests
 

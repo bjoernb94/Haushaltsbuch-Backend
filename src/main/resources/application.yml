@@ -27,11 +27,6 @@ spring:
   # Keycloak-Anbindung; die Werte stehen unter haushaltsbuch.keycloak (je Profil).
   security:
     oauth2:
-      # Token-Prüfung (Resource Server) gegen den Keycloak-Realm.
-      resourceserver:
-        jwt:
-          issuer-uri: ${haushaltsbuch.keycloak.issuer-uri}
-          jwk-set-uri: ${haushaltsbuch.keycloak.issuer-uri}/protocol/openid-connect/certs
       # Die Anmeldung der Nutzer läuft nicht über Spring-OAuth2-Login, sondern über
       # POST /api/anmeldung (siehe Anmeldung, KeycloakTokenClient).
       client:

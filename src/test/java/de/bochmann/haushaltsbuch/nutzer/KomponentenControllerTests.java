@@ -10,7 +10,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -30,26 +29,16 @@ class KomponentenControllerTests {
 		UUID id = UUID.randomUUID();
 		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO, Komponente.FINANZUEBERSICHT));
 
-		mockMvc.perform(get("/api/nutzer/ich/komponenten").with(jwt().jwt(token -> token.subject(id.toString()))))
+		mockMvc.perform(get("/api/nutzer/ich/komponenten")
+						.with(oidcLogin().idToken(token -> token.subject(id.toString()))))
 				.andExpect(status().isOk())
 				.andExpect(content().json("[\"FINANZUEBERSICHT\", \"PORTFOLIO\"]", true));
 	}
 
 	@Test
-	void liefertKomponentenAuchBeiSessionLogin() throws Exception {
-		UUID id = UUID.randomUUID();
-		haushaltService.anlegen(id, Set.of(Komponente.VERTRAGSUEBERSICHT));
-
-		mockMvc.perform(get("/api/nutzer/ich/komponenten")
-						.with(oidcLogin().idToken(token -> token.subject(id.toString()))))
-				.andExpect(status().isOk())
-				.andExpect(content().json("[\"VERTRAGSUEBERSICHT\"]", true));
-	}
-
-	@Test
 	void unbekannterNutzerHatKeineKomponenten() throws Exception {
 		mockMvc.perform(get("/api/nutzer/ich/komponenten")
-						.with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))))
+						.with(oidcLogin().idToken(token -> token.subject(UUID.randomUUID().toString()))))
 				.andExpect(status().isOk())
 				.andExpect(content().json("[]", true));
 	}

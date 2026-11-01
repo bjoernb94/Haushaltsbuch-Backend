@@ -31,14 +31,12 @@ Wie die Prüfung von `keycloak` arbeitet und was für Container-Healthchecks gil
 
 ## Anmeldung und Zugriffsschutz
 
-Es gibt zwei Wege der Anmeldung über dieselbe Filterkette:
-
-- **Session:** Die SPA hat ein eigenes Login-Formular und schickt E-Mail und Passwort an
-  `POST /api/anmeldung`. Das Backend holt damit die Tokens direkt bei Keycloak (Password Grant,
-  in Keycloak *Direct access grants*) und legt die Session an; die SPA erhält nur das
-  Session-Cookie. Es gibt keine Weiterleitung zu Keycloak.
-- **Bearer-Token:** Anfragen mit einem Access Token von Keycloak (z.&nbsp;B. andere Clients, Tests)
-  werden gegen den Realm geprüft.
+Angemeldet wird nur per Session: Die SPA hat ein eigenes Login-Formular und schickt E-Mail und
+Passwort an `POST /api/anmeldung`. Das Backend holt damit die Tokens direkt bei Keycloak (Password
+Grant, in Keycloak *Direct access grants*) und legt die Session an; die SPA erhält nur das
+Session-Cookie. Es gibt keine Weiterleitung zu Keycloak. Bearer-Tokens nimmt das Backend nicht an
+([Entscheidung 0009](entscheidungen/0009-nur-session-anmeldung.md)); eine Anfrage nur mit
+`Authorization: Bearer …` gilt als nicht angemeldet.
 
 ### Ablauf für die SPA
 
@@ -149,9 +147,6 @@ enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
 
 Dazu kommen die Codes der einzelnen Endpunkte (siehe [Anmeldung](#ablauf-für-die-spa) und
 [Registrierung](#registrierung)).
-
-Ausnahme: Anfragen mit ungültigem Bearer-Token beantwortet der Resource Server weiterhin mit
-leerem 401 und `WWW-Authenticate`-Header; die SPA nutzt die Session und ist davon nicht betroffen.
 
 ## Geldbeträge und Datum
 

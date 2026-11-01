@@ -8,8 +8,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.Set;
 import java.util.UUID;
@@ -17,7 +19,6 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -83,7 +84,7 @@ class SecurityConfigTests {
 		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO));
 
 		// Noch kein Controller unter /api/portfolio: 404 heißt, die Security hat durchgelassen.
-		mockMvc.perform(get("/api/portfolio").with(jwt().jwt(token -> token.subject(id.toString()))))
+		mockMvc.perform(get("/api/portfolio").with(anmeldung(id)))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
 	}
@@ -93,7 +94,7 @@ class SecurityConfigTests {
 		UUID id = UUID.randomUUID();
 		haushaltService.anlegen(id, Set.of(Komponente.PORTFOLIO));
 
-		mockMvc.perform(get("/api/buchungen/2026").with(jwt().jwt(token -> token.subject(id.toString()))))
+		mockMvc.perform(get("/api/buchungen/2026").with(anmeldung(id)))
 				.andExpect(status().isForbidden())
 				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
@@ -101,7 +102,7 @@ class SecurityConfigTests {
 
 	@Test
 	void bereichFuerUnbekanntenNutzerVerboten() throws Exception {
-		mockMvc.perform(get("/api/vertraege").with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))))
+		mockMvc.perform(get("/api/vertraege").with(anmeldung(UUID.randomUUID())))
 				.andExpect(status().isForbidden());
 	}
 
@@ -119,14 +120,16 @@ class SecurityConfigTests {
 	}
 
 	@Test
-	void bereichPruefungGiltAuchFuerSessionLogin() throws Exception {
-		UUID id = UUID.randomUUID();
-		haushaltService.anlegen(id, Set.of(Komponente.VERSORGUNGSVERTRAEGE));
+	void bearerTokenWirdNichtAngenommen() throws Exception {
+		// Angemeldet wird nur per Session; ein Bearer-Token zählt nicht als Anmeldung.
+		mockMvc.perform(get("/api/nutzer/ich").header(HttpHeaders.AUTHORIZATION, "Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2ln"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("NICHT_ANGEMELDET"));
+	}
 
-		mockMvc.perform(get("/api/versorgung").with(oidcLogin().idToken(token -> token.subject(id.toString()))))
-				.andExpect(status().isNotFound());
-		mockMvc.perform(get("/api/portfolio").with(oidcLogin().idToken(token -> token.subject(id.toString()))))
-				.andExpect(status().isForbidden());
+	private static RequestPostProcessor anmeldung(UUID nutzerId) {
+		return oidcLogin().idToken(token -> token.subject(nutzerId.toString()));
 	}
 
 }
