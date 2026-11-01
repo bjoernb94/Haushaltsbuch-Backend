@@ -255,7 +255,9 @@ setzt sie nach jedem Test zurück. Eigene `@MockitoBean`s nur in begründeten Au
 eingebunden (`extraIncludes`), weil Spring Modulith sonst alle Beans außerhalb des Moduls entfernt,
 auch `FachdatenConfig` (Auditing, Trennung der Haushalte) und das `Clock`-Bean. Greift das Modul auf
 Beans anderer Module zu, schlägt der Start fehl; diese dann in der Testklasse mit `@MockitoBean`
-ersetzen.
+ersetzen. Spring Modulith legt sonst eine Testinstanz für alle Tests einer Klasse an
+(`@TestInstance(PER_CLASS)`); `@ModuleTest` stellt wieder eine je Testmethode ein, Felder wie
+`private final UUID haushalt = UUID.randomUUID()` sind also in jedem Test neu.
 
 Fachmodule testen ihre Services und Repositories mit `@FachmodulTest`. `shared` braucht
 `HaushaltAbfrage` und `KomponentenAbfrage`, die das Modul `haushalt` implementiert; dort sind beide
