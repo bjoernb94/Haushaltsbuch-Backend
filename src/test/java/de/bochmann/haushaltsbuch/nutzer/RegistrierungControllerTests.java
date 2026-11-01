@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -137,6 +138,22 @@ class RegistrierungControllerTests {
 				.andExpect(jsonPath("$.felder[0].feld").value("passwort"))
 				.andExpect(jsonPath("$.felder[0].code").value("Size"))
 				.andExpect(jsonPath("$.felder[0].parameter.min").value(8));
+	}
+
+	@Test
+	void zuLangerNameUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{"email": "lang@example.org", "passwort": "Geheim123!", "vorname": "Max", "name": "%s",
+								 "komponenten": ["PORTFOLIO"]}
+								""".formatted("x".repeat(256))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[0].feld").value("name"))
+				.andExpect(jsonPath("$.felder[0].code").value("Size"))
+				.andExpect(jsonPath("$.felder[0].parameter.max").value(255));
+		verifyNoInteractions(identitaetsanbieter);
 	}
 
 	@Test

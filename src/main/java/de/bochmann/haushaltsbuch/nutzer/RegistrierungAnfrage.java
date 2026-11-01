@@ -11,12 +11,15 @@ import java.util.Set;
 /**
  * Daten des Registrierungsformulars. Die Checkboxen des Formulars werden als Liste der
  * gewählten {@link Komponente}n übertragen.
+ * <p>
+ * Höchstlängen wie in Keycloak (Spalten mit 255 Zeichen), damit zu lange Werte als
+ * {@code VALIDIERUNG} abgelehnt werden statt erst von Keycloak.
  */
 record RegistrierungAnfrage(
-		@NotBlank @Email String email,
-		@NotBlank @Size(min = 8) String passwort,
-		@NotBlank String vorname,
-		@NotBlank String name,
+		@NotBlank @Email @Size(max = 255) String email,
+		@NotBlank @Size(min = 8, max = 255) String passwort,
+		@NotBlank @Size(max = 255) String vorname,
+		@NotBlank @Size(max = 255) String name,
 		@NotEmpty Set<Komponente> komponenten) {
 
 	@Override
