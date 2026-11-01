@@ -105,7 +105,7 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.
 - Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
-  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204. Business entities extend `shared.fachdaten.FachEntity`
+  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
   `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields, on `DELETE` with a required `@RequestParam long version` before deleting (load first so

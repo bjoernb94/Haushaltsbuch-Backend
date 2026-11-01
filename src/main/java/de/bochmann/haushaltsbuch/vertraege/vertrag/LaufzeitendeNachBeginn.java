@@ -22,10 +22,10 @@ import java.lang.annotation.Target;
 
 	Class<? extends Payload>[] payload() default {};
 
-	class Pruefung implements ConstraintValidator<LaufzeitendeNachBeginn, Vertragsangaben> {
+	class Pruefung implements ConstraintValidator<LaufzeitendeNachBeginn, Berechnungsangaben> {
 
 		@Override
-		public boolean isValid(Vertragsangaben anfrage, ConstraintValidatorContext context) {
+		public boolean isValid(Berechnungsangaben anfrage, ConstraintValidatorContext context) {
 			if (anfrage.beginn() == null || anfrage.laufzeitende() == null
 					|| !anfrage.laufzeitende().isBefore(anfrage.beginn())) {
 				return true;

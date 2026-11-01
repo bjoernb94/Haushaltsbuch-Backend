@@ -16,6 +16,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
 | `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
+| `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Kündigungstermin berechnen, siehe [Verträge](#verträge) |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
 | `DELETE /api/vertraege/{id}`      | `VERTRAGSUEBERSICHT` | Vertrag löschen, siehe [Verträge](#verträge)    |
@@ -186,7 +187,8 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
 
 - **Methoden:** `GET` liest, `POST` legt an (**201** mit `Location`-Header und dem angelegten
   Objekt), `PUT` ändert mit dem ganzen Objekt (**200** mit dem geänderten Objekt), `DELETE` löscht
-  (**204**). Kein `PATCH`.
+  (**204**). Kein `PATCH`. Ausnahme: Berechnungen ohne Speichern mit Formularwerten im Body (z.&nbsp;B.
+  `POST /api/vertraege/vorschau`) antworten mit **200** ohne `Location`.
 - **IDs:** UUIDs im Standardformat als String, z.&nbsp;B. `7cb7a2b8-38a6-432d-8546-03b3d74f76ec`, im Pfad
   wie im JSON. Eine ID in anderem Format ergibt **400** `ANFRAGE_UNGUELTIG`, eine unbekannte oder fremde
   ID **404** `NICHT_GEFUNDEN`. Pfade liegen unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
@@ -424,3 +426,27 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
 - Ohne laufende Verträge: `laufendeVertraege` 0 und leere Listen.
+
+### Vorschau des Kündigungstermins
+
+`POST /api/vertraege/vorschau` berechnet den „Nächsten Kündigungstermin“ für das Formular „Neuer Vertrag“ bzw.
+„Vertrag bearbeiten“, ohne etwas zu speichern → **200** (ohne `Location`):
+
+```json
+{ "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true } }
+```
+
+- **Anfrage:** die Formularwerte `zahlweise`, `abbuchungAb`, `kuendbar`, `beginn`, `laufzeitende`,
+  `verlaengerung`, `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere
+  Felder ignoriert das Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle
+  anderen dürfen fehlen (ergibt z.&nbsp;B. `KEINE_LAUFZEIT`).
+- **`kuendigung`** wie `berechnet.kuendigung` in der [Antwort](#antwort): Für dieselben Werte steht nach dem
+  Speichern dasselbe in der Liste, auch für eine eingetragene Kündigung (`GEKUENDIGT` bzw. `BEENDET`). Bei
+  `kuendbar: false` zählen Verlängerung und Frist wie beim Speichern nicht.
+- Das Objekt kann später weitere Werte bekommen; die SPA liest nur, was sie braucht.
+- **Fehler:** Die Prüfungen sind dieselben wie beim Anlegen, nur ohne Pflichtfelder: **400** `VALIDIERUNG`
+  mit `felder`, z.&nbsp;B. `LaufzeitendeNachBeginn` oder `Max` bei `kuendigungsfristMonate`. Die Vorschau
+  zeigt also nie einen Termin für Werte, die sich nicht speichern lassen. Unbekannter Enum-Wert oder kaputtes
+  JSON: **400** `ANFRAGE_UNGUELTIG`.
+- Die SPA ruft die Vorschau verzögert auf (Debounce), nicht bei jedem Tastendruck; CSRF-Token wie bei allen
+  `POST`.

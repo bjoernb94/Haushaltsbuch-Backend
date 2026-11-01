@@ -102,8 +102,10 @@ class Vertrag extends FachEntity {
 		this.kuendbar = anfrage.kuendbar();
 		this.beginn = anfrage.beginn();
 		this.laufzeitende = anfrage.laufzeitende();
-		this.verlaengerung = kuendbar ? anfrage.verlaengerung() : null;
-		this.kuendigungsfristMonate = kuendbar ? anfrage.kuendigungsfristMonate() : null;
+		// Bereinigt wie in der Vorschau, siehe Berechnungsangaben#daten.
+		var daten = anfrage.daten();
+		this.verlaengerung = daten.verlaengerung();
+		this.kuendigungsfristMonate = daten.kuendigungsfristMonate();
 		this.gekuendigtZum = anfrage.gekuendigtZum();
 		this.notiz = text(anfrage.notiz());
 	}

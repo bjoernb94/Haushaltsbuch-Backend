@@ -105,7 +105,10 @@ Das Format der Endpunkte für die SPA steht in der [API](api.md#fachendpunkte). 
   `<Objekt>Aenderung` zum Ändern (dieselben Felder plus `@NotNull Long version`, damit `version` in der
   OpenAPI Pflicht ist und beim Anlegen fehlt) und `<Objekt>Antwort`. Ein gemeinsames Interface (z.&nbsp;B.
   `Vertragsangaben`) lässt Entity und klassenweite Validatoren mit beiden arbeiten; ein Test hält die
-  beiden Feldlisten gleich (`VertragAenderungTests`).
+  beiden Feldlisten gleich (`VertragAenderungTests`). Eine Vorschau ohne Speichern (z.&nbsp;B.
+  `VertragVorschauAnfrage`) nimmt nur die Felder der Berechnung, über ein kleineres Interface
+  (`Berechnungsangaben`), das auch die Bereinigung vor der Berechnung enthält; so rechnen Vorschau und
+  gespeicherter Vertrag gleich. Ihre Prüfungen gleichen denen beim Anlegen, nur ohne `NotNull` (Test wie oben).
 - **Fach-Entities** erben von `shared.fachdaten.FachEntity`: UUID, Haushalt (siehe
   [Trennung der Haushalte](#trennung-der-haushalte)), `@Version` und Audit-Spalten (Spalten siehe
   [Datenbank](#datenbank)).

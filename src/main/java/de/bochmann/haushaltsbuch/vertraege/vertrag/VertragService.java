@@ -98,6 +98,11 @@ class VertragService {
 		return VertragsuebersichtAntwort.aus(auflisten());
 	}
 
+	/** Die Kündigung zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte Verträge. */
+	VertragVorschauAntwort vorschau(VertragVorschauAnfrage anfrage) {
+		return new VertragVorschauAntwort(berechnung().kuendigung(anfrage.daten()));
+	}
+
 	/** Wie in der SPA: die Bezeichnung, ohne sie der Anbieter. */
 	private static String anzeigeName(VertragAntwort vertrag) {
 		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();

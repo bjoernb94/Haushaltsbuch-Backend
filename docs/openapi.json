@@ -397,6 +397,68 @@
         "tags" : [ "Verträge" ]
       }
     },
+    "/api/vertraege/vorschau" : {
+      "post" : {
+        "operationId" : "vertragVorschauBerechnen",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VertragVorschauAnfrage"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VertragVorschauAntwort"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG)."
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF), oder CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ],
+          "session" : [ ]
+        } ],
+        "tags" : [ "Verträge" ]
+      }
+    },
     "/api/vertraege/{id}" : {
       "delete" : {
         "operationId" : "vertragLoeschen",
@@ -1069,6 +1131,53 @@
           },
           "schluessel" : {
             "type" : "string"
+          }
+        }
+      },
+      "VertragVorschauAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "abbuchungAb" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "beginn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "gekuendigtZum" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "kuendbar" : {
+            "type" : "boolean"
+          },
+          "kuendigungsfristMonate" : {
+            "type" : "integer",
+            "format" : "int32",
+            "maximum" : 24,
+            "minimum" : 0
+          },
+          "laufzeitende" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "verlaengerung" : {
+            "type" : "string",
+            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+          },
+          "zahlweise" : {
+            "type" : "string",
+            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+          }
+        },
+        "required" : [ "kuendbar" ]
+      },
+      "VertragVorschauAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "kuendigung" : {
+            "$ref" : "#/components/schemas/Kuendigung"
           }
         }
       },
