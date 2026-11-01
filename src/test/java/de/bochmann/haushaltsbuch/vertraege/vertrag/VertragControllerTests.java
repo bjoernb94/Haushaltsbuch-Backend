@@ -419,6 +419,32 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.felder[?(@.feld == 'kuendigungsfristMonate')].parameter.value").value(24));
 	}
 
+	/** Ohne Grenze gäbe es einen Überlauf beim Weiterzählen bzw. Postgres könnte nicht speichern: 500 statt 400. */
+	@Test
+	void extremeDatenUngueltig() throws Exception {
+		mockMvc.perform(anlegen(abo("13.99", "1899-12-31", "+6000000-01-01", 1)
+						.replace("\"abbuchungAb\": \"" + heute.plusDays(9), "\"abbuchungAb\": \"+6000000-01-01")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("abbuchungAb", "beginn", "laufzeitende")))
+				.andExpect(jsonPath("$.felder[*].code").value(containsInAnyOrder("PlausiblesDatum", "PlausiblesDatum",
+						"PlausiblesDatum")));
+
+		String id = JsonPath.read(angelegt(), "$.id");
+		mockMvc.perform(aendern(id, aenderung(0, "20.00").replace("\"gekuendigtZum\": null",
+						"\"gekuendigtZum\": \"2200-01-01\"")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("gekuendigtZum"))
+				.andExpect(jsonPath("$.felder[0].code").value("PlausiblesDatum"));
+
+		mockMvc.perform(vorschau("""
+						{"kuendbar": true, "beginn": "+999999999-12-31", "verlaengerung": "ZWOELF_MONATE"}
+						"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("beginn"))
+				.andExpect(jsonPath("$.felder[0].code").value("PlausiblesDatum"));
+	}
+
 	private MockHttpServletRequestBuilder vorschau(String body) {
 		return post("/api/vertraege/vorschau").with(csrf()).with(haushalt.anmeldung())
 				.contentType(MediaType.APPLICATION_JSON)

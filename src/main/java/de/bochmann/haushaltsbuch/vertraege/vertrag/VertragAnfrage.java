@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.shared.geld.PositiverBetrag;
+import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.Valid;
@@ -32,13 +33,13 @@ record VertragAnfrage(
 		@Size(max = 100) String vertragsnummer,
 		@NotNull @Valid @PositiverBetrag Betrag betrag,
 		@NotNull Zahlweise zahlweise,
-		@NotNull LocalDate abbuchungAb,
+		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		Zahlungsweg zahlungsweg,
 		@NotNull Boolean kuendbar,
-		LocalDate beginn,
-		LocalDate laufzeitende,
+		@PlausiblesDatum LocalDate beginn,
+		@PlausiblesDatum LocalDate laufzeitende,
 		Verlaengerung verlaengerung,
 		@Min(0) @Max(24) Integer kuendigungsfristMonate,
-		LocalDate gekuendigtZum,
+		@PlausiblesDatum LocalDate gekuendigtZum,
 		@Size(max = 1000) String notiz) implements Vertragsangaben {
 }

@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.constraints.Max;
@@ -15,11 +16,11 @@ import java.time.LocalDate;
 @LaufzeitendeNachBeginn
 record VertragVorschauAnfrage(
 		Zahlweise zahlweise,
-		LocalDate abbuchungAb,
+		@PlausiblesDatum LocalDate abbuchungAb,
 		@NotNull Boolean kuendbar,
-		LocalDate beginn,
-		LocalDate laufzeitende,
+		@PlausiblesDatum LocalDate beginn,
+		@PlausiblesDatum LocalDate laufzeitende,
 		Verlaengerung verlaengerung,
 		@Min(0) @Max(24) Integer kuendigungsfristMonate,
-		LocalDate gekuendigtZum) implements Berechnungsangaben {
+		@PlausiblesDatum LocalDate gekuendigtZum) implements Berechnungsangaben {
 }
