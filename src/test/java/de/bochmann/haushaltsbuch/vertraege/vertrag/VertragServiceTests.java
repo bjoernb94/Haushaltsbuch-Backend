@@ -7,7 +7,6 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import org.hibernate.Hibernate;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -38,13 +37,7 @@ class VertragServiceTests {
 	@Autowired
 	private Clock clock;
 
-	private UUID haushalt;
-
-	/** In {@code @BeforeEach}, nicht als Feldwert: Die Testinstanz wird hier über alle Tests geteilt. */
-	@BeforeEach
-	void haushalt() {
-		haushalt = UUID.randomUUID();
-	}
+	private final UUID haushalt = UUID.randomUUID();
 
 	static VertragAnfrage anfrage(UUID kategorieId) {
 		return new VertragAnfrage("Musterversicherung AG", "Kfz-Versicherung", kategorieId, "KFZ-4711", euro("586.80"),

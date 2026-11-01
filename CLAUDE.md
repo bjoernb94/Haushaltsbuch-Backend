@@ -115,7 +115,8 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module
   flows, or `@ModuleTest` (`@ApplicationModuleTest` with `extraIncludes = "shared"`: Modulith otherwise drops all
-  beans outside the module, incl. `FachdatenConfig` and `Clock`) for a module's services/repositories. Business
+  beans outside the module, incl. `FachdatenConfig` and `Clock`; it also resets Modulith's `PER_CLASS` test instance
+  lifecycle to `PER_METHOD`, #59) for a module's services/repositories. Business
   modules use `@FachmodulTest` (`@ModuleTest` + mocks for `HaushaltAbfrage`/`KomponentenAbfrage`, which `haushalt`
   implements); tests set the household with `HaushaltKontext.fuer(...)` and must not be `@Transactional`. Pure
   calculations get plain unit tests. All annotations live in `src/test` root package. `@IntegrationTest` mocks all Keycloak access (`Identitaetsanbieter`,
