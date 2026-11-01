@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
@@ -33,6 +34,17 @@ class VertragService {
 	@Transactional
 	VertragAntwort anlegen(VertragAnfrage anfrage) {
 		var vertrag = repository.save(new Vertrag(anfrage, kategorie(anfrage.kategorieId())));
+		return VertragAntwort.aus(vertrag, berechnung());
+	}
+
+	/**
+	 * @throws NichtGefundenException wenn es den Vertrag nicht gibt oder er einem anderen Haushalt gehört;
+	 *         beides ist bewusst nicht zu unterscheiden
+	 */
+	@Transactional(readOnly = true)
+	VertragAntwort abrufen(UUID id) {
+		var vertrag = repository.findById(id)
+				.orElseThrow(() -> new NichtGefundenException("Contract %s not found.".formatted(id)));
 		return VertragAntwort.aus(vertrag, berechnung());
 	}
 

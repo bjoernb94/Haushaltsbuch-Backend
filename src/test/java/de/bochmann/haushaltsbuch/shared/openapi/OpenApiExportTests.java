@@ -71,6 +71,9 @@ class OpenApiExportTests {
 		mockMvc.perform(get("/v3/api-docs"))
 				.andExpect(jsonPath("$.paths['/api/vertraege'].post.responses.201").exists())
 				.andExpect(jsonPath("$.paths['/api/vertraege'].post.responses.200").doesNotExist())
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.parameters[0].schema.format").value("uuid"))
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.responses.400").exists())
+				.andExpect(jsonPath("$.paths['/api/vertraege/{id}'].get.responses.404").exists())
 				// Currency als ISO-Code wie im JSON, nicht als Objekt.
 				.andExpect(jsonPath("$.components.schemas.Betrag.properties.waehrung.type").value("string"));
 	}

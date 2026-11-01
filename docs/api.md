@@ -14,6 +14,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
+| `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
@@ -182,7 +183,9 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
 - **Methoden:** `GET` liest, `POST` legt an (**201** mit `Location`-Header und dem angelegten
   Objekt), `PUT` ändert mit dem ganzen Objekt (**200** mit dem geänderten Objekt), `DELETE` löscht
   (**204**). Kein `PATCH`.
-- **IDs:** UUIDs; Pfade unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
+- **IDs:** UUIDs im Standardformat als String, z.&nbsp;B. `7cb7a2b8-38a6-432d-8546-03b3d74f76ec`, im Pfad
+  wie im JSON. Eine ID in anderem Format ergibt **400** `ANFRAGE_UNGUELTIG`, eine unbekannte oder fremde
+  ID **404** `NICHT_GEFUNDEN`. Pfade liegen unter dem Pfad des Moduls (siehe [Komponenten](#komponenten)).
 - **Gleichzeitige Änderungen:** Jedes Objekt hat eine `version`. Die SPA schickt sie beim `PUT`
   zurück; ist sie veraltet, weil ein anderes Mitglied inzwischen geändert hat, antwortet das Backend
   mit **409** `KONFLIKT`, und die SPA lädt neu.
@@ -326,3 +329,9 @@ Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berech
 
 Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den üblichen wie `NotBlank`,
 `Size`, `Max`).
+
+### Vertrag abrufen
+
+`GET /api/vertraege/{id}` → **200** mit dem Vertrag wie in der [Antwort](#antwort) oben, inkl. `version`
+für das Ändern und `berechnet` zum heutigen Tag. Unbekannte ID oder Vertrag eines anderen Haushalts →
+**404** `NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.

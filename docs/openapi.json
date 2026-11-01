@@ -313,6 +313,76 @@
         } ],
         "tags" : [ "Verträge" ]
       }
+    },
+    "/api/vertraege/{id}" : {
+      "get" : {
+        "operationId" : "vertragAbrufen",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VertragAntwort"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage, z. B. ID kein UUID-Format (ANFRAGE_UNGUELTIG)."
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF)."
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN)."
+          }
+        },
+        "security" : [ {
+          "session" : [ ]
+        } ],
+        "tags" : [ "Verträge" ]
+      }
     }
   },
   "components" : {
