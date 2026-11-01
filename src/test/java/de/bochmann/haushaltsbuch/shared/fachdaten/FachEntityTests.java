@@ -7,10 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.transaction.support.TransactionOperations;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -102,8 +104,8 @@ class FachEntityTests {
 
 	private static UUID anmelden() {
 		UUID id = UUID.randomUUID();
-		var jwt = Jwt.withTokenValue("token").header("alg", "none").subject(id.toString()).build();
-		SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+		var nutzer = new DefaultOidcUser(List.of(), OidcIdToken.withTokenValue("token").subject(id.toString()).build());
+		SecurityContextHolder.getContext().setAuthentication(new OAuth2AuthenticationToken(nutzer, List.of(), "keycloak"));
 		return id;
 	}
 

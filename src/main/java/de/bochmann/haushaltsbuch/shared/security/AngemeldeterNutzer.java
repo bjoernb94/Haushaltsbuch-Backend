@@ -2,15 +2,13 @@ package de.bochmann.haushaltsbuch.shared.security;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
-import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Liest Angaben zum angemeldeten Nutzer aus dessen Token, unabhängig davon, ob er per Session
- * ({@link Anmeldung}, ID-Token) oder per Bearer-Token (Access Token) angemeldet ist.
+ * Liest Angaben zum angemeldeten Nutzer aus dem ID-Token seiner Anmeldung ({@link Anmeldung}).
  */
 public final class AngemeldeterNutzer {
 
@@ -42,11 +40,7 @@ public final class AngemeldeterNutzer {
 		if (authentication == null) {
 			return Map.of();
 		}
-		return switch (authentication.getPrincipal()) {
-			case Jwt jwt -> jwt.getClaims();
-			case OidcUser oidcUser -> oidcUser.getClaims();
-			case null, default -> Map.of();
-		};
+		return authentication.getPrincipal() instanceof OidcUser oidcUser ? oidcUser.getClaims() : Map.of();
 	}
 
 }

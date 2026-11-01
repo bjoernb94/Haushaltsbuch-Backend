@@ -59,8 +59,9 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   The realm is versioned in `docker/keycloak/import/haushaltsbuch-realm.json` (imported via `--import-realm`, only
   if the realm doesn't exist yet; client secret from `KEYCLOAK_CLIENT_SECRET`, dev default `dev-secret` on both
   sides). Changes to realm settings belong in that file (and the reference steps in `docs/betrieb.md`).
-- Security (`shared/security/SecurityConfig`): one filter chain combining session
-  login and JWT resource server. There is no redirect to Keycloak (no `oauth2Login`): the SPA posts
+- Security (`shared/security/SecurityConfig`): one filter chain, session login only (no JWT resource server,
+  bearer tokens are not accepted, ADR 0009; tests log in with `oidcLogin()`, not `jwt()`). There is no redirect
+  to Keycloak (no `oauth2Login`): the SPA posts
   email/password to `POST /api/anmeldung`, `Anmeldung`/`KeycloakTokenClient` use Keycloak's password grant
   ("Direct access grants") and store the refresh token in the HTTP session (`KeycloakSitzung`);
   `SitzungErneuernFilter` refreshes it when the access token expires and ends the session if Keycloak

@@ -3,7 +3,10 @@ package de.bochmann.haushaltsbuch.shared.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtAudienceValidator;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
 import org.springframework.security.web.authentication.session.CompositeSessionAuthenticationStrategy;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -26,14 +29,18 @@ class AnmeldungConfig {
 	}
 
 	@Bean
-	KeycloakTokenClient keycloakTokenClient(JwtDecoder jwtDecoder,
-			@Value("${haushaltsbuch.keycloak.issuer-uri}") String issuerUri,
+	KeycloakTokenClient keycloakTokenClient(@Value("${haushaltsbuch.keycloak.issuer-uri}") String issuerUri,
 			@Value("${haushaltsbuch.keycloak.client-id}") String clientId,
 			@Value("${haushaltsbuch.keycloak.client-secret}") String clientSecret) {
 		RestClient restClient = RestClient.builder()
 				.baseUrl(issuerUri + "/protocol/openid-connect")
 				.build();
-		return new KeycloakTokenClient(restClient, jwtDecoder, clientId, clientSecret);
+		// Prüft das ID-Token: Signatur mit den Schlüsseln des Realms (beim ersten Gebrauch geladen,
+		// der Start braucht Keycloak nicht), Ablauf, Issuer und Audience (unser Client).
+		var idTokenDecoder = NimbusJwtDecoder.withJwkSetUri(issuerUri + "/protocol/openid-connect/certs").build();
+		idTokenDecoder.setJwtValidator(JwtValidators.createDefaultWithValidators(
+				new JwtIssuerValidator(issuerUri), new JwtAudienceValidator(clientId)));
+		return new KeycloakTokenClient(restClient, idTokenDecoder, clientId, clientSecret);
 	}
 
 	@Bean

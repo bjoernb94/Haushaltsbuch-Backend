@@ -7,7 +7,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.util.Set;
 import java.util.UUID;
 
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 
 /**
  * Ein Haushalt mit einem Mitglied für Tests der Fachmodule, z.&nbsp;B. für den Pflicht-Test „Daten
@@ -27,9 +27,9 @@ public record TestHaushalt(UUID nutzerId, UUID haushaltId) {
 		return new TestHaushalt(nutzerId, haushaltId);
 	}
 
-	/** Anfrage als Mitglied dieses Haushalts (Bearer-Token mit {@code sub}). */
+	/** Anfrage als Mitglied dieses Haushalts (Session-Anmeldung mit {@code sub}). */
 	public RequestPostProcessor anmeldung() {
-		return jwt().jwt(token -> token.subject(nutzerId.toString()));
+		return oidcLogin().idToken(token -> token.subject(nutzerId.toString()));
 	}
 
 }

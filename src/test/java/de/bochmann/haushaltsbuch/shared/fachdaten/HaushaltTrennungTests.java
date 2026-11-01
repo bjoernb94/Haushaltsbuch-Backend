@@ -10,11 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
+import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -114,8 +116,8 @@ class HaushaltTrennungTests {
 	}
 
 	private static void anmelden(UUID nutzerId) {
-		var jwt = Jwt.withTokenValue("token").header("alg", "none").subject(nutzerId.toString()).build();
-		SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+		var nutzer = new DefaultOidcUser(List.of(), OidcIdToken.withTokenValue("token").subject(nutzerId.toString()).build());
+		SecurityContextHolder.getContext().setAuthentication(new OAuth2AuthenticationToken(nutzer, List.of(), "keycloak"));
 	}
 
 }

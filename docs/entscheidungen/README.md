@@ -14,6 +14,7 @@ bekommt den Status *ersetzt durch …*.
 | [0006](0006-haushaltstrennung-per-tenantid.md)       | Trennung der Haushalte per Hibernate-`@TenantId`        | angenommen |
 | [0007](0007-fehler-als-problemdetail-mit-code.md)    | Fehler als `ProblemDetail` mit stabilem Code            | angenommen |
 | [0008](0008-modultests-mit-shared.md)                | Modultests binden `shared` ein                          | angenommen |
+| [0009](0009-nur-session-anmeldung.md)                | Nur Session-Anmeldung, keine Bearer-Tokens              | angenommen |
 
 Vorlage für neue Einträge: Datei `NNNN-kurzname.md` mit den Abschnitten *Kontext*,
 *Entscheidung* und *Folgen*, Status mit Datum und Issue/PR.

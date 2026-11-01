@@ -18,17 +18,11 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
-import static org.springframework.security.config.Customizer.withDefaults;
-
 /**
- * Security-Konfiguration. Zwei Wege zur Authentifizierung laufen über dieselbe Filterkette:
- * <ul>
- *   <li><b>Session</b>: Die SPA schickt E-Mail und Passwort an {@code POST /api/anmeldung}, das
- *   Backend holt die Tokens direkt bei Keycloak ({@link Anmeldung}), das Frontend erhält nur ein
- *   Session-Cookie. Es gibt keine Weiterleitung zu Keycloak.</li>
- *   <li><b>Resource Server</b> ({@code oauth2ResourceServer}): Requests mit Bearer-Token
- *   (z.&nbsp;B. Tests, andere Clients) werden gegen den Keycloak-Issuer geprüft.</li>
- * </ul>
+ * Security-Konfiguration. Angemeldet wird nur per Session: Die SPA schickt E-Mail und Passwort an
+ * {@code POST /api/anmeldung}, das Backend holt die Tokens direkt bei Keycloak ({@link Anmeldung}),
+ * das Frontend erhält nur ein Session-Cookie. Es gibt keine Weiterleitung zu Keycloak und bewusst
+ * keine Anmeldung per Bearer-Token (kein Resource Server, siehe ADR 0009).
  */
 @Configuration
 @EnableWebSecurity
@@ -68,11 +62,9 @@ class SecurityConfig {
 
 		// Keycloak-Rollen werden bewusst nicht ausgewertet; der Zugriff auf Fachbereiche hängt an den
 		// gebuchten Komponenten. Werden später Rollen gebraucht (z. B. Admin-Bereich): Keycloak liefert
-		// sie unter "realm_access.roles" bzw. "resource_access.<client-id>.roles". Dann einen
-		// JwtAuthenticationConverter mit eigenem GrantedAuthoritiesConverter registrieren
-		// (rs.jwt(jwt -> jwt.jwtAuthenticationConverter(...))) und in Anmeldung die Authorities
-		// des DefaultOidcUser aus dem Access Token befüllen.
-		http.oauth2ResourceServer(rs -> rs.jwt(withDefaults()));
+		// sie im Access Token unter "realm_access.roles" bzw. "resource_access.<client-id>.roles".
+		// Dann in Anmeldung die Authorities des DefaultOidcUser daraus befüllen (und bei der
+		// Erneuerung der Sitzung aktualisieren).
 
 		// Ohne Anmeldung 401, ohne Berechtigung oder CSRF-Token 403; eine Login-Seite im Backend gibt es
 		// nicht. Die Antwort schreibt die zentrale Fehlerbehandlung (shared.fehler) als ProblemDetail.
