@@ -37,6 +37,12 @@ class VertragController {
 		return service.auflisten();
 	}
 
+	/** Laufende Verträge, Kosten je Währung und die nächsten Kündigungsfristen, siehe {@code docs/api.md}. */
+	@GetMapping("/uebersicht")
+	VertragsuebersichtAntwort vertragsuebersichtAbrufen() {
+		return service.uebersicht();
+	}
+
 	@PostMapping
 	@ResponseStatus(HttpStatus.CREATED) // für die OpenAPI-Beschreibung; den Status setzt ResponseEntity
 	ResponseEntity<VertragAntwort> vertragAnlegen(@Valid @RequestBody VertragAnfrage anfrage) {

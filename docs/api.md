@@ -14,6 +14,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
 | `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
+| `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
@@ -393,3 +394,33 @@ Paging. Sortiert nach Dringlichkeit der Kündigung (`berechnet.kuendigung.art`):
 Ein Vertrag, der in sechs Wochen ohne Kündigung endet, steht also vor einer Kündigungsfrist in zehn
 Monaten. Bei gleichem Rang und Datum entscheidet der angezeigte Name (`bezeichnung`, sonst `anbieter`;
 ohne Groß-/Kleinschreibung und Akzente), zuletzt die `id`.
+
+### Vertragsübersicht
+
+`GET /api/vertraege/uebersicht` → **200** mit den Kennzahlen für die Kachel auf der Startseite und den
+Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
+
+```json
+{
+  "laufendeVertraege": 9,
+  "kostenProMonat": [ { "wert": 202.08, "waehrung": "EUR" } ],
+  "kostenProJahr": [ { "wert": 2424.96, "waehrung": "EUR" } ],
+  "naechsteKuendigungsfristen": [
+    { "id": "…", "anbieter": "Musterversicherung AG", "bezeichnung": "Kfz-Versicherung",
+      "betrag": { "wert": 586.80, "waehrung": "EUR" }, "zahlweise": "JAEHRLICH",
+      "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "dringend": true }
+  ]
+}
+```
+
+- **Laufend** sind alle Verträge mit `berechnet.status` ungleich `BEENDET`; gekündigte zählen bis zu
+  ihrem Ende mit.
+- **Kosten:** Summe über die laufenden Verträge, je Währung ein Eintrag, nach Währungscode sortiert. Es
+  sind auf Monat und Jahr umgerechnete Werte, nicht die tatsächlichen Abbuchungen. Summiert werden die
+  exakten Jahreswerte, der Monatswert ist Summe ÷ 12, erst dann kaufmännisch gerundet. Die Summe der
+  `kostenProMonat` aus der Liste kann daher um einige Cent abweichen.
+- **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
+  Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel; `kuendigenBis`,
+  `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
+  nicht darin.
+- Ohne laufende Verträge: `laufendeVertraege` 0 und leere Listen.

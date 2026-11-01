@@ -181,6 +181,39 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
 	}
 
+	@Test
+	void uebersichtPasstZurListe() throws Exception {
+		String angelegt = mockMvc.perform(anlegen(abo("13.99", null, heute.plusDays(100).toString(), 1)))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		mockMvc.perform(get("/api/vertraege/uebersicht").with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(content().json("""
+						{"laufendeVertraege": 1,
+						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
+						 "kostenProJahr": [{"wert": 167.88, "waehrung": "EUR"}],
+						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
+						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
+						   "kuendigenBis": "%s", "zum": "%s", "dringend": %s}]}
+						""".formatted(JsonPath.read(angelegt, "$.id"),
+						JsonPath.read(angelegt, "$.berechnet.kuendigung.kuendigenBis"), heute.plusDays(100),
+						JsonPath.read(angelegt, "$.berechnet.kuendigung.dringend")), true));
+	}
+
+	/** Pflicht-Test zur Trennung der Haushalte: Fremde Verträge zählen nicht mit. */
+	@Test
+	void uebersichtOhneVertraegeAndererHaushalte() throws Exception {
+		angelegt();
+		var fremder = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+
+		mockMvc.perform(get("/api/vertraege/uebersicht").with(fremder.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(content().json("""
+						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenProJahr": [], "naechsteKuendigungsfristen": []}
+						""", true));
+	}
+
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */
 	private String aenderung(Object version, String betrag) {
 		return abo(betrag, null, null, 0).replaceFirst("\\{", "{\"version\": " + version + ", ");
