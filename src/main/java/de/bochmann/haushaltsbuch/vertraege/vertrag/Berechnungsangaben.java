@@ -29,7 +29,10 @@ interface Berechnungsangaben {
 
 	LocalDate gekuendigtZum();
 
-	/** Bereinigt: Ein nicht kündbarer Vertrag hat weder Verlängerung noch Kündigungsfrist. */
+	/**
+	 * Bereinigt: Ein nicht kündbarer Vertrag hat weder Verlängerung noch Kündigungsfrist; Beginn und Laufzeitende
+	 * bleiben (#67).
+	 */
 	default Vertragsdaten daten() {
 		boolean kuendbar = kuendbar();
 		return new Vertragsdaten(zahlweise(), abbuchungAb(), kuendbar, beginn(), laufzeitende(),

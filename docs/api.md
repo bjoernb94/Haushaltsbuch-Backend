@@ -281,7 +281,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
 | `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
-| `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert |
+| `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
 | `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
 | `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
 | `kuendigungsfristMonate` | nein | 0–24 |
