@@ -210,6 +210,39 @@ class VertragServiceTests {
 				.isEqualTo(new VertragsuebersichtAntwort(0, List.of(), List.of(), List.of()));
 	}
 
+	/** Die Werte von {@code a}, die die Vorschau braucht. */
+	private static VertragVorschauAnfrage vorschau(VertragAnfrage a) {
+		return new VertragVorschauAnfrage(a.zahlweise(), a.abbuchungAb(), a.kuendbar(), a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum());
+	}
+
+	@Test
+	void vorschauWieGespeicherterVertrag() {
+		var a = anfrage(VERSICHERUNG);
+		LocalDate heute = LocalDate.now(clock);
+		var gekuendigt = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
+				a.betrag(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), true, a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), a.kuendigungsfristMonate(), heute.plusDays(30), a.notiz());
+		// Nicht kündbar mit Verlängerung und Frist: beides wird verworfen, auch die Frist in der Kündigung.
+		var nichtKuendbar = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
+				a.betrag(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), false, a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), 3, null, a.notiz());
+
+		for (var anfrage : List.of(a, gekuendigt, nichtKuendbar)) {
+			var gespeichert = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage));
+
+			assertThat(service.vorschau(vorschau(anfrage)).kuendigung()).isEqualTo(gespeichert.berechnet().kuendigung());
+		}
+		assertThat(service.vorschau(vorschau(nichtKuendbar)).kuendigung().fristMonate()).isNull();
+	}
+
+	@Test
+	void vorschauMitFehlendenWerten() {
+		var leer = new VertragVorschauAnfrage(null, null, true, null, null, null, null, null);
+
+		assertThat(service.vorschau(leer).kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
+	}
+
 	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */
 	static VertragAenderung aenderung(long version, VertragAnfrage a) {
 		return new VertragAenderung(version, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),

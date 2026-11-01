@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -416,6 +417,53 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.felder[?(@.feld == 'laufzeitende')].code").value("LaufzeitendeNachBeginn"))
 				.andExpect(jsonPath("$.felder[?(@.feld == 'kuendigungsfristMonate')].code").value("Max"))
 				.andExpect(jsonPath("$.felder[?(@.feld == 'kuendigungsfristMonate')].parameter.value").value(24));
+	}
+
+	private MockHttpServletRequestBuilder vorschau(String body) {
+		return post("/api/vertraege/vorschau").with(csrf()).with(haushalt.anmeldung())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body);
+	}
+
+	@Test
+	void vorschauBerechnetKuendigungOhneZuSpeichern() throws Exception {
+		String angelegt = mockMvc.perform(anlegen(abo("13.99", null, heute.plusDays(100).toString(), 1)))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		// Dieselben Werte (überzählige Felder ignoriert das Backend) ergeben dieselbe Kündigung.
+		mockMvc.perform(vorschau(abo("13.99", null, heute.plusDays(100).toString(), 1)))
+				.andExpect(status().isOk())
+				.andExpect(header().doesNotExist("Location"))
+				.andExpect(content().json("""
+						{"kuendigung": {"art": "KUENDIGEN_BIS", "kuendigenBis": "%s", "zum": "%s", "fristMonate": 1,
+						 "dringend": %s}}
+						""".formatted(JsonPath.read(angelegt, "$.berechnet.kuendigung.kuendigenBis"), heute.plusDays(100),
+						JsonPath.read(angelegt, "$.berechnet.kuendigung.dringend")), true));
+		assertThat(jdbc.sql("SELECT count(*) FROM vertrag WHERE haushalt_id = ?").param(haushalt.haushaltId())
+				.query(Long.class)
+				.single()).isEqualTo(1);
+	}
+
+	@Test
+	void vorschauMitFehlendenWerten() throws Exception {
+		mockMvc.perform(vorschau("{\"kuendbar\": true}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.kuendigung.art").value("KEINE_LAUFZEIT"));
+	}
+
+	@Test
+	void vorschauPrueftWieBeimSpeichern() throws Exception {
+		mockMvc.perform(vorschau("""
+						{"beginn": "2025-01-01", "laufzeitende": "2024-12-31", "kuendigungsfristMonate": 25}
+						"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("kuendbar", "laufzeitende",
+						"kuendigungsfristMonate")));
+		mockMvc.perform(vorschau("{\"kuendbar\": true, \"zahlweise\": \"WOECHENTLICH\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
 	}
 
 	@Test

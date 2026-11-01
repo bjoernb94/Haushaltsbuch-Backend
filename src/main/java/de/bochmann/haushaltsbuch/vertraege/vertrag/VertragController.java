@@ -51,6 +51,12 @@ class VertragController {
 		return ResponseEntity.created(location).body(vertrag);
 	}
 
+	/** Kündigungstermin für das Formular, ohne zu speichern; daher 200 statt 201. */
+	@PostMapping("/vorschau")
+	VertragVorschauAntwort vertragVorschauBerechnen(@Valid @RequestBody VertragVorschauAnfrage anfrage) {
+		return service.vorschau(anfrage);
+	}
+
 	/** Unbekannte ID oder Vertrag eines anderen Haushalts: 404. */
 	@GetMapping("/{id}")
 	VertragAntwort vertragAbrufen(@PathVariable UUID id) {
