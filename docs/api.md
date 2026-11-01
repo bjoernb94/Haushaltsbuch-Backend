@@ -15,7 +15,10 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
-Die vollständige API-Beschreibung liefert die Swagger UI (`/swagger-ui.html`, nur dev).
+Die vollständige API-Beschreibung (OpenAPI 3.1) liegt als [`openapi.json`](openapi.json) im Repo,
+z.&nbsp;B. um daraus Typen für die SPA zu erzeugen; sie wird bei jedem Build neu erzeugt. Zur Laufzeit
+zeigt sie die Swagger UI (`/swagger-ui.html`, nur dev). Abläufe, Fehlercodes und Datenformate stehen
+nur hier.
 
 ### Systemstatus
 

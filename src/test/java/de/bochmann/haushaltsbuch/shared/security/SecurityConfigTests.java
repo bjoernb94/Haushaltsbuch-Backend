@@ -120,6 +120,12 @@ class SecurityConfigTests {
 	}
 
 	@Test
+	void abmeldungOhneAnmeldungErfolgreich() throws Exception {
+		// Der Logout-Filter läuft vor der Zugriffsprüfung; die SPA muss den Fall nicht unterscheiden.
+		mockMvc.perform(post("/api/abmeldung").with(csrf())).andExpect(status().isNoContent());
+	}
+
+	@Test
 	void bearerTokenWirdNichtAngenommen() throws Exception {
 		// Angemeldet wird nur per Session; ein Bearer-Token zählt nicht als Anmeldung.
 		mockMvc.perform(get("/api/nutzer/ich").header(HttpHeaders.AUTHORIZATION, "Bearer eyJhbGciOiJSUzI1NiJ9.e30.c2ln"))

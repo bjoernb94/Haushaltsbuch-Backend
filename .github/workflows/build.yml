@@ -24,14 +24,15 @@ jobs:
       - name: Build und Tests
         run: ./mvnw -B verify
 
-      # ModularityTests schreibt die Modul-Doku nach docs/module. Weicht sie vom eingecheckten Stand ab
-      # (geändert, neu oder gelöscht), wurde vergessen, die neu erzeugten Dateien zu committen.
-      - name: Modul-Doku aktuell
+      # ModularityTests schreibt die Modul-Doku nach docs/module, OpenApiExportTests die API-Beschreibung
+      # nach docs/openapi.json. Weicht das vom eingecheckten Stand ab (geändert, neu oder gelöscht), wurde
+      # vergessen, die neu erzeugten Dateien zu committen.
+      - name: Erzeugte Doku aktuell
         run: |
-          if [ -n "$(git status --porcelain -- docs/module)" ]; then
-            echo "::error::docs/module ist nicht aktuell. Lokal ./mvnw test -Dtest=ModularityTests ausführen und die Änderungen committen."
-            git status --short -- docs/module
-            git diff -- docs/module
+          if [ -n "$(git status --porcelain -- docs/module docs/openapi.json)" ]; then
+            echo "::error::docs/module oder docs/openapi.json ist nicht aktuell. Lokal ./mvnw test -Dtest='ModularityTests,OpenApiExportTests' ausführen und die Änderungen committen."
+            git status --short -- docs/module docs/openapi.json
+            git diff -- docs/module docs/openapi.json
             exit 1
           fi
 

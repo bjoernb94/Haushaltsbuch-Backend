@@ -66,6 +66,7 @@ unter [Build und Tests](docs/entwicklung.md#build-und-tests).
 | [`docs/entwicklung.md`](docs/entwicklung.md)           | Konventionen: Module, Fachdaten, Trennung der Haushalte, Datenbank, Tests, Git |
 | [`docs/betrieb.md`](docs/betrieb.md)                   | Docker Compose, Keycloak einrichten, Konfiguration, prod, Systemstatus         |
 | [`docs/entscheidungen/`](docs/entscheidungen/README.md) | Architekturentscheidungen mit Begründung                                       |
+| [`docs/openapi.json`](docs/openapi.json)               | von `OpenApiExportTests` erzeugte OpenAPI-Beschreibung der API                 |
 | [`docs/module/`](docs/module)                          | von `ModularityTests` erzeugte Modul-Dokumentation                             |
 
 ## Projektstruktur

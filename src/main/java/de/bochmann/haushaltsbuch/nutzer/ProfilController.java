@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import de.bochmann.haushaltsbuch.shared.security.AngemeldeterNutzer;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -16,6 +17,7 @@ import java.util.Map;
  * Keycloak; ein späterer Profilbereich muss nach einer Änderung auch die Session aktualisieren.
  */
 @RestController
+@Tag(name = "Nutzer")
 @RequestMapping("/api/nutzer/ich")
 class ProfilController {
 

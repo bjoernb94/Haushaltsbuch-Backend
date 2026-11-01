@@ -1,5 +1,7 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * (siehe {@link SecurityConfig}).
  */
 @RestController
+@Tag(name = "Anmeldung")
 @RequestMapping("/api/anmeldung")
 class AnmeldungController {
 
@@ -39,6 +42,7 @@ class AnmeldungController {
 	}
 
 	@PostMapping
+	@SecurityRequirements // öffentlich
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void anmelden(@Valid @RequestBody AnmeldungAnfrage anfrage, HttpServletRequest request,
 			HttpServletResponse response) {
