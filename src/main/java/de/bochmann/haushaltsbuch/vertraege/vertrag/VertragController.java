@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.util.List;
 import java.util.UUID;
 
 /** Verträge des eigenen Haushalts (Komponente {@code VERTRAGSUEBERSICHT}, siehe {@code SecurityConfig}). */
@@ -25,6 +26,12 @@ class VertragController {
 
 	VertragController(VertragService service) {
 		this.service = service;
+	}
+
+	/** Sortiert nach Dringlichkeit der Kündigung, siehe {@code docs/api.md}. */
+	@GetMapping
+	List<VertragAntwort> vertraegeAuflisten() {
+		return service.auflisten();
 	}
 
 	@PostMapping

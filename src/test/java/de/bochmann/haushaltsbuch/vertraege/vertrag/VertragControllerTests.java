@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -145,6 +146,35 @@ class VertragControllerTests {
 		var ohne = TestHaushalt.anlegen(haushaltService, Komponente.PORTFOLIO);
 
 		mockMvc.perform(get("/api/vertraege/{id}", id).with(ohne.anmeldung()))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
+	}
+
+	@Test
+	void listetVertraegeMitAllenAngaben() throws Exception {
+		String angelegt = angelegt();
+
+		mockMvc.perform(get("/api/vertraege").with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(content().json("[" + angelegt + "]", true));
+	}
+
+	/** Pflicht-Test zur Trennung der Haushalte: Fremde Verträge stehen nicht in der Liste. */
+	@Test
+	void listeOhneVertraegeAndererHaushalte() throws Exception {
+		angelegt();
+		var fremder = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+
+		mockMvc.perform(get("/api/vertraege").with(fremder.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(0)));
+	}
+
+	@Test
+	void auflistenOhneGebuchteKomponenteVerboten() throws Exception {
+		var ohne = TestHaushalt.anlegen(haushaltService, Komponente.PORTFOLIO);
+
+		mockMvc.perform(get("/api/vertraege").with(ohne.anmeldung()))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
 	}

@@ -13,6 +13,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
+| `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
@@ -335,3 +336,22 @@ Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den übli
 `GET /api/vertraege/{id}` → **200** mit dem Vertrag wie in der [Antwort](#antwort) oben, inkl. `version`
 für das Ändern und `berechnet` zum heutigen Tag. Unbekannte ID oder Vertrag eines anderen Haushalts →
 **404** `NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.
+
+### Verträge auflisten
+
+`GET /api/vertraege` → **200** mit allen Verträgen des Haushalts, je Vertrag wie in der
+[Antwort](#antwort) oben (die Details brauchen also keinen eigenen Aufruf). Ohne Verträge `[]`, kein
+Paging. Sortiert nach Dringlichkeit der Kündigung (`berechnet.kuendigung.art`):
+
+| Rang | `art` | innerhalb nach |
+|---|---|---|
+| 1 | `KUENDIGEN_BIS` und `ENDET` gemeinsam | `kuendigenBis` bzw. `zum` |
+| 2 | `MONATLICH_KUENDBAR` | `kuendigenBis` |
+| 3 | `KEINE_LAUFZEIT` | – |
+| 4 | `NICHT_KUENDBAR` | – |
+| 5 | `GEKUENDIGT` | `zum` |
+| 6 | `BEENDET` | – |
+
+Ein Vertrag, der in sechs Wochen ohne Kündigung endet, steht also vor einer Kündigungsfrist in zehn
+Monaten. Bei gleichem Rang und Datum entscheidet der angezeigte Name (`bezeichnung`, sonst `anbieter`;
+ohne Groß-/Kleinschreibung und Akzente), zuletzt die `id`.
