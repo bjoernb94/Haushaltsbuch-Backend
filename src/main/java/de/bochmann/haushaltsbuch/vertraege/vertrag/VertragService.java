@@ -92,6 +92,12 @@ class VertragService {
 				.toList();
 	}
 
+	/** Kennzahlen für Startseite und Vertragsseite; passt zur {@link #auflisten Liste}, weil es sie auswertet. */
+	@Transactional(readOnly = true)
+	VertragsuebersichtAntwort uebersicht() {
+		return VertragsuebersichtAntwort.aus(auflisten());
+	}
+
 	/** Wie in der SPA: die Bezeichnung, ohne sie der Anbieter. */
 	private static String anzeigeName(VertragAntwort vertrag) {
 		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();

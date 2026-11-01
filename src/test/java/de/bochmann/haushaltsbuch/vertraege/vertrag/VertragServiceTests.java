@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static de.bochmann.haushaltsbuch.shared.geld.Betrag.euro;
@@ -150,6 +151,63 @@ class VertragServiceTests {
 		var vertraege = HaushaltKontext.fuer(haushalt, () -> repository.findAll());
 
 		assertThat(vertraege).singleElement().satisfies(v -> assertThat(Hibernate.isInitialized(v.getKategorie())).isTrue());
+	}
+
+	@Test
+	void uebersichtZaehltLaufendeUndSummiertKosten() {
+		LocalDate heute = LocalDate.now(clock);
+		HaushaltKontext.fuer(haushalt, () -> {
+			anlegen("Musterversicherung AG", "Kfz-Versicherung", Zahlweise.JAEHRLICH, true, heute.plusDays(60),
+					Verlaengerung.ZWOELF_MONATE, 1, null);
+			anlegen("Verein", null, Zahlweise.JAEHRLICH, true, null, Verlaengerung.KEINE, null, null);
+			anlegen("Musterverlag", "Zeitschriften-Abo", Zahlweise.MONATLICH, true, null, Verlaengerung.MONATLICH, 1,
+					heute.plusDays(20));
+			anlegen("Altanbieter", null, Zahlweise.MONATLICH, true, null, Verlaengerung.MONATLICH, 1, heute.minusDays(1));
+			return null;
+		});
+
+		var uebersicht = HaushaltKontext.fuer(haushalt, service::uebersicht);
+
+		// Der beendete zählt nicht, der gekündigte bis zu seinem Ende schon.
+		assertThat(uebersicht.laufendeVertraege()).isEqualTo(3);
+		assertThat(uebersicht.kostenProJahr()).containsExactly(euro("140.00"));
+		// Gerundet erst die Summe: 140 / 12 = 11,67, nicht 0,83 + 0,83 + 10,00 = 11,66.
+		assertThat(uebersicht.kostenProMonat()).containsExactly(euro("11.67"));
+	}
+
+	@Test
+	void uebersichtNenntDieNaechstenKuendigungsfristen() {
+		LocalDate heute = LocalDate.now(clock);
+		HaushaltKontext.fuer(haushalt, () -> {
+			for (int i = 7; i >= 1; i--) {
+				anlegen("Anbieter " + i, null, Zahlweise.JAEHRLICH, true, heute.plusDays(40 + 30L * i),
+						Verlaengerung.ZWOELF_MONATE, 1, null);
+			}
+			// Endet ohne Kündigung oder ist jederzeit kündbar: keine Frist für die Kachel.
+			anlegen("Mobilfunk GmbH", null, Zahlweise.MONATLICH, true, heute.plusDays(5), Verlaengerung.KEINE, null,
+					null);
+			anlegen("Streamingdienst", null, Zahlweise.MONATLICH, true, null, Verlaengerung.ZAHLUNGSINTERVALL, 0, null);
+			return null;
+		});
+
+		var uebersicht = HaushaltKontext.fuer(haushalt, service::uebersicht);
+		var liste = HaushaltKontext.fuer(haushalt, service::auflisten);
+
+		assertThat(uebersicht.laufendeVertraege()).isEqualTo(9);
+		assertThat(uebersicht.naechsteKuendigungsfristen())
+				.extracting(VertragsuebersichtAntwort.AnstehendeKuendigung::anbieter)
+				.containsExactly("Anbieter 1", "Anbieter 2", "Anbieter 3", "Anbieter 4", "Anbieter 5");
+		var erster = liste.stream().filter(v -> v.anbieter().equals("Anbieter 1")).findFirst().orElseThrow();
+		assertThat(uebersicht.naechsteKuendigungsfristen().getFirst()).isEqualTo(
+				new VertragsuebersichtAntwort.AnstehendeKuendigung(erster.id(), "Anbieter 1", null, euro("10.00"),
+						Zahlweise.JAEHRLICH, erster.berechnet().kuendigung().kuendigenBis(), heute.plusDays(70),
+						erster.berechnet().kuendigung().dringend()));
+	}
+
+	@Test
+	void uebersichtOhneVertraegeLeer() {
+		assertThat(HaushaltKontext.fuer(haushalt, service::uebersicht))
+				.isEqualTo(new VertragsuebersichtAntwort(0, List.of(), List.of(), List.of()));
 	}
 
 	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */
