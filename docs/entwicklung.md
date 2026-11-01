@@ -105,7 +105,7 @@ Das Format der Endpunkte für die SPA steht in der [API](api.md#fachendpunkte). 
   `<Objekt>Aenderung` zum Ändern (dieselben Felder plus `@NotNull Long version`, damit `version` in der
   OpenAPI Pflicht ist und beim Anlegen fehlt) und `<Objekt>Antwort`. Ein gemeinsames Interface (z.&nbsp;B.
   `Vertragsangaben`) lässt Entity und klassenweite Validatoren mit beiden arbeiten; ein Test hält die
-  beiden Feldlisten gleich (`VertragAenderungTests`). Eine Vorschau ohne Speichern (z.&nbsp;B.
+  beiden Feldlisten gleich (`VertragAnfragenTests`). Eine Vorschau ohne Speichern (z.&nbsp;B.
   `VertragVorschauAnfrage`) nimmt nur die Felder der Berechnung, über ein kleineres Interface
   (`Berechnungsangaben`), das auch die Bereinigung vor der Berechnung enthält; so rechnen Vorschau und
   gespeicherter Vertrag gleich. Ihre Prüfungen gleichen denen beim Anlegen, nur ohne `NotNull` (Test wie oben).
@@ -171,6 +171,9 @@ Das Format für die SPA steht unter [Fehlerantworten](api.md#fehlerantworten).
   Berechnungen.
 - Fachliche Daten sind `LocalDate`. „Heute“ ist `LocalDate.now(clock)` mit dem `Clock`-Bean
   (Europe/Berlin, `shared.zeit`), damit Tests das Datum festlegen können. Zeitstempel sind `Instant`.
+  Datumsfelder in Anfrage-DTOs bekommen `@PlausiblesDatum` (1900–2199): Extremwerte ergäben sonst beim
+  Weiterzählen einen Überlauf oder einen Datenbankfehler, also 500 statt 400.
+- Berechnungen gehören ins Backend, die SPA formatiert nur ([ADR 0010](entscheidungen/0010-berechnungen-nur-im-backend.md)).
 - Spalten dafür: siehe [Datenbank](#datenbank).
 
 ## Datenbank

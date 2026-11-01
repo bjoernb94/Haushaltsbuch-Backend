@@ -9,7 +9,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class VertragAenderungTests {
+/** Die Anfragen der Verträge (Anlegen, Ändern, Vorschau) haben dieselben Felder und Prüfungen. */
+class VertragAnfragenTests {
 
 	/** Die Felder von {@link VertragAenderung} stehen doppelt; sie dürfen nicht auseinanderlaufen. */
 	@Test
@@ -42,7 +43,7 @@ class VertragAenderungTests {
 	/** Je Feld Name, Typ und Annotationen (inkl. ihrer Attribute). */
 	private static List<String> beschreibung(Class<? extends Record> record) {
 		return Arrays.stream(record.getRecordComponents())
-				.map(VertragAenderungTests::beschreibung)
+				.map(VertragAnfragenTests::beschreibung)
 				.toList();
 	}
 

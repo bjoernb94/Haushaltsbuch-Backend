@@ -103,11 +103,6 @@ class VertragService {
 		return new VertragVorschauAntwort(berechnung().kuendigung(anfrage.daten()));
 	}
 
-	/** Wie in der SPA: die Bezeichnung, ohne sie der Anbieter. */
-	private static String anzeigeName(VertragAntwort vertrag) {
-		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();
-	}
-
 	/**
 	 * Löscht den Vertrag endgültig.
 	 *
@@ -119,6 +114,11 @@ class VertragService {
 		var vertrag = vertrag(id);
 		vertrag.pruefeVersion(version);
 		repository.delete(vertrag);
+	}
+
+	/** Wie in der SPA: die Bezeichnung, ohne sie der Anbieter. */
+	private static String anzeigeName(VertragAntwort vertrag) {
+		return vertrag.bezeichnung() != null ? vertrag.bezeichnung() : vertrag.anbieter();
 	}
 
 	private Vertrag vertrag(UUID id) {

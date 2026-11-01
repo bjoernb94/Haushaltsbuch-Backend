@@ -13,13 +13,13 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
-| `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
-| `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
 | `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
-| `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Kündigungstermin berechnen, siehe [Verträge](#verträge) |
+| `GET /api/vertraege`              | `VERTRAGSUEBERSICHT` | Verträge auflisten, siehe [Verträge](#verträge) |
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
 | `DELETE /api/vertraege/{id}`      | `VERTRAGSUEBERSICHT` | Vertrag löschen, siehe [Verträge](#verträge)    |
+| `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
+| `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Kündigungstermin berechnen, siehe [Verträge](#verträge) |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
@@ -178,7 +178,8 @@ Geldbeträge haben überall dasselbe Format mit Wert und Währung:
   `{ "feld": "preis.wert", "code": "Digits", "parameter": { "integer": 17, "fraction": 2 } }` oder `{ "feld": "preis.waehrung", "code": "ErlaubteWaehrung" }`.
 
 Fachliche Daten (Buchungsdatum, Vertragsbeginn) sind Datumswerte ohne Uhrzeit, im JSON ISO-8601
-(`2026-10-31`). „Heute“ bestimmt das Backend in der Zeitzone Europe/Berlin. Zeitstempel sind
+(`2026-10-31`). „Heute“ bestimmt das Backend in der Zeitzone Europe/Berlin. Fachliche Datumswerte in
+Anfragen liegen zwischen `1900-01-01` und `2199-12-31`, sonst Feldfehler `PlausiblesDatum`. Zeitstempel sind
 ISO-8601 in UTC (`2026-10-31T19:21:54Z`).
 
 ## Fachendpunkte
@@ -287,7 +288,8 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `gekuendigtZum` | nein | gesetzt = gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag |
 | `notiz` | nein | höchstens 1000 Zeichen |
 
-Leere Texte speichert das Backend als `null`. Einen **Status** schickt die SPA nicht mit; er wird
+Alle Datumsfelder zwischen `1900-01-01` und `2199-12-31` (Feldfehler `PlausiblesDatum`, siehe
+[Geldbeträge und Datum](#geldbeträge-und-datum)). Leere Texte speichert das Backend als `null`. Einen **Status** schickt die SPA nicht mit; er wird
 berechnet (siehe unten).
 
 **`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
@@ -341,6 +343,25 @@ Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berech
 Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den üblichen wie `NotBlank`,
 `Size`, `Max`).
 
+### Verträge auflisten
+
+`GET /api/vertraege` → **200** mit allen Verträgen des Haushalts, je Vertrag wie in der
+[Antwort](#antwort) oben (die Details brauchen also keinen eigenen Aufruf). Ohne Verträge `[]`, kein
+Paging. Sortiert nach Dringlichkeit der Kündigung (`berechnet.kuendigung.art`):
+
+| Rang | `art` | innerhalb nach |
+|---|---|---|
+| 1 | `KUENDIGEN_BIS` und `ENDET` gemeinsam | `kuendigenBis` bzw. `zum` |
+| 2 | `MONATLICH_KUENDBAR` | `kuendigenBis` |
+| 3 | `KEINE_LAUFZEIT` | – |
+| 4 | `NICHT_KUENDBAR` | – |
+| 5 | `GEKUENDIGT` | `zum` |
+| 6 | `BEENDET` | – |
+
+Ein Vertrag, der in sechs Wochen ohne Kündigung endet, steht also vor einer Kündigungsfrist in zehn
+Monaten. Bei gleichem Rang und Datum entscheidet der angezeigte Name (`bezeichnung`, sonst `anbieter`;
+ohne Groß-/Kleinschreibung und Akzente), zuletzt die `id`.
+
 ### Vertrag abrufen
 
 `GET /api/vertraege/{id}` → **200** mit dem Vertrag wie in der [Antwort](#antwort) oben, inkl. `version`
@@ -377,25 +398,6 @@ Fehler: veraltete `version` → **409** `KONFLIKT` (der Vertrag bleibt); `versio
 Zahl, ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`; unbekannte ID oder Vertrag eines anderen
 Haushalts → **404** `NICHT_GEFUNDEN`, auch beim zweiten Löschen derselben ID (die SPA kann das als
 „schon weg“ behandeln und neu laden).
-
-### Verträge auflisten
-
-`GET /api/vertraege` → **200** mit allen Verträgen des Haushalts, je Vertrag wie in der
-[Antwort](#antwort) oben (die Details brauchen also keinen eigenen Aufruf). Ohne Verträge `[]`, kein
-Paging. Sortiert nach Dringlichkeit der Kündigung (`berechnet.kuendigung.art`):
-
-| Rang | `art` | innerhalb nach |
-|---|---|---|
-| 1 | `KUENDIGEN_BIS` und `ENDET` gemeinsam | `kuendigenBis` bzw. `zum` |
-| 2 | `MONATLICH_KUENDBAR` | `kuendigenBis` |
-| 3 | `KEINE_LAUFZEIT` | – |
-| 4 | `NICHT_KUENDBAR` | – |
-| 5 | `GEKUENDIGT` | `zum` |
-| 6 | `BEENDET` | – |
-
-Ein Vertrag, der in sechs Wochen ohne Kündigung endet, steht also vor einer Kündigungsfrist in zehn
-Monaten. Bei gleichem Rang und Datum entscheidet der angezeigte Name (`bezeichnung`, sonst `anbieter`;
-ohne Groß-/Kleinschreibung und Akzente), zuletzt die `id`.
 
 ### Vertragsübersicht
 

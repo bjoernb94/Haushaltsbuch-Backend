@@ -101,11 +101,11 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   `<feld>_waehrung VARCHAR(3)` via `ImplicitNamingStrategyComponentPathImpl`; JSON `{"wert": 12.34, "waehrung": "EUR"}`,
   value as number). Only EUR is allowed for now (`ErlaubteWaehrung`, foreign currencies in #30), but never assume
   one currency: arithmetic only within a currency, sums group by currency. Rounding `HALF_UP`, only in calculations.
-  Request DTOs use `@NotNull @Valid Betrag`. Business dates are `LocalDate`; "today" is `LocalDate.now(clock)` with
+  Request DTOs use `@NotNull @Valid Betrag`. Business dates are `LocalDate`, in request DTOs with `shared.zeit.PlausiblesDatum` (1900–2199, avoids overflow/DB errors as 500); "today" is `LocalDate.now(clock)` with
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.
 - Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
-  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business entities extend `shared.fachdaten.FachEntity`
+  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business calculations live only in the backend, the SPA only formats (ADR 0010). Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
   `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields, on `DELETE` with a required `@RequestParam long version` before deleting (load first so
