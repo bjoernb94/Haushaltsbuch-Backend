@@ -12,6 +12,8 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `GET /api/nutzer/ich/komponenten` | angemeldet      | Gebuchte Komponenten, z.&nbsp;B. `["PORTFOLIO"]`|
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
+| `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
+| `POST /api/vertraege`             | `VERTRAGSUEBERSICHT` | Vertrag anlegen, siehe [Verträge](#verträge)    |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
@@ -211,3 +213,116 @@ die übrigen Regeln der Passwort-Richtlinie prüft Keycloak.
 
 Was bei der Registrierung intern passiert und was bei Fehlern zu tun ist, steht unter
 [Betrieb](betrieb.md#konten-und-registrierung).
+
+## Verträge
+
+Komponente `VERTRAGSUEBERSICHT`. Datumsangaben und Beträge im Format aus
+[Geldbeträge und Datum](#geldbeträge-und-datum).
+
+### Kategorien
+
+`GET /api/vertraege/kategorien` liefert die Auswahlliste in fester Reihenfolge:
+
+```json
+[{ "id": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec", "schluessel": "VERSICHERUNG", "name": null }]
+```
+
+Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_ABOS`,
+`SOFTWARE_APPS`, `VERSICHERUNG`, `MOBILFUNK_INTERNET`, `MITGLIEDSCHAFTEN`, `GEBUEHREN_BEITRAEGE`,
+`SONSTIGES`; ihre IDs sind in allen Umgebungen gleich. Eigene Kategorien eines Haushalts (später,
+[#34](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/34)) haben stattdessen einen `name`.
+
+### Vertrag anlegen
+
+`POST /api/vertraege` (CSRF-Token nötig) → **201** mit `Location` und dem Vertrag:
+
+```json
+{
+  "anbieter": "Musterversicherung AG",
+  "bezeichnung": "Kfz-Versicherung",
+  "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec",
+  "vertragsnummer": "KFZ-4711-23",
+  "betrag": { "wert": 586.80, "waehrung": "EUR" },
+  "zahlweise": "JAEHRLICH",
+  "abbuchungAb": "2027-01-01",
+  "zahlungsweg": "LASTSCHRIFT",
+  "kuendbar": true,
+  "beginn": "2023-01-01",
+  "laufzeitende": "2023-12-31",
+  "verlaengerung": "ZWOELF_MONATE",
+  "kuendigungsfristMonate": 1,
+  "gekuendigtZum": null,
+  "notiz": null
+}
+```
+
+| Feld | Pflicht | Werte und Regeln |
+|---|---|---|
+| `anbieter` | ja | höchstens 200 Zeichen |
+| `bezeichnung` | nein | höchstens 200 Zeichen; leer = die SPA zeigt den Anbieter |
+| `kategorieId` | ja | Standardkategorie oder eigene des Haushalts, sonst Feldfehler `Unbekannt` |
+| `vertragsnummer` | nein | höchstens 100 Zeichen |
+| `betrag` | ja | größer 0 (Feldfehler `PositiverBetrag`) |
+| `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
+| `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
+| `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
+| `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert |
+| `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
+| `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
+| `kuendigungsfristMonate` | nein | 0–24 |
+| `gekuendigtZum` | nein | gesetzt = gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag |
+| `notiz` | nein | höchstens 1000 Zeichen |
+
+Leere Texte speichert das Backend als `null`. Einen **Status** schickt die SPA nicht mit; er wird
+berechnet (siehe unten).
+
+**`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
+von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
+„Nächste Abbuchung“. Beim Bearbeiten belegt die SPA es mit `berechnet.naechsteAbbuchung` vor (nur wenn
+das `null` ist, mit `abbuchungAb`); ändert sich die Zahlweise, muss der Nutzer das Datum im neuen
+Rhythmus bestätigen, denn daraus kann das Backend den neuen Rhythmus nicht ableiten.
+
+### Antwort
+
+Die Antwort enthält die gespeicherten Felder wie oben, die Kategorie als Objekt (wie bei den
+Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berechnet, steht in
+`berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern nicht zurückgeschickt:
+
+```json
+"berechnet": {
+  "status": "AKTIV",
+  "kostenProMonat": { "wert": 48.90, "waehrung": "EUR" },
+  "kostenProJahr": { "wert": 586.80, "waehrung": "EUR" },
+  "naechsteAbbuchung": "2027-01-01",
+  "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true }
+}
+```
+
+- **Status:** `BEENDET`, wenn `gekuendigtZum` vorbei ist oder ein Vertrag mit Verlängerung `KEINE`
+  sein Laufzeitende überschritten hat; `GEKUENDIGT`, solange `gekuendigtZum` noch kommt; sonst `AKTIV`.
+- **Kosten:** pro Jahr = Betrag × 12 ÷ Monate der Zahlweise, pro Monat = pro Jahr ÷ 12 (kaufmännisch
+  gerundet).
+- **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`;
+  `null`, wenn der Vertrag beendet ist oder vorher endet.
+- **Kündigung:** `art` ist die erste passende Zeile:
+
+  | Bedingung | `art` | Daten |
+  |---|---|---|
+  | Status `BEENDET` | `BEENDET` | keine |
+  | Status `GEKUENDIGT` | `GEKUENDIGT` | `zum` = `gekuendigtZum` |
+  | nicht kündbar | `NICHT_KUENDBAR` | keine |
+  | Verlängerung `KEINE` mit Laufzeitende | `ENDET` | `zum` = Laufzeitende |
+  | kein Vertragsende bestimmbar | `KEINE_LAUFZEIT` | keine |
+  | Laufzeitende vorbei oder leer, Verlängerung um einen Monat (`MONATLICH` oder `ZAHLUNGSINTERVALL` bei monatlicher Zahlweise) | `MONATLICH_KUENDBAR` | `kuendigenBis`, `zum`; nie `dringend` |
+  | sonst | `KUENDIGEN_BIS` | `kuendigenBis`, `zum`; `dringend` bei höchstens 45 Tagen bis `kuendigenBis` |
+
+  - **Vertragsende:** das Laufzeitende, so oft um die Verlängerung (Zahlungsintervall, 1 oder 12 Monate)
+    verlängert, bis `kuendigenBis` nicht in der Vergangenheit liegt. Ohne Laufzeitende: bei
+    `ZAHLUNGSINTERVALL` und `MONATLICH` der Tag vor `abbuchungAb`, bei `ZWOELF_MONATE` ein Jahr
+    nach `beginn`; ohne `verlaengerung` gilt nur das Laufzeitende selbst.
+  - **`kuendigenBis`** = Vertragsende minus Frist. Endet der Vertrag am Monatsende, ist auch
+    `kuendigenBis` ein Monatsende (30.11. mit einem Monat Frist → 31.10.).
+  - `fristMonate` ist die hinterlegte Frist (`null`, wenn keine angegeben ist; gerechnet wird dann mit 0).
+
+Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den üblichen wie `NotBlank`,
+`Size`, `Max`).

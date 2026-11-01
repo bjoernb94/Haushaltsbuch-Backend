@@ -17,13 +17,13 @@ include::module-shared.adoc[]
 plantuml::module-versorgung.puml[,,format=svg]
 include::module-versorgung.adoc[]
 
-== Verträge
-plantuml::module-vertraege.puml[,,format=svg]
-include::module-vertraege.adoc[]
-
 == Haushalt
 plantuml::module-haushalt.puml[,,format=svg]
 include::module-haushalt.adoc[]
+
+== Verträge
+plantuml::module-vertraege.puml[,,format=svg]
+include::module-vertraege.adoc[]
 
 == Nutzer
 plantuml::module-nutzer.puml[,,format=svg]

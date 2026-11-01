@@ -79,6 +79,11 @@ public record Betrag(
 		return new Betrag(wert.multiply(faktor).setScale(NACHKOMMASTELLEN, RUNDUNG), waehrung);
 	}
 
+	/** Z.&nbsp;B. Monatswert aus einem Jahreswert; das Ergebnis wird kaufmännisch gerundet. */
+	public Betrag geteilt(int teiler) {
+		return new Betrag(wert.divide(BigDecimal.valueOf(teiler), NACHKOMMASTELLEN, RUNDUNG), waehrung);
+	}
+
 	public boolean kleinerNull() {
 		return wert.signum() < 0;
 	}
