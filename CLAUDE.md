@@ -108,7 +108,8 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204. Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
   `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
-  before changing fields (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too)
+  before changing fields, on `DELETE` with a required `@RequestParam long version` before deleting (load first so
+  unknown IDs give 404) (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too)
   and `flush()` before building the response, so it carries the new version. DTO names: `<Objekt>Anfrage` (create),
   `<Objekt>Aenderung` (update: same fields plus `@NotNull Long version`, shared interface, test keeps the field lists
   equal), `<Objekt>Antwort`.

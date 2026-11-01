@@ -4,12 +4,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -53,6 +55,16 @@ class VertragController {
 	@PutMapping("/{id}")
 	VertragAntwort vertragAendern(@PathVariable UUID id, @Valid @RequestBody VertragAenderung aenderung) {
 		return service.aendern(id, aenderung);
+	}
+
+	/**
+	 * Löscht endgültig; {@code version} wie beim Ändern, damit keine Änderung eines anderen Mitglieds
+	 * unbemerkt mit verschwindet (veraltet: 409). Unbekannte ID oder fremder Vertrag: 404.
+	 */
+	@DeleteMapping("/{id}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	void vertragLoeschen(@PathVariable UUID id, @RequestParam long version) {
+		service.loeschen(id, version);
 	}
 
 }
