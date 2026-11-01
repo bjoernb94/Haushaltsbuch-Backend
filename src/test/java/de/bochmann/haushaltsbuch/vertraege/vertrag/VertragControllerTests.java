@@ -20,7 +20,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,6 +95,58 @@ class VertragControllerTests {
 		assertThat(antwort.getHeader("Location")).endsWith("/api/vertraege/" + id);
 		assertThat(jdbc.sql("SELECT haushalt_id FROM vertrag WHERE id = ?").param(UUID.fromString(id))
 				.query(UUID.class).single()).isEqualTo(haushalt.haushaltId());
+	}
+
+	/** Legt ein Abo im Haushalt des Tests an und liefert die Antwort als JSON. */
+	private String angelegt() throws Exception {
+		return mockMvc.perform(anlegen(abo("13.99", null, null, 0)))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+	}
+
+	@Test
+	void ruftEigenenVertragAb() throws Exception {
+		String angelegt = angelegt();
+		String id = JsonPath.read(angelegt, "$.id");
+
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(content().json(angelegt, true));
+	}
+
+	/** Pflicht-Test zur Trennung der Haushalte: Ein fremder Vertrag ist für andere „nicht gefunden“. */
+	@Test
+	void vertragEinesAnderenHaushaltsNichtGefunden() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+		var fremder = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(fremder.anmeldung()))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+	}
+
+	@Test
+	void unbekannterVertragNichtGefunden() throws Exception {
+		mockMvc.perform(get("/api/vertraege/{id}", UUID.randomUUID()).with(haushalt.anmeldung()))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+	}
+
+	@Test
+	void idOhneUuidFormatUngueltig() throws Exception {
+		mockMvc.perform(get("/api/vertraege/{id}", "42").with(haushalt.anmeldung()))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
+	}
+
+	@Test
+	void abrufenOhneGebuchteKomponenteVerboten() throws Exception {
+		String id = JsonPath.read(angelegt(), "$.id");
+		var ohne = TestHaushalt.anlegen(haushaltService, Komponente.PORTFOLIO);
+
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(ohne.anmeldung()))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
 	}
 
 	@Test

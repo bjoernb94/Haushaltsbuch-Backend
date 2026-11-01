@@ -132,8 +132,14 @@ class OpenApiConfig {
 		operation.setSecurity(anmeldung.isEmpty() ? List.of() : List.of(anmeldung));
 
 		ApiResponses antworten = operation.getResponses();
+		boolean mitId = pfad.contains("{");
 		if (operation.getRequestBody() != null) {
-			fehler(antworten, "400", "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG).");
+			fehler(antworten, "400", mitId
+					? "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG, z. B. ID kein UUID-Format)."
+					: "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG).");
+		}
+		else if (mitId) {
+			fehler(antworten, "400", "Ungültige Anfrage, z. B. ID kein UUID-Format (ANFRAGE_UNGUELTIG).");
 		}
 		if (!oeffentlich) {
 			fehler(antworten, "401", "Nicht angemeldet (NICHT_ANGEMELDET).");
@@ -148,7 +154,7 @@ class OpenApiConfig {
 		else if (schreibend) {
 			fehler(antworten, "403", "CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG).");
 		}
-		if (pfad.contains("{")) {
+		if (mitId) {
 			fehler(antworten, "404", "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN).");
 		}
 	}
