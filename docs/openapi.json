@@ -1,0 +1,345 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "description" : "API für die SPA. Anmeldung, Fehlercodes und Datenformate: https://github.com/bjoernb94/Haushaltsbuch-Backend/blob/main/docs/api.md",
+    "title" : "Haushaltsbuch-Backend",
+    "version" : "1"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "paths" : {
+    "/api/abmeldung" : {
+      "post" : {
+        "operationId" : "abmelden",
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ]
+        } ],
+        "summary" : "Beendet die Session im Backend und die Sitzung bei Keycloak; ohne Anmeldung ebenfalls 204.",
+        "tags" : [ "Anmeldung" ]
+      }
+    },
+    "/api/anmeldung" : {
+      "post" : {
+        "operationId" : "anmelden",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AnmeldungAnfrage"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ]
+        } ],
+        "tags" : [ "Anmeldung" ]
+      }
+    },
+    "/api/nutzer/ich" : {
+      "get" : {
+        "operationId" : "meinProfil",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Profil"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF)."
+          }
+        },
+        "security" : [ {
+          "session" : [ ]
+        } ],
+        "tags" : [ "Nutzer" ]
+      }
+    },
+    "/api/nutzer/ich/komponenten" : {
+      "get" : {
+        "operationId" : "meineKomponenten",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "type" : "string",
+                    "enum" : [ "FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRAEGE", "PORTFOLIO" ]
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF)."
+          }
+        },
+        "security" : [ {
+          "session" : [ ]
+        } ],
+        "tags" : [ "Nutzer" ]
+      }
+    },
+    "/api/registrierung" : {
+      "post" : {
+        "operationId" : "registrieren",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegistrierungAnfrage"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ]
+        } ],
+        "tags" : [ "Anmeldung" ]
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "AnmeldungAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "minLength" : 1
+          },
+          "passwort" : {
+            "type" : "string",
+            "minLength" : 1
+          }
+        },
+        "required" : [ "email", "passwort" ]
+      },
+      "Feldfehler" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Name der Regel, z. B. NotBlank, Size, Unbekannt."
+          },
+          "feld" : {
+            "type" : [ "string", "null" ],
+            "description" : "Feld, z. B. passwort oder preis.wert; leer bei Regeln ohne Feld."
+          },
+          "parameter" : {
+            "type" : "object",
+            "description" : "Gesetzte Attribute der Regel, z. B. {\"min\": 8}."
+          }
+        },
+        "required" : [ "code", "parameter" ]
+      },
+      "Problem" : {
+        "type" : "object",
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "description" : "Stabiler Fehlercode, z. B. VALIDIERUNG oder NICHT_ANGEMELDET; Tabelle in docs/api.md, Abschnitt Fehlerantworten."
+          },
+          "detail" : {
+            "type" : "string",
+            "description" : "Englisch, nur für Entwickler und Logs."
+          },
+          "felder" : {
+            "type" : "array",
+            "description" : "Nur bei VALIDIERUNG: je Verstoß ein Eintrag.",
+            "items" : {
+              "$ref" : "#/components/schemas/Feldfehler"
+            }
+          },
+          "instance" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "integer"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "status" ]
+      },
+      "Profil" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "vorname" : {
+            "type" : "string"
+          }
+        }
+      },
+      "RegistrierungAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "email" : {
+            "type" : "string",
+            "format" : "email",
+            "maxLength" : 255,
+            "minLength" : 0
+          },
+          "komponenten" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRAEGE", "PORTFOLIO" ]
+            },
+            "minItems" : 1,
+            "uniqueItems" : true
+          },
+          "name" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0
+          },
+          "passwort" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 8
+          },
+          "vorname" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0
+          }
+        },
+        "required" : [ "email", "komponenten", "name", "passwort", "vorname" ]
+      }
+    },
+    "securitySchemes" : {
+      "csrf" : {
+        "description" : "Wert des Cookies XSRF-TOKEN; Pflicht bei jeder schreibenden Anfrage.",
+        "in" : "header",
+        "name" : "X-XSRF-TOKEN",
+        "type" : "apiKey"
+      },
+      "session" : {
+        "description" : "Session-Cookie, gesetzt von POST /api/anmeldung bzw. POST /api/registrierung.",
+        "in" : "cookie",
+        "name" : "JSESSIONID",
+        "type" : "apiKey"
+      }
+    }
+  }
+}

@@ -1,5 +1,7 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import de.bochmann.haushaltsbuch.shared.fehler.Probleme;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Registrierung ist der Nutzer direkt angemeldet (Session-Cookie in der Antwort).
  */
 @RestController
+@Tag(name = "Anmeldung")
 @RequestMapping("/api/registrierung")
 class RegistrierungController {
 
@@ -36,6 +39,7 @@ class RegistrierungController {
 	}
 
 	@PostMapping
+	@SecurityRequirements // öffentlich
 	@ResponseStatus(HttpStatus.CREATED)
 	void registrieren(@Valid @RequestBody RegistrierungAnfrage anfrage, HttpServletRequest request,
 			HttpServletResponse response) {

@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.AngemeldeterNutzer;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
@@ -17,6 +18,7 @@ import java.util.List;
  * aus; den Zugriff selbst sichert die Security-Konfiguration ab.
  */
 @RestController
+@Tag(name = "Nutzer")
 @RequestMapping("/api/nutzer/ich/komponenten")
 class KomponentenController {
 

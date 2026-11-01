@@ -128,6 +128,10 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
   commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
+- `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale).
+  `shared.openapi.OpenApiConfig` adds session/CSRF security and the generic `Problem` error responses centrally, so
+  no `@ApiResponse` annotations; controllers only get `@Tag(name = "<Fachbereich>")`, public endpoints an empty
+  `@SecurityRequirements`. Controller method names become `operationId`s: descriptive and unique app-wide.
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 with the realm import. Tests use Testcontainers instead

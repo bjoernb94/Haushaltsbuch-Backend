@@ -110,6 +110,24 @@ Das Format der Endpunkte für die SPA steht in der [API](api.md#fachendpunkte). 
   Fehlerbehandlung ebenfalls auf 409 ab.
 - **Paging** über `Pageable` und `Page`; die Serialisierung als stabiles DTO stellt `FachdatenConfig` ein.
 
+### OpenAPI-Beschreibung
+
+springdoc erzeugt die Beschreibung aus den Controllern; `OpenApiExportTests` schreibt sie nach
+[`docs/openapi.json`](openapi.json). Die Datei ist eingecheckt wie `docs/module`: Ändert sich die API,
+gehört sie mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nicht dem Build entspricht.
+
+- **Automatisch** (`shared.openapi.OpenApiConfig`): Anmeldung (Session-Cookie, bei schreibenden
+  Anfragen zusätzlich der CSRF-Header) und die allgemeinen Fehlerantworten als Schema `Problem`: 400
+  bei Request-Body, 401/403 bei geschützten Endpunkten, 404 bei Pfaden mit ID. Dafür keine
+  Annotationen an den Endpunkten.
+- **Je Controller:** `@Tag(name = "…")` mit dem Fachbereich (z.&nbsp;B. `Verträge`), damit erzeugte
+  Clients sinnvoll gruppiert sind. Öffentliche Endpunkte zusätzlich `@SecurityRequirements` ohne
+  Inhalt.
+- **Methodennamen** der Controller werden zur `operationId` (z.&nbsp;B. `vertragAnlegen`) und damit zu
+  Funktionsnamen in erzeugten Clients: sprechend und in der ganzen Anwendung eindeutig wählen.
+- Modulspezifische Fehlercodes stehen nur in [`api.md`](api.md#fehlerantworten), nicht in der
+  OpenAPI-Beschreibung.
+
 ## Fehler im Code
 
 Das Format für die SPA steht unter [Fehlerantworten](api.md#fehlerantworten).
