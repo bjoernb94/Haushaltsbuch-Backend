@@ -22,7 +22,7 @@ import java.util.UUID;
  * @param bezeichnung leer, wenn der Anbieter als Name genügt
  * @param abbuchungAb ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“
  * @param kuendbar {@code false} z.&nbsp;B. für den Rundfunkbeitrag; dann werden {@code verlaengerung} und
- *        {@code kuendigungsfristMonate} nicht gespeichert
+ *        {@code kuendigungsfristMonate} nicht gespeichert, {@code beginn} und {@code laufzeitende} bleiben (#67)
  * @param gekuendigtZum gesetzt, wenn gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag
  */
 @LaufzeitendeNachBeginn
