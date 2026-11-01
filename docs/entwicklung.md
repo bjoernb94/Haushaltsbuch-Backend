@@ -101,14 +101,20 @@ Das Format der Endpunkte für die SPA steht in der [API](api.md#fachendpunkte). 
 
 - **DTOs:** Controller nehmen und liefern Records (z.&nbsp;B. `VertragAnfrage`, `VertragAntwort`), nie
   Entities. So gelangen interne Felder (`haushalt_id`, Audit-Spalten) nicht in die API, und
-  berechnete Felder haben einen Platz.
+  berechnete Felder haben einen Platz. Je Fachobjekt: `<Objekt>Anfrage` zum Anlegen,
+  `<Objekt>Aenderung` zum Ändern (dieselben Felder plus `@NotNull Long version`, damit `version` in der
+  OpenAPI Pflicht ist und beim Anlegen fehlt) und `<Objekt>Antwort`. Ein gemeinsames Interface (z.&nbsp;B.
+  `Vertragsangaben`) lässt Entity und klassenweite Validatoren mit beiden arbeiten; ein Test hält die
+  beiden Feldlisten gleich (`VertragAenderungTests`).
 - **Fach-Entities** erben von `shared.fachdaten.FachEntity`: UUID, Haushalt (siehe
   [Trennung der Haushalte](#trennung-der-haushalte)), `@Version` und Audit-Spalten (Spalten siehe
   [Datenbank](#datenbank)).
 - **Version:** DTOs liefern `version` aus. Beim `PUT` ruft der Service
   `entity.pruefeVersion(dto.version())`, bevor er Felder ändert; eine veraltete Version wirft
   `KonfliktException` (409 `KONFLIKT`). Gleichzeitige Speichervorgänge bildet die
-  Fehlerbehandlung ebenfalls auf 409 ab.
+  Fehlerbehandlung ebenfalls auf 409 ab. Hibernate erhöht die Version erst beim Schreiben, daher
+  vor dem Bauen der Antwort `repository.flush()`, sonst liefert sie die alte Version und das nächste
+  `PUT` ergibt 409.
 - **Paging** über `Pageable` und `Page`; die Serialisierung als stabiles DTO stellt `FachdatenConfig` ein.
 
 ### OpenAPI-Beschreibung

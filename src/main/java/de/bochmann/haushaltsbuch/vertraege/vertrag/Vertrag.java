@@ -85,12 +85,12 @@ class Vertrag extends FachEntity {
 	protected Vertrag() {
 	}
 
-	Vertrag(VertragAnfrage anfrage, VertragKategorie kategorie) {
+	Vertrag(Vertragsangaben anfrage, VertragKategorie kategorie) {
 		setzen(anfrage, kategorie);
 	}
 
-	/** Übernimmt alle Angaben der Anfrage (Anlegen, später auch Ändern mit {@code PUT}). */
-	void setzen(VertragAnfrage anfrage, VertragKategorie kategorie) {
+	/** Übernimmt alle Angaben, beim Anlegen wie beim Ändern ({@code PUT} ersetzt alle Felder). */
+	void setzen(Vertragsangaben anfrage, VertragKategorie kategorie) {
 		this.anbieter = anfrage.anbieter().strip();
 		this.bezeichnung = text(anfrage.bezeichnung());
 		this.kategorie = kategorie;

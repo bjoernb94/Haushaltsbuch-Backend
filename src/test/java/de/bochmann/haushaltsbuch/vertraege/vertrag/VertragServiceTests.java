@@ -2,6 +2,8 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.FachmodulTest;
 import de.bochmann.haushaltsbuch.shared.fachdaten.HaushaltKontext;
+import de.bochmann.haushaltsbuch.shared.fehler.KonfliktException;
+import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
@@ -148,6 +150,82 @@ class VertragServiceTests {
 		var vertraege = HaushaltKontext.fuer(haushalt, () -> repository.findAll());
 
 		assertThat(vertraege).singleElement().satisfies(v -> assertThat(Hibernate.isInitialized(v.getKategorie())).isTrue());
+	}
+
+	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */
+	static VertragAenderung aenderung(long version, VertragAnfrage a) {
+		return new VertragAenderung(version, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
+				a.betrag(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.kuendbar(), a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
+	}
+
+	/** Wie {@link #anfrage}, aber monatlich 50 € statt jährlich 586,80 €. */
+	private static VertragAnfrage monatlich() {
+		var a = anfrage(VERSICHERUNG);
+		return new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(), euro("50.00"),
+				Zahlweise.MONATLICH, LocalDate.of(2026, 12, 1), a.zahlungsweg(), a.kuendbar(), a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
+	}
+
+	@Test
+	void aendertVertragUndLiefertNeueVersion() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+
+		var geaendert = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(angelegt.id(), aenderung(angelegt.version(), monatlich())));
+
+		assertThat(geaendert.version()).isEqualTo(angelegt.version() + 1);
+		assertThat(geaendert.zahlweise()).isEqualTo(Zahlweise.MONATLICH);
+		assertThat(geaendert.abbuchungAb()).isEqualTo(LocalDate.of(2026, 12, 1));
+		assertThat(geaendert.berechnet().kostenProJahr()).isEqualTo(euro("600.00"));
+		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(angelegt.id()))).isEqualTo(geaendert);
+	}
+
+	@Test
+	void veralteteVersionKonflikt() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+		HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(), aenderung(0, monatlich())));
+
+		assertThatThrownBy(() -> HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(angelegt.id(), aenderung(0, anfrage(VERSICHERUNG)))))
+				.isInstanceOf(KonfliktException.class);
+		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(angelegt.id())).zahlweise())
+				.isEqualTo(Zahlweise.MONATLICH);
+	}
+
+	@Test
+	void aenderungOhneUnterschiedBehaeltVersion() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+
+		var geaendert = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(angelegt.id(), aenderung(0, anfrage(VERSICHERUNG))));
+
+		assertThat(geaendert.version()).isZero();
+	}
+
+	@Test
+	void nichtKuendbarLeertVerlaengerungUndFrist() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
+		var a = anfrage(VERSICHERUNG);
+		var nichtKuendbar = new VertragAenderung(0L, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
+				a.betrag(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), false, a.beginn(), a.laufzeitende(),
+				a.verlaengerung(), a.kuendigungsfristMonate(), null, null);
+
+		var geaendert = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(), nichtKuendbar));
+
+		assertThat(geaendert.verlaengerung()).isNull();
+		assertThat(geaendert.kuendigungsfristMonate()).isNull();
+		assertThat(geaendert.laufzeitende()).isEqualTo(a.laufzeitende());
+		assertThat(geaendert.berechnet().kuendigung().art()).isEqualTo(Kuendigungsart.NICHT_KUENDBAR);
+	}
+
+	@Test
+	void vertragEinesAnderenHaushaltsNichtGefunden() {
+		var fremder = HaushaltKontext.fuer(UUID.randomUUID(), () -> service.anlegen(anfrage(VERSICHERUNG)));
+
+		assertThatThrownBy(() -> HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(fremder.id(), aenderung(0, anfrage(VERSICHERUNG)))))
+				.isInstanceOf(NichtGefundenException.class);
 	}
 
 	private void anlegen(String anbieter, String bezeichnung, Zahlweise zahlweise, boolean kuendbar,
