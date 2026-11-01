@@ -131,7 +131,8 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
 - `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale).
   `shared.openapi.OpenApiConfig` adds session/CSRF security and the generic `Problem` error responses centrally, so
   no `@ApiResponse` annotations; controllers only get `@Tag(name = "<Fachbereich>")`, public endpoints an empty
-  `@SecurityRequirements`. Controller method names become `operationId`s: descriptive and unique app-wide.
+  `@SecurityRequirements`. Controller method names become `operationId`s and DTO class names schema names: both
+  descriptive and unique app-wide. `POST` returning `ResponseEntity.created(...)` also needs `@ResponseStatus(CREATED)`.
 - Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 with the realm import. Tests use Testcontainers instead

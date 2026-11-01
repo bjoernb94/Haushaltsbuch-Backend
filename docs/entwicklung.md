@@ -30,9 +30,10 @@ bekommen ein eigenes Unterpaket. Beispiel `vertraege`:
 vertraege
 ├── package-info.java   Modul-Deklaration; im Wurzelpaket nur, was andere Module nutzen dürfen
 ├── vertrag             Vertrag, VertragRepository, VertragService, VertragController,
-│                       VertragAnfrage, VertragAntwort, Zahlweise, Vertragsstatus …
-├── kategorie           VertragKategorie, Repository, Controller
-└── berechnung          Kosten, nächste Abbuchung, Kündigung (ohne Spring, mit Unit-Tests)
+│                       VertragAnfrage, VertragAntwort, Zahlungsweg
+├── kategorie           VertragKategorie, Repository, Service, Controller
+└── berechnung          Vertragsberechnung, Kosten und die Enums, die sie braucht (Zahlweise,
+                        Verlaengerung …); ohne Spring, mit Unit-Tests
 ```
 
 - Klassen, die nur im eigenen Unterpaket gebraucht werden, bleiben package-private; was ein anderes
@@ -123,6 +124,10 @@ gehört sie mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nic
 - **Je Controller:** `@Tag(name = "…")` mit dem Fachbereich (z.&nbsp;B. `Verträge`), damit erzeugte
   Clients sinnvoll gruppiert sind. Öffentliche Endpunkte zusätzlich `@SecurityRequirements` ohne
   Inhalt.
+- **`POST` mit `ResponseEntity.created(...)`:** zusätzlich `@ResponseStatus(HttpStatus.CREATED)` an die
+  Methode, sonst steht in der Beschreibung 200 statt 201.
+- **DTO-Namen** werden zu Schemanamen, ohne Paket: in der ganzen Anwendung eindeutig wählen
+  (`VertragKategorieAntwort`, nicht `KategorieAntwort`), sonst überschreibt ein Schema still das andere.
 - **Methodennamen** der Controller werden zur `operationId` (z.&nbsp;B. `vertragAnlegen`) und damit zu
   Funktionsnamen in erzeugten Clients: sprechend und in der ganzen Anwendung eindeutig wählen.
 - Modulspezifische Fehlercodes stehen nur in [`api.md`](api.md#fehlerantworten), nicht in der

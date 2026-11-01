@@ -94,7 +94,7 @@ flowchart LR
     nutzer --> shared[Shared]
     haushalt --> shared
     buchungen[Buchungen] -.-> shared
-    vertraege[Verträge] -.-> shared
+    vertraege[Verträge] --> shared
     versorgung[Versorgung] -.-> shared
     portfolio[Portfolio] -.-> shared
 ```

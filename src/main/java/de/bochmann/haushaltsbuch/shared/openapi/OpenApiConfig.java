@@ -14,9 +14,11 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -42,6 +44,11 @@ class OpenApiConfig {
 	private static final String FELDFEHLER = "Feldfehler";
 
 	private static final String DOKU = "https://github.com/bjoernb94/Haushaltsbuch-Backend/blob/main/docs/api.md";
+
+	static {
+		// Jackson schreibt Currency als ISO-Code ("EUR"), nicht als Objekt (Betrag.waehrung).
+		SpringDocUtils.getConfig().replaceWithClass(Currency.class, String.class);
+	}
 
 	@Bean
 	OpenApiCustomizer haushaltsbuchApi() {

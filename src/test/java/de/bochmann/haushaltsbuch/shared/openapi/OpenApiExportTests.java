@@ -66,4 +66,13 @@ class OpenApiExportTests {
 						.value("#/components/schemas/Feldfehler"));
 	}
 
+	@Test
+	void beschreibtFachendpunkteWieSieAntworten() throws Exception {
+		mockMvc.perform(get("/v3/api-docs"))
+				.andExpect(jsonPath("$.paths['/api/vertraege'].post.responses.201").exists())
+				.andExpect(jsonPath("$.paths['/api/vertraege'].post.responses.200").doesNotExist())
+				// Currency als ISO-Code wie im JSON, nicht als Objekt.
+				.andExpect(jsonPath("$.components.schemas.Betrag.properties.waehrung.type").value("string"));
+	}
+
 }

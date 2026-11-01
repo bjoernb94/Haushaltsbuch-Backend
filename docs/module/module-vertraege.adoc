@@ -2,4 +2,6 @@
 |===
 |Base package
 |`de.bochmann.haushaltsbuch.vertraege`
+|Bean references
+|* `d.b.h.s.fachdaten.HaushaltKontext` (in Shared)
 |===

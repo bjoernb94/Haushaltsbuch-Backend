@@ -41,6 +41,13 @@ class BetragTests {
 	}
 
 	@Test
+	void teiltKaufmaennischGerundet() {
+		assertThat(Betrag.euro("40.00").geteilt(12)).isEqualTo(Betrag.euro("3.33"));
+		assertThat(Betrag.euro("220.32").geteilt(12)).isEqualTo(Betrag.euro("18.36"));
+		assertThat(Betrag.euro("0.30").geteilt(4)).isEqualTo(Betrag.euro("0.08"));
+	}
+
+	@Test
 	void verrechnetKeineUnterschiedlichenWaehrungen() {
 		assertThatThrownBy(() -> Betrag.euro("1.00").plus(new Betrag(BigDecimal.ONE, USD)))
 				.isInstanceOf(IllegalArgumentException.class);
