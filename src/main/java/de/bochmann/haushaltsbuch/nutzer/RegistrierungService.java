@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionOperations;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.UUID;
 
 /**
@@ -28,12 +28,15 @@ class RegistrierungService {
 
 	private final TransactionOperations transaktion;
 
+	private final Clock clock;
+
 	RegistrierungService(Identitaetsanbieter identitaetsanbieter, NutzerRepository nutzerRepository,
-			HaushaltService haushaltService, TransactionOperations transaktion) {
+			HaushaltService haushaltService, TransactionOperations transaktion, Clock clock) {
 		this.identitaetsanbieter = identitaetsanbieter;
 		this.nutzerRepository = nutzerRepository;
 		this.haushaltService = haushaltService;
 		this.transaktion = transaktion;
+		this.clock = clock;
 	}
 
 	UUID registrieren(RegistrierungAnfrage anfrage) {
@@ -41,7 +44,7 @@ class RegistrierungService {
 				anfrage.vorname(), anfrage.name());
 		try {
 			transaktion.executeWithoutResult(status -> {
-				nutzerRepository.saveAndFlush(new Nutzer(id, Instant.now()));
+				nutzerRepository.saveAndFlush(new Nutzer(id, clock.instant()));
 				haushaltService.anlegen(id, anfrage.komponenten());
 			});
 		}

@@ -117,7 +117,7 @@ ist englisch und nur für Entwickler und Logs gedacht.
   "instance": "/api/registrierung",
   "code": "VALIDIERUNG",
   "felder": [
-    { "feld": "passwort", "code": "Size", "parameter": { "min": 8 } },
+    { "feld": "passwort", "code": "Size", "parameter": { "min": 8, "max": 255 } },
     { "feld": "email", "code": "Email", "parameter": {} }
   ]
 }
@@ -202,6 +202,9 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
 Antworten: **201** angelegt, **400** ungültige Daten (`VALIDIERUNG`) oder von Keycloak abgelehnt,
 z.&nbsp;B. wegen der Passwort-Richtlinie (`REGISTRIERUNG_ABGELEHNT`), **409** E-Mail bereits vergeben
 (`EMAIL_BEREITS_VERGEBEN`). Nach 201 ist der Nutzer direkt angemeldet.
+
+Alle Textfelder sind Pflicht und höchstens 255 Zeichen lang, das Passwort mindestens 8 Zeichen;
+die übrigen Regeln der Passwort-Richtlinie prüft Keycloak.
 
 Was bei der Registrierung intern passiert und was bei Fehlern zu tun ist, steht unter
 [Betrieb](betrieb.md#konten-und-registrierung).

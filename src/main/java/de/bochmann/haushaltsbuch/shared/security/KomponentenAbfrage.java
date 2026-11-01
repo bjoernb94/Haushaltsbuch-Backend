@@ -6,8 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Liefert die gebuchten Komponenten eines Nutzers. Wird vom Modul {@code nutzer}
- * implementiert, damit die Security-Konfiguration nicht von diesem Modul abhängt.
+ * Liefert die gebuchten Komponenten des Haushalts, dem ein Nutzer angehört. Wird vom Modul
+ * {@code haushalt} implementiert, damit die Security-Konfiguration nicht von diesem Modul abhängt.
  */
 public interface KomponentenAbfrage {
 

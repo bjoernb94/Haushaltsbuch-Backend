@@ -4,7 +4,7 @@ import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Set;
 import java.util.UUID;
 
@@ -17,8 +17,11 @@ public class HaushaltService {
 
 	private final HaushaltRepository haushaltRepository;
 
-	HaushaltService(HaushaltRepository haushaltRepository) {
+	private final Clock clock;
+
+	HaushaltService(HaushaltRepository haushaltRepository, Clock clock) {
 		this.haushaltRepository = haushaltRepository;
+		this.clock = clock;
 	}
 
 	/**
@@ -33,7 +36,7 @@ public class HaushaltService {
 	 */
 	@Transactional
 	public UUID anlegen(UUID nutzerId, Set<Komponente> komponenten) {
-		return haushaltRepository.saveAndFlush(new Haushalt(nutzerId, komponenten, Instant.now())).getId();
+		return haushaltRepository.saveAndFlush(new Haushalt(nutzerId, komponenten, clock.instant())).getId();
 	}
 
 }
