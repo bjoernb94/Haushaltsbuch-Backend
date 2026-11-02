@@ -772,6 +772,7 @@
           },
           "parameter" : {
             "type" : "object",
+            "additionalProperties" : true,
             "description" : "Gesetzte Attribute der Regel, z. B. {\"min\": 8}."
           }
         },

@@ -93,7 +93,7 @@ class OpenApiConfig {
 		components.addSchemas(FELDFEHLER, objekt(eigenschaften(
 				"feld", typ("string", "null").description("Feld, z. B. passwort oder preis.wert; leer bei Regeln ohne Feld."),
 				"code", typ("string").description("Name der Regel, z. B. NotBlank, Size, Unbekannt."),
-				"parameter", typ("object").description("Gesetzte Attribute der Regel, z. B. {\"min\": 8}.")))
+				"parameter", typ("object").additionalProperties(true).description("Gesetzte Attribute der Regel, z. B. {\"min\": 8}.")))
 				.required(List.of("code", "parameter")));
 		components.addSchemas(PROBLEM, objekt(eigenschaften(
 				"type", typ("string"),
