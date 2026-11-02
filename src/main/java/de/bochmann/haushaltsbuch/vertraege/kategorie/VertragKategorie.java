@@ -2,6 +2,8 @@ package de.bochmann.haushaltsbuch.vertraege.kategorie;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -24,7 +26,8 @@ public class VertragKategorie {
 	private UUID haushaltId;
 
 	@Column(name = "schluessel", length = 40)
-	private String schluessel;
+	@Enumerated(EnumType.STRING)
+	private VertragKategorieSchluessel schluessel;
 
 	@Column(name = "name", length = 100)
 	private String name;
@@ -39,7 +42,7 @@ public class VertragKategorie {
 		return id;
 	}
 
-	public String getSchluessel() {
+	public VertragKategorieSchluessel getSchluessel() {
 		return schluessel;
 	}
 

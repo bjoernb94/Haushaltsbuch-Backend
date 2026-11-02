@@ -131,6 +131,13 @@ gehört sie mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nic
   Anfragen zusätzlich der CSRF-Header) und die allgemeinen Fehlerantworten als Schema `Problem`: 400
   bei Request-Body, 401/403 bei geschützten Endpunkten, 404 bei Pfaden mit ID. Dafür keine
   Annotationen an den Endpunkten.
+- **`null`:** Jedes Feld eines DTOs, das `null` sein kann, bekommt JSpecify-`@Nullable` (direkt vor dem
+  Typ, in Anfragen und Antworten). Fehlt es, ist das Feld nie `null`; springdoc beschreibt die Felder
+  entsprechend. In Erfolgsantworten ist zusätzlich jedes Feld Pflicht (`OpenApiConfig`), weil das Backend
+  auch `null`-Felder ausliefert. `OpenApiExportTests` prüft das und schlägt bei einem vergessenen
+  `@Nullable` fehl, soweit ein Testfall das Feld als `null` liefert.
+- **Enums** werden automatisch eigene Schemas, ohne Annotationen; der Enum-Name wird wie ein DTO-Name zum
+  Schemanamen.
 - **Je Controller:** `@Tag(name = "…")` mit dem Fachbereich (z.&nbsp;B. `Verträge`), damit erzeugte
   Clients sinnvoll gruppiert sind. Öffentliche Endpunkte zusätzlich `@SecurityRequirements` ohne
   Inhalt.

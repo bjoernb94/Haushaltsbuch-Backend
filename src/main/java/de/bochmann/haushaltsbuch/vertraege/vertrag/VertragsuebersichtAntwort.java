@@ -5,6 +5,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -37,7 +38,7 @@ record VertragsuebersichtAntwort(
 	record AnstehendeKuendigung(
 			UUID id,
 			String anbieter,
-			String bezeichnung,
+			@Nullable String bezeichnung,
 			Betrag betrag,
 			Zahlweise zahlweise,
 			LocalDate kuendigenBis,

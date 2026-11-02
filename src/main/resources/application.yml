@@ -65,8 +65,11 @@ haushaltsbuch:
     openapi-public: false
 
 # OpenAPI-Beschreibung, eingecheckt als docs/openapi.json: sortiert und eingerückt, damit der Diff
-# nur echte Änderungen zeigt; Antworten als JSON statt */*.
+# nur echte Änderungen zeigt; Antworten als JSON statt */*. @Nullable an Record-Feldern als nullable beschreiben.
 springdoc:
+  model-converters:
+    java-nullable-property-customizer:
+      enabled: true
   default-produces-media-type: application/json
   writer-with-order-by-keys: true
   writer-with-default-pretty-printer: true

@@ -8,6 +8,7 @@ import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieSchluessel;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,7 +55,7 @@ class VertragServiceTests {
 
 		assertThat(jdbc.sql("SELECT haushalt_id FROM vertrag WHERE id = ?").param(vertrag.id()).query(UUID.class).single())
 				.isEqualTo(haushalt);
-		assertThat(vertrag.kategorie().schluessel()).isEqualTo("VERSICHERUNG");
+		assertThat(vertrag.kategorie().schluessel()).isEqualTo(VertragKategorieSchluessel.VERSICHERUNG);
 		assertThat(vertrag.version()).isZero();
 		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("48.90"));
 	}
@@ -127,7 +128,7 @@ class VertragServiceTests {
 				Kuendigungsart.ENDET, Kuendigungsart.KUENDIGEN_BIS, Kuendigungsart.MONATLICH_KUENDBAR,
 				Kuendigungsart.KEINE_LAUFZEIT, Kuendigungsart.KEINE_LAUFZEIT, Kuendigungsart.NICHT_KUENDBAR,
 				Kuendigungsart.GEKUENDIGT, Kuendigungsart.BEENDET);
-		assertThat(liste.getFirst().kategorie().schluessel()).isEqualTo("VERSICHERUNG");
+		assertThat(liste.getFirst().kategorie().schluessel()).isEqualTo(VertragKategorieSchluessel.VERSICHERUNG);
 	}
 
 	@Test

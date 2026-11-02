@@ -1,16 +1,30 @@
 package de.bochmann.haushaltsbuch.shared.openapi;
 
+import com.jayway.jsonpath.JsonPath;
 import de.bochmann.haushaltsbuch.IntegrationTest;
+import de.bochmann.haushaltsbuch.TestHaushalt;
+import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
+import de.bochmann.haushaltsbuch.shared.Komponente;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItem;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,12 +33,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Action schlägt fehl, wenn {@code docs/openapi.json} nicht dem Build entspricht.
  */
 @IntegrationTest
+@SuppressWarnings("unchecked")
 class OpenApiExportTests {
 
 	private static final Path DATEI = Path.of("docs/openapi.json");
 
+	/** Standardkategorie {@code VERSICHERUNG} aus der Migration. */
+	private static final String KATEGORIE = "7cb7a2b8-38a6-432d-8546-03b3d74f76ec";
+
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private HaushaltService haushaltService;
+
+	@Autowired
+	private Clock clock;
 
 	/** Schreibt die Beschreibung nach {@code docs/openapi.json}; ändert sich die API, zeigt der Diff das. */
 	@Test
@@ -88,6 +112,153 @@ class OpenApiExportTests {
 				.andExpect(jsonPath("$.components.schemas.VertragAnfrage.properties.version").doesNotExist())
 				// Currency als ISO-Code wie im JSON, nicht als Objekt.
 				.andExpect(jsonPath("$.components.schemas.Betrag.properties.waehrung.type").value("string"));
+	}
+
+	@Test
+	void beschreibtEnumsAlsEigeneSchemas() throws Exception {
+		mockMvc.perform(get("/v3/api-docs"))
+				.andExpect(jsonPath("$.components.schemas.Zahlweise.enum").isArray())
+				.andExpect(jsonPath("$.components.schemas.Komponente.enum").isArray())
+				.andExpect(jsonPath("$.components.schemas.VertragAntwort.properties.zahlweise.$ref")
+						.value("#/components/schemas/Zahlweise"))
+				// Nullable: Verweis oder null.
+				.andExpect(jsonPath("$.components.schemas.VertragAntwort.properties.zahlungsweg.oneOf[0].$ref")
+						.value("#/components/schemas/Zahlungsweg"))
+				.andExpect(jsonPath("$.components.schemas.VertragAntwort.properties.zahlungsweg.oneOf[1].type").value("null"))
+				.andExpect(jsonPath("$.components.schemas.VertragKategorieSchluessel.enum").value(hasItem("VERSICHERUNG")));
+	}
+
+	@Test
+	void inErfolgsantwortenIstJedesFeldPflicht() throws Exception {
+		Map<String, Object> api = beschreibung();
+		Set<String> namen = new TreeSet<>();
+		for (Map<String, Object> eintrag : JsonPath.<List<Map<String, Object>>>read(api, "$.paths[*][*].responses")) {
+			eintrag.forEach((status, antwort) -> {
+				if (status.startsWith("2")) {
+					sammleSchemas(antwort, schemas(api), namen);
+				}
+			});
+		}
+
+		assertThat(namen).contains("VertragAntwort", "VertragBerechnet", "Kuendigung", "AnstehendeKuendigung", "Betrag",
+				"Profil", "VertragKategorieAntwort").doesNotContain("Problem", "Feldfehler");
+		for (String name : namen) {
+			if (schemas(api).get(name).get("properties") instanceof Map<?, ?> felder) {
+				assertThat((List<String>) schemas(api).get(name).get("required")).as(name)
+						.containsExactlyInAnyOrderElementsOf((Set<String>) felder.keySet());
+			}
+		}
+	}
+
+	/** Betrag steckt auch in Anfragen; seine Felder sind dort Pflicht, denn der Konstruktor lehnt null ab. */
+	@Test
+	void inAnfragenIstNullableWasNichtPflichtIst() throws Exception {
+		Map<String, Object> api = beschreibung();
+		Set<String> namen = new TreeSet<>();
+		sammleSchemas(JsonPath.read(api, "$.paths[*][*].requestBody"), schemas(api), namen);
+
+		assertThat(namen).contains("VertragAnfrage", "VertragAenderung", "VertragVorschauAnfrage", "Betrag");
+		for (String name : namen) {
+			if (schemas(api).get(name).get("properties") instanceof Map<?, ?> felder) {
+				var pflicht = (List<String>) schemas(api).get(name).getOrDefault("required", List.of());
+				felder.forEach((feld, schema) -> assertThat(nullable((Map<String, Object>) schema)).as(name + "." + feld)
+						.isEqualTo(!pflicht.contains(feld)));
+			}
+		}
+	}
+
+	/** Fällt auf, wenn an einem Feld {@code @Nullable} vergessen wurde: Die Beschreibung wäre dann falsch. */
+	@Test
+	void jedesNullInEinerAntwortIstBeschrieben() throws Exception {
+		Map<String, Object> api = beschreibung();
+		var haushalt = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+		LocalDate heute = LocalDate.now(clock);
+		String nurPflichtfelder = """
+				{"anbieter": "Streamingdienst", "kategorieId": "%s", "betrag": {"wert": 10, "waehrung": "EUR"},
+				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "kuendbar": true%s}
+				""";
+
+		for (String zusatz : List.of("",
+				// Beendet: keine nächste Abbuchung.
+				", \"gekuendigtZum\": \"%s\"".formatted(heute.minusDays(1)),
+				// Mit Kündigungsfrist, erscheint auch in der Übersicht.
+				", \"laufzeitende\": \"%s\", \"verlaengerung\": \"ZWOELF_MONATE\"".formatted(heute.plusMonths(6)))) {
+			String antwort = mockMvc.perform(post("/api/vertraege").with(csrf()).with(haushalt.anmeldung())
+							.contentType(MediaType.APPLICATION_JSON)
+							.content(nurPflichtfelder.formatted(KATEGORIE, heute.plusDays(9), zusatz)))
+					.andExpect(status().isCreated())
+					.andReturn().getResponse().getContentAsString();
+			pruefeNull(JsonPath.read(antwort, "$"), Map.of("$ref", "#/components/schemas/VertragAntwort"), schemas(api),
+					"VertragAntwort");
+		}
+		String uebersicht = mockMvc.perform(get("/api/vertraege/uebersicht").with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				// Die Frist muss wirklich dabei sein, sonst prüft der Test AnstehendeKuendigung nicht.
+				.andExpect(jsonPath("$.naechsteKuendigungsfristen.length()").value(1))
+				.andReturn().getResponse().getContentAsString();
+		pruefeNull(JsonPath.read(uebersicht, "$"), Map.of("$ref", "#/components/schemas/VertragsuebersichtAntwort"),
+				schemas(api), "VertragsuebersichtAntwort");
+	}
+
+	private Map<String, Object> beschreibung() throws Exception {
+		return JsonPath.read(mockMvc.perform(get("/v3/api-docs")).andReturn().getResponse().getContentAsString(), "$");
+	}
+
+	private static Map<String, Map<String, Object>> schemas(Map<String, Object> api) {
+		return JsonPath.read(api, "$.components.schemas");
+	}
+
+	private static String refName(Object ref) {
+		return ((String) ref).substring(((String) ref).lastIndexOf('/') + 1);
+	}
+
+	/** Alle Schemas, die von {@code knoten} aus über {@code $ref} erreichbar sind. */
+	private static void sammleSchemas(Object knoten, Map<String, Map<String, Object>> schemas, Set<String> namen) {
+		if (knoten instanceof List<?> liste) {
+			liste.forEach(wert -> sammleSchemas(wert, schemas, namen));
+		}
+		else if (knoten instanceof Map<?, ?> objekt) {
+			objekt.forEach((schluessel, wert) -> {
+				if ("$ref".equals(schluessel)) {
+					if (namen.add(refName(wert))) {
+						sammleSchemas(schemas.get(refName(wert)), schemas, namen);
+					}
+				}
+				else {
+					sammleSchemas(wert, schemas, namen);
+				}
+			});
+		}
+	}
+
+	private static boolean nullable(Map<String, Object> schema) {
+		return schema.get("type") instanceof List<?> typen && typen.contains("null")
+				|| schema.get("oneOf") instanceof List<?> varianten
+						&& varianten.stream().anyMatch(variante -> "null".equals(((Map<?, ?>) variante).get("type")));
+	}
+
+	/** Geht die Antwort und ihr Schema gemeinsam durch: Jedes Feld ist beschrieben, jedes {@code null} nullable. */
+	private static void pruefeNull(Object wert, Map<String, Object> schema, Map<String, Map<String, Object>> schemas,
+			String pfad) {
+		if (schema.get("$ref") != null) {
+			pruefeNull(wert, schemas.get(refName(schema.get("$ref"))), schemas, pfad);
+		}
+		else if (wert == null) {
+			assertThat(nullable(schema)).as(pfad + " ist null, aber nicht nullable beschrieben").isTrue();
+		}
+		else if (schema.get("oneOf") instanceof List<?> varianten) {
+			pruefeNull(wert, (Map<String, Object>) varianten.getFirst(), schemas, pfad);
+		}
+		else if (wert instanceof List<?> liste) {
+			liste.forEach(eintrag -> pruefeNull(eintrag, (Map<String, Object>) schema.get("items"), schemas, pfad + "[]"));
+		}
+		else if (wert instanceof Map<?, ?> objekt) {
+			var felder = (Map<String, Map<String, Object>>) schema.get("properties");
+			objekt.forEach((name, feld) -> {
+				assertThat(felder).as(pfad).containsKey((String) name);
+				pruefeNull(feld, felder.get(name), schemas, pfad + "." + name);
+			});
+		}
 	}
 
 }

@@ -134,6 +134,9 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
   commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
 - `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale).
+  DTO fields that can be `null` get JSpecify `@Nullable` (requests and responses); without it a field is never `null`.
+  springdoc turns that into nullable types, enums become named schemas (`ModelResolver.enumsAsRef`), and all fields of
+  2xx responses are `required` (nulls are always serialized).
   `shared.openapi.OpenApiConfig` adds session/CSRF security and the generic `Problem` error responses centrally, so
   no `@ApiResponse` annotations; controllers only get `@Tag(name = "<Fachbereich>")`, public endpoints an empty
   `@SecurityRequirements`. Controller method names become `operationId`s and DTO class names schema names: both

@@ -24,7 +24,8 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 
 Die vollständige API-Beschreibung (OpenAPI 3.1) liegt als [`openapi.json`](openapi.json) im Repo,
-z.&nbsp;B. um daraus Typen für die SPA zu erzeugen; sie wird bei jedem Build neu erzeugt. Zur Laufzeit
+z.&nbsp;B. um daraus Typen für die SPA zu erzeugen; sie wird bei jedem Build neu erzeugt. Antworten
+enthalten immer alle Felder, was fehlt, ist `null`. Zur Laufzeit
 zeigt sie die Swagger UI (`/swagger-ui.html`, nur dev). Abläufe, Fehlercodes und Datenformate stehen
 nur hier.
 
