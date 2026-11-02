@@ -295,9 +295,15 @@ berechnet (siehe unten).
 
 **`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
 von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
-„Nächste Abbuchung“. Beim Bearbeiten belegt die SPA es mit `berechnet.naechsteAbbuchung` vor (nur wenn
-das `null` ist, mit `abbuchungAb`); ändert sich die Zahlweise, muss der Nutzer das Datum im neuen
-Rhythmus bestätigen, denn daraus kann das Backend den neuen Rhythmus nicht ableiten.
+„Nächste Abbuchung“. Beim Bearbeiten zeigt die SPA dort `berechnet.naechsteAbbuchung` an (nur wenn das
+`null` ist, `abbuchungAb`); ändert sich die Zahlweise, muss der Nutzer das Datum im neuen Rhythmus
+bestätigen, denn daraus kann das Backend den neuen Rhythmus nicht ableiten.
+
+**Geschickt** wird aber das gespeicherte `abbuchungAb`, solange Datum und Zahlweise den geladenen Werten
+entsprechen; erst wenn sich eines davon ändert, gilt das Formularfeld als neuer Anker. Andernfalls würde
+schon das Ändern der Notiz den Anker verschieben und ein Monatsende ginge verloren: Aus `abbuchungAb` 31.01. wird bei monatlicher Zahlung
+die nächste Abbuchung 30.11.; mit diesem Datum als Anker folgt der 30.12. statt des 31.12. Auch die
+Kündigungstermine hängen daran (siehe Vertragsende unter [Antwort](#antwort)).
 
 ### Antwort
 
@@ -380,9 +386,9 @@ plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem V
 ```
 
 Alle Felder werden ersetzt, auch `abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
-Zahlweise ab diesem Tag ab. Das Formular belegt „Nächste Abbuchung“ daher mit
-`berechnet.naechsteAbbuchung` vor (nur wenn das `null` ist, mit `abbuchungAb`) und lässt das Datum
-bei einem Wechsel der Zahlweise bestätigen. Bei `kuendbar: false` gilt dasselbe Leeren wie beim
+Zahlweise ab diesem Tag ab. Die SPA schickt deshalb das gespeicherte `abbuchungAb`, solange Datum und
+Zahlweise unverändert sind, und lässt das Datum bei einem Wechsel der Zahlweise bestätigen (siehe
+[`abbuchungAb`](#vertrag-anlegen) beim Anlegen). Bei `kuendbar: false` gilt dasselbe Leeren wie beim
 Anlegen.
 
 Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` (`NotNull`); veraltete
@@ -442,7 +448,9 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 - **Anfrage:** die Formularwerte `zahlweise`, `abbuchungAb`, `kuendbar`, `beginn`, `laufzeitende`,
   `verlaengerung`, `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere
   Felder ignoriert das Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle
-  anderen dürfen fehlen (ergibt z.&nbsp;B. `KEINE_LAUFZEIT`).
+  anderen dürfen fehlen (ergibt z.&nbsp;B. `KEINE_LAUFZEIT`). Für `abbuchungAb` gilt beim Bearbeiten dieselbe
+  Regel wie beim [Speichern](#vertrag-anlegen): das gespeicherte Datum, solange Datum und Zahlweise unverändert
+  sind, sonst zeigt die Vorschau einen anderen Termin als später die Liste.
 - **`kuendigung`** wie `berechnet.kuendigung` in der [Antwort](#antwort): Für dieselben Werte steht nach dem
   Speichern dasselbe in der Liste, auch für eine eingetragene Kündigung (`GEKUENDIGT` bzw. `BEENDET`). Bei
   `kuendbar: false` zählen Verlängerung und Frist wie beim Speichern nicht.
