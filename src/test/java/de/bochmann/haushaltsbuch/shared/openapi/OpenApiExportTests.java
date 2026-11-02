@@ -88,7 +88,9 @@ class OpenApiExportTests {
 						.value(problem))
 				.andExpect(jsonPath("$.components.schemas.Problem.properties.code").exists())
 				.andExpect(jsonPath("$.components.schemas.Problem.properties.felder.items.$ref")
-						.value("#/components/schemas/Feldfehler"));
+						.value("#/components/schemas/Feldfehler"))
+				// Sonst erzeugt openapi-typescript Record<string, never> statt beliebiger Attribute.
+				.andExpect(jsonPath("$.components.schemas.Feldfehler.properties.parameter.additionalProperties").value(true));
 	}
 
 	@Test
