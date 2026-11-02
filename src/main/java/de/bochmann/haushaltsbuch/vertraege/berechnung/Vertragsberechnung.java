@@ -32,8 +32,7 @@ public class Vertragsberechnung {
 		if (vertrag.gekuendigtZum() != null) {
 			return vertrag.gekuendigtZum().isBefore(heute) ? Vertragsstatus.BEENDET : Vertragsstatus.GEKUENDIGT;
 		}
-		if (vertrag.kuendbar() && vertrag.verlaengerung() == Verlaengerung.KEINE && vertrag.laufzeitende() != null
-				&& vertrag.laufzeitende().isBefore(heute)) {
+		if (endetMitLaufzeitende(vertrag) && vertrag.laufzeitende().isBefore(heute)) {
 			return Vertragsstatus.BEENDET;
 		}
 		return Vertragsstatus.AKTIV;
@@ -41,7 +40,8 @@ public class Vertragsberechnung {
 
 	/**
 	 * Die erste Abbuchung ab heute (und nicht vor {@code abbuchungAb}) im Takt der Zahlweise; leer, wenn
-	 * der Vertrag beendet ist, vorher endet (Kündigungsdatum) oder Angaben fehlen.
+	 * der Vertrag beendet ist, vorher endet (Kündigungsdatum oder Laufzeitende ohne Verlängerung, das
+	 * frühere von beiden; eine Abbuchung genau an diesem Tag zählt noch) oder Angaben fehlen.
 	 */
 	public Optional<LocalDate> naechsteAbbuchung(Vertragsdaten vertrag) {
 		if (vertrag.zahlweise() == null || vertrag.abbuchungAb() == null
@@ -56,6 +56,9 @@ public class Vertragsberechnung {
 		}
 		LocalDate abbuchung = anker.plusMonths(k * schritt);
 		if (vertrag.gekuendigtZum() != null && abbuchung.isAfter(vertrag.gekuendigtZum())) {
+			return Optional.empty();
+		}
+		if (endetMitLaufzeitende(vertrag) && abbuchung.isAfter(vertrag.laufzeitende())) {
 			return Optional.empty();
 		}
 		return Optional.of(abbuchung);
@@ -107,6 +110,11 @@ public class Vertragsberechnung {
 		}
 		boolean dringend = ChronoUnit.DAYS.between(heute, kuendigenBis) <= DRINGEND_TAGE;
 		return new Kuendigung(Kuendigungsart.KUENDIGEN_BIS, kuendigenBis, ende, frist, dringend);
+	}
+
+	/** Kündbar, ohne Verlängerung und mit Laufzeitende: Der Vertrag endet dann von selbst. */
+	private static boolean endetMitLaufzeitende(Vertragsdaten vertrag) {
+		return vertrag.kuendbar() && vertrag.verlaengerung() == Verlaengerung.KEINE && vertrag.laufzeitende() != null;
 	}
 
 	/**

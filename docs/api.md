@@ -326,7 +326,10 @@ Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berech
 - **Kosten:** pro Jahr = Betrag × 12 ÷ Monate der Zahlweise, pro Monat = pro Jahr ÷ 12 (kaufmännisch
   gerundet).
 - **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`;
-  `null`, wenn der Vertrag beendet ist oder vorher endet.
+  `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
+  `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
+  Abbuchung genau an diesem Tag wird noch genannt. Ein Laufzeitende ohne Angabe zur Verlängerung zählt nicht
+  als Ende.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
@@ -345,6 +348,9 @@ Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berech
     nach `beginn`; ohne `verlaengerung` gilt nur das Laufzeitende selbst.
   - **`kuendigenBis`** = Vertragsende minus Frist. Endet der Vertrag am Monatsende, ist auch
     `kuendigenBis` ein Monatsende (30.11. mit einem Monat Frist → 31.10.).
+  - **`KEINE_LAUFZEIT`** gibt es auch bei einem Laufzeitende ohne Angabe zur Verlängerung, sobald
+    `kuendigenBis` vorbei ist; vorher ist es `KUENDIGEN_BIS`. Die SPA zeigt dafür „Kein Kündigungstermin
+    bestimmbar“.
   - `fristMonate` ist die hinterlegte Frist (`null`, wenn keine angegeben ist; gerechnet wird dann mit 0).
 
 Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den üblichen wie `NotBlank`,
