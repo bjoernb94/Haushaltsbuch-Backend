@@ -117,6 +117,46 @@ class VertragsberechnungTests {
 		}
 
 		@Test
+		void keineNachDemLaufzeitendeOhneVerlaengerung() {
+			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-30",
+					Verlaengerung.KEINE, null))).contains(d("2026-11-20"));
+			// Eine Abbuchung genau am letzten Tag bleibt.
+			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-20",
+					Verlaengerung.KEINE, null))).contains(d("2026-11-20"));
+			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15",
+					Verlaengerung.KEINE, null))).isEmpty();
+		}
+
+		@Test
+		void laufzeitendeZaehltNurBeiVertraegenDieDamitEnden() {
+			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15", null, null)))
+					.contains(d("2026-11-20"));
+			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15",
+					Verlaengerung.MONATLICH, null))).contains(d("2026-11-20"));
+			var nichtKuendbar = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), false, null, d("2026-11-15"),
+					Verlaengerung.KEINE, null, null);
+			assertThat(berechnung.naechsteAbbuchung(nichtKuendbar)).contains(d("2026-11-20"));
+		}
+
+		@Test
+		void beiKuendigungsdatumUndLaufzeitendeZaehltDasFruehere() {
+			var kuendigungZuerst = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-12-15"),
+					Verlaengerung.KEINE, null, d("2026-11-15"));
+			assertThat(berechnung.naechsteAbbuchung(kuendigungZuerst)).isEmpty();
+
+			// Unstimmige Eingabe: kuendigung nennt weiter gekuendigtZum, abgebucht wird trotzdem nicht nach dem Laufzeitende.
+			var laufzeitendeZuerst = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-11-15"),
+					Verlaengerung.KEINE, null, d("2026-12-15"));
+			assertThat(berechnung.naechsteAbbuchung(laufzeitendeZuerst)).isEmpty();
+			assertThat(berechnung.kuendigung(laufzeitendeZuerst).art()).isEqualTo(Kuendigungsart.GEKUENDIGT);
+			assertThat(berechnung.kuendigung(laufzeitendeZuerst).zum()).isEqualTo(d("2026-12-15"));
+
+			var beideDanach = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-11-30"),
+					Verlaengerung.KEINE, null, d("2026-11-25"));
+			assertThat(berechnung.naechsteAbbuchung(beideDanach)).contains(d("2026-11-20"));
+		}
+
+		@Test
 		void keineBeiBeendetenVertraegenOderFehlendenAngaben() {
 			assertThat(berechnung.naechsteAbbuchung(gekuendigtZum("2026-10-31"))).isEmpty();
 			assertThat(berechnung.naechsteAbbuchung(mit(null, "2026-11-15", null, null, null, null))).isEmpty();
