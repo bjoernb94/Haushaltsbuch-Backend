@@ -316,6 +316,51 @@ GitHub Actions und die Images aus `compose.yaml` monatlich. Major-Updates von Po
 ausgenommen, weil sie eine Datenmigration brauchen. Keycloak-Updates vor dem Merge lokal mit
 Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
 
+## Testkonten
+
+Für Prüfungen von Hand gegen das echte Backend legt ein Skript feste Konten mit passenden Verträgen an.
+Backend und Keycloak müssen laufen, das Backend mit dem aktuellen Stand:
+
+```bash
+python3 scripts/testdaten.py                              # gegen http://localhost:8080
+python3 scripts/testdaten.py --url http://localhost:8081  # anderer lokaler Port
+```
+
+Es braucht nur Python 3 ohne Zusatzpakete und arbeitet über die öffentliche API. Beliebig oft ausführbar:
+Vorhandene Konten bleiben, ihre Verträge werden ersetzt (die IDs ändern sich also). Die Daten hängen vom
+heutigen Tag ab; erneutes Ausführen bringt den Stand wieder in Ordnung. Die E2E-Tests der SPA nutzen diese
+Konten nicht.
+
+| Konto | Komponenten | Verträge |
+|---|---|---|
+| `testkonto.alles@example.org` | alle vier | alle Fälle unten, mehr als fünf anstehende Fristen |
+| `testkonto.leer@example.org` | `VERTRAGSUEBERSICHT` | keine |
+| `testkonto.ohne-fristen@example.org` | `VERTRAGSUEBERSICHT` | nur Verträge ohne anstehende Frist |
+| `testkonto.ohne-vertragsbereich@example.org` | `PORTFOLIO` | keine |
+
+Passwort aller Konten: `Testkonto-1!`. Es gilt nur lokal und darf nirgends sonst verwendet werden. Das Skript
+bricht ab, wenn der Host nicht `localhost`, `127.0.0.1` oder `::1` ist oder `/v3/api-docs` nicht antwortet (nur
+im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haushalts mit 404 antworten.
+
+**Fälle im Konto `alles`.** Der Fall steht jeweils in `anbieter`, die einzelnen Verträge nur im Skript:
+
+- **Kündigungsart:** `KUENDIGEN_BIS` (dringend, nicht dringend), `MONATLICH_KUENDBAR`, `ENDET`,
+  `KEINE_LAUFZEIT` (ohne Laufzeit, Laufzeitende ohne Verlängerung mit abgelaufener Frist), `NICHT_KUENDBAR`,
+  `GEKUENDIGT`, `BEENDET` (`gekuendigtZum` vorbei, Verlängerung `KEINE` mit vergangenem Laufzeitende).
+- **Felder:** alle Zahlweisen, Kategorien und Zahlungswege; Frist keine, 0, 1 und 3 Monate; mit und ohne
+  Bezeichnung; Höchstlängen; optionale Felder alle gefüllt und alle leer.
+- **Nächste Abbuchung:** vorhanden, keine mehr, genau am Vertragsende, Monatsende als Anker (31.01.). Das
+  Abrutschen zeigt sich nur, wenn die nächste Abbuchung in einen kürzeren Monat fällt.
+
+Für jeden Fall prüft das Skript `art`, `dringend` und die nächste Abbuchung und bricht bei einer Abweichung ab,
+ebenso wenn eine Feldvariante fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
+eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
+
+**Nicht abgedeckt**, weil sich das nicht mit Testdaten herstellen lässt: Datenbank, Keycloak oder Backend nicht
+erreichbar; Komponente zur Laufzeit abbestellt ([#3](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/3));
+falsches Passwort, Feldfehler, Konflikt 409; gesperrtes Konto und Keycloak-Pflichtschritte; Fremdwährungen
+([#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)).
+
 ## Arbeitsweise mit Git
 
 Auf `main` wird nicht direkt committet. Jede Änderung entsteht auf einem eigenen Branch und

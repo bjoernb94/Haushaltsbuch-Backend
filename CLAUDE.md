@@ -20,6 +20,7 @@ Each topic lives in exactly one place; link instead of repeating. Update the doc
 ./mvnw test -Dtest=ModularityTests                  # single test class
 ./mvnw test -Dtest=SecurityConfigTests#healthIsPublic  # single test method
 ./mvnw spring-boot:run                              # run locally (dev profile, local Postgres on :5432)
+python3 scripts/testdaten.py                        # local test accounts with contracts, see docs/entwicklung.md "Testkonten"
 ```
 
 - JDK 25 (`~/.jdks/graalvm-jdk-25` on this machine; no `java` on PATH, set `JAVA_HOME`).

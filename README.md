@@ -55,6 +55,9 @@ dann aber fehl, und der [Systemstatus](docs/betrieb.md#systemstatus) meldet `key
    curl -b /tmp/kc.txt http://localhost:8080/api/nutzer/ich/komponenten
    ```
 
+Testkonten mit Verträgen für alle fachlichen Zustände legt `python3 scripts/testdaten.py` an, siehe
+[Testkonten](docs/entwicklung.md#testkonten).
+
 Build und Tests: `./mvnw verify` (braucht eine Container-Umgebung für Testcontainers), Details
 unter [Build und Tests](docs/entwicklung.md#build-und-tests).
 
