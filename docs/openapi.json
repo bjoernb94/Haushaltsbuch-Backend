@@ -129,8 +129,7 @@
                 "schema" : {
                   "type" : "array",
                   "items" : {
-                    "type" : "string",
-                    "enum" : [ "FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRAEGE", "PORTFOLIO" ]
+                    "$ref" : "#/components/schemas/Komponente"
                   }
                 }
               }
@@ -725,7 +724,7 @@
             "$ref" : "#/components/schemas/Betrag"
           },
           "bezeichnung" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "dringend" : {
             "type" : "boolean"
@@ -739,14 +738,14 @@
             "format" : "date"
           },
           "zahlweise" : {
-            "type" : "string",
-            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+            "$ref" : "#/components/schemas/Zahlweise"
           },
           "zum" : {
             "type" : "string",
             "format" : "date"
           }
-        }
+        },
+        "required" : [ "anbieter", "betrag", "bezeichnung", "dringend", "id", "kuendigenBis", "zahlweise", "zum" ]
       },
       "Betrag" : {
         "type" : "object",
@@ -757,7 +756,8 @@
           "wert" : {
             "type" : "number"
           }
-        }
+        },
+        "required" : [ "waehrung", "wert" ]
       },
       "Feldfehler" : {
         "type" : "object",
@@ -777,29 +777,37 @@
         },
         "required" : [ "code", "parameter" ]
       },
+      "Komponente" : {
+        "type" : "string",
+        "enum" : [ "FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRAEGE", "PORTFOLIO" ]
+      },
       "Kuendigung" : {
         "type" : "object",
         "properties" : {
           "art" : {
-            "type" : "string",
-            "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET" ]
+            "$ref" : "#/components/schemas/Kuendigungsart"
           },
           "dringend" : {
             "type" : "boolean"
           },
           "fristMonate" : {
-            "type" : "integer",
+            "type" : [ "integer", "null" ],
             "format" : "int32"
           },
           "kuendigenBis" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "zum" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           }
-        }
+        },
+        "required" : [ "art", "dringend", "fristMonate", "kuendigenBis", "zum" ]
+      },
+      "Kuendigungsart" : {
+        "type" : "string",
+        "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET" ]
       },
       "Problem" : {
         "type" : "object",
@@ -846,7 +854,8 @@
           "vorname" : {
             "type" : "string"
           }
-        }
+        },
+        "required" : [ "email", "name", "vorname" ]
       },
       "RegistrierungAnfrage" : {
         "type" : "object",
@@ -860,8 +869,7 @@
           "komponenten" : {
             "type" : "array",
             "items" : {
-              "type" : "string",
-              "enum" : [ "FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRAEGE", "PORTFOLIO" ]
+              "$ref" : "#/components/schemas/Komponente"
             },
             "minItems" : 1,
             "uniqueItems" : true
@@ -884,6 +892,10 @@
         },
         "required" : [ "email", "komponenten", "name", "passwort", "vorname" ]
       },
+      "Verlaengerung" : {
+        "type" : "string",
+        "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+      },
       "VertragAenderung" : {
         "type" : "object",
         "properties" : {
@@ -897,19 +909,19 @@
             "minLength" : 0
           },
           "beginn" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
           },
           "bezeichnung" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 200,
             "minLength" : 0
           },
           "gekuendigtZum" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "kategorieId" : {
@@ -920,40 +932,45 @@
             "type" : "boolean"
           },
           "kuendigungsfristMonate" : {
-            "type" : "integer",
+            "type" : [ "integer", "null" ],
             "format" : "int32",
             "maximum" : 24,
             "minimum" : 0
           },
           "laufzeitende" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "notiz" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 1000,
             "minLength" : 0
           },
           "verlaengerung" : {
-            "type" : "string",
-            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Verlaengerung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "version" : {
             "type" : "integer",
             "format" : "int64"
           },
           "vertragsnummer" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 100,
             "minLength" : 0
           },
           "zahlungsweg" : {
-            "type" : "string",
-            "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Zahlungsweg"
+            }, {
+              "type" : "null"
+            } ]
           },
           "zahlweise" : {
-            "type" : "string",
-            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+            "$ref" : "#/components/schemas/Zahlweise"
           }
         },
         "required" : [ "abbuchungAb", "anbieter", "betrag", "kategorieId", "kuendbar", "version", "zahlweise" ]
@@ -971,19 +988,19 @@
             "minLength" : 0
           },
           "beginn" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
           },
           "bezeichnung" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 200,
             "minLength" : 0
           },
           "gekuendigtZum" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "kategorieId" : {
@@ -994,36 +1011,41 @@
             "type" : "boolean"
           },
           "kuendigungsfristMonate" : {
-            "type" : "integer",
+            "type" : [ "integer", "null" ],
             "format" : "int32",
             "maximum" : 24,
             "minimum" : 0
           },
           "laufzeitende" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "notiz" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 1000,
             "minLength" : 0
           },
           "verlaengerung" : {
-            "type" : "string",
-            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Verlaengerung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "vertragsnummer" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "maxLength" : 100,
             "minLength" : 0
           },
           "zahlungsweg" : {
-            "type" : "string",
-            "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Zahlungsweg"
+            }, {
+              "type" : "null"
+            } ]
           },
           "zahlweise" : {
-            "type" : "string",
-            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+            "$ref" : "#/components/schemas/Zahlweise"
           }
         },
         "required" : [ "abbuchungAb", "anbieter", "betrag", "kategorieId", "kuendbar", "zahlweise" ]
@@ -1039,7 +1061,7 @@
             "type" : "string"
           },
           "beginn" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "berechnet" : {
@@ -1049,10 +1071,10 @@
             "$ref" : "#/components/schemas/Betrag"
           },
           "bezeichnung" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "gekuendigtZum" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "id" : {
@@ -1066,36 +1088,42 @@
             "type" : "boolean"
           },
           "kuendigungsfristMonate" : {
-            "type" : "integer",
+            "type" : [ "integer", "null" ],
             "format" : "int32"
           },
           "laufzeitende" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "notiz" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "verlaengerung" : {
-            "type" : "string",
-            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Verlaengerung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "version" : {
             "type" : "integer",
             "format" : "int64"
           },
           "vertragsnummer" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "zahlungsweg" : {
-            "type" : "string",
-            "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Zahlungsweg"
+            }, {
+              "type" : "null"
+            } ]
           },
           "zahlweise" : {
-            "type" : "string",
-            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+            "$ref" : "#/components/schemas/Zahlweise"
           }
-        }
+        },
+        "required" : [ "abbuchungAb", "anbieter", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1110,14 +1138,14 @@
             "$ref" : "#/components/schemas/Kuendigung"
           },
           "naechsteAbbuchung" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "status" : {
-            "type" : "string",
-            "enum" : [ "AKTIV", "GEKUENDIGT", "BEENDET" ]
+            "$ref" : "#/components/schemas/Vertragsstatus"
           }
-        }
+        },
+        "required" : [ "kostenProJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "status" ]
       },
       "VertragKategorieAntwort" : {
         "type" : "object",
@@ -1127,48 +1155,63 @@
             "format" : "uuid"
           },
           "name" : {
-            "type" : "string"
+            "type" : [ "string", "null" ]
           },
           "schluessel" : {
-            "type" : "string"
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragKategorieSchluessel"
+            }, {
+              "type" : "null"
+            } ]
           }
-        }
+        },
+        "required" : [ "id", "name", "schluessel" ]
+      },
+      "VertragKategorieSchluessel" : {
+        "type" : "string",
+        "enum" : [ "STREAMING_ABOS", "SOFTWARE_APPS", "VERSICHERUNG", "MOBILFUNK_INTERNET", "MITGLIEDSCHAFTEN", "GEBUEHREN_BEITRAEGE", "SONSTIGES" ]
       },
       "VertragVorschauAnfrage" : {
         "type" : "object",
         "properties" : {
           "abbuchungAb" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "beginn" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "gekuendigtZum" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "kuendbar" : {
             "type" : "boolean"
           },
           "kuendigungsfristMonate" : {
-            "type" : "integer",
+            "type" : [ "integer", "null" ],
             "format" : "int32",
             "maximum" : 24,
             "minimum" : 0
           },
           "laufzeitende" : {
-            "type" : "string",
+            "type" : [ "string", "null" ],
             "format" : "date"
           },
           "verlaengerung" : {
-            "type" : "string",
-            "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Verlaengerung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "zahlweise" : {
-            "type" : "string",
-            "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Zahlweise"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "kuendbar" ]
@@ -1179,7 +1222,12 @@
           "kuendigung" : {
             "$ref" : "#/components/schemas/Kuendigung"
           }
-        }
+        },
+        "required" : [ "kuendigung" ]
+      },
+      "Vertragsstatus" : {
+        "type" : "string",
+        "enum" : [ "AKTIV", "GEKUENDIGT", "BEENDET" ]
       },
       "VertragsuebersichtAntwort" : {
         "type" : "object",
@@ -1206,7 +1254,16 @@
               "$ref" : "#/components/schemas/AnstehendeKuendigung"
             }
           }
-        }
+        },
+        "required" : [ "kostenProJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+      },
+      "Zahlungsweg" : {
+        "type" : "string",
+        "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+      },
+      "Zahlweise" : {
+        "type" : "string",
+        "enum" : [ "MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH" ]
       }
     },
     "securitySchemes" : {

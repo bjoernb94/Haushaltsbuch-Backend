@@ -8,6 +8,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieAntwort;
+import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -21,20 +22,20 @@ record VertragAntwort(
 		UUID id,
 		long version,
 		String anbieter,
-		String bezeichnung,
+		@Nullable String bezeichnung,
 		VertragKategorieAntwort kategorie,
-		String vertragsnummer,
+		@Nullable String vertragsnummer,
 		Betrag betrag,
 		Zahlweise zahlweise,
 		LocalDate abbuchungAb,
-		Zahlungsweg zahlungsweg,
+		@Nullable Zahlungsweg zahlungsweg,
 		boolean kuendbar,
-		LocalDate beginn,
-		LocalDate laufzeitende,
-		Verlaengerung verlaengerung,
-		Integer kuendigungsfristMonate,
-		LocalDate gekuendigtZum,
-		String notiz,
+		@Nullable LocalDate beginn,
+		@Nullable LocalDate laufzeitende,
+		@Nullable Verlaengerung verlaengerung,
+		@Nullable Integer kuendigungsfristMonate,
+		@Nullable LocalDate gekuendigtZum,
+		@Nullable String notiz,
 		VertragBerechnet berechnet) {
 
 	/**
@@ -46,7 +47,7 @@ record VertragAntwort(
 			Vertragsstatus status,
 			Betrag kostenProMonat,
 			Betrag kostenProJahr,
-			LocalDate naechsteAbbuchung,
+			@Nullable LocalDate naechsteAbbuchung,
 			Kuendigung kuendigung) {
 	}
 

@@ -10,6 +10,7 @@ import java.util.UUID;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @IntegrationTest
@@ -31,6 +32,16 @@ class ProfilControllerTests {
 						.claim("email", "max@example.org"))))
 				.andExpect(status().isOk())
 				.andExpect(content().json(PROFIL, true));
+	}
+
+	@Test
+	void fehlendeAngabeIstEinFehlerStattNull() throws Exception {
+		mockMvc.perform(get("/api/nutzer/ich").with(oidcLogin().idToken(token -> token
+						.subject(UUID.randomUUID().toString())
+						.claim("family_name", "Muster")
+						.claim("email", "max@example.org"))))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.code").value("INTERNER_FEHLER"));
 	}
 
 	@Test

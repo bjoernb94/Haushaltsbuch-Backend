@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.shared.openapi;
 
+import io.swagger.v3.core.jackson.ModelResolver;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
@@ -19,8 +20,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.Currency;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -28,6 +31,9 @@ import java.util.TreeMap;
  * ablesen lässt: Anmeldung per Session-Cookie und CSRF-Header, die allgemeinen Fehlerantworten
  * ({@code ProblemDetail} mit {@code code}) und die Abmeldung, die die Security-Filterkette
  * bereitstellt. Eingecheckt als {@code docs/openapi.json} (siehe {@code OpenApiExportTests}).
+ * <p>
+ * Damit sich aus der Datei Typen erzeugen lassen: Felder mit {@code @Nullable} beschreibt springdoc als
+ * nullable ({@code application.yml}), Enums als eigene Schemas, und in Antworten ist jedes Feld Pflicht.
  * <p>
  * Die einzelnen Fehlercodes stehen nur in {@code docs/api.md}, nicht in der OpenAPI-Beschreibung.
  * Öffentliche Endpunkte markiert der Controller mit {@code @SecurityRequirements} ohne Inhalt.
@@ -48,6 +54,8 @@ class OpenApiConfig {
 	static {
 		// Jackson schreibt Currency als ISO-Code ("EUR"), nicht als Objekt (Betrag.waehrung).
 		SpringDocUtils.getConfig().replaceWithClass(Currency.class, String.class);
+		// Eigene Schemas statt inline, damit die SPA benannte Typen bekommt; zentral, damit die Enums frei von Swagger bleiben.
+		ModelResolver.enumsAsRef = true;
 	}
 
 	@Bean
@@ -65,6 +73,7 @@ class OpenApiConfig {
 			}
 			komponenten(openApi.getComponents());
 			abmeldung(openApi);
+			antwortfelderPflicht(openApi);
 			openApi.getPaths().forEach((pfad, eintrag) -> eintrag.readOperationsMap()
 					.forEach((methode, operation) -> ergaenzen(pfad, methode, operation)));
 		};
@@ -111,6 +120,44 @@ class OpenApiConfig {
 				.summary("Beendet die Session im Backend und die Sitzung bei Keycloak; ohne Anmeldung ebenfalls 204.")
 				.security(List.of())
 				.responses(new ApiResponses().addApiResponse("204", new ApiResponse().description("No Content")))));
+	}
+
+	/**
+	 * Das Backend liefert immer alle Felder, auch die mit {@code null}. Daher ist in Erfolgsantworten jedes
+	 * Feld Pflicht, sonst würde die SPA neben {@code null} auch noch „fehlt“ behandeln müssen. Vor
+	 * {@link #ergaenzen} und nur bei 2xx, denn bei {@code Problem} dürfen Felder wirklich fehlen.
+	 */
+	private static void antwortfelderPflicht(OpenAPI openApi) {
+		Set<Schema> gesehen = new HashSet<>();
+		openApi.getPaths().values().forEach(eintrag -> eintrag.readOperations().forEach(operation ->
+				operation.getResponses().forEach((status, antwort) -> {
+					if (status.startsWith("2") && antwort.getContent() != null) {
+						antwort.getContent().values().forEach(inhalt ->
+								allePflicht(inhalt.getSchema(), openApi.getComponents(), gesehen));
+					}
+				})));
+	}
+
+	private static void allePflicht(Schema<?> schema, Components components, Set<Schema> gesehen) {
+		if (schema == null) {
+			return;
+		}
+		if (schema.get$ref() != null) {
+			String name = schema.get$ref().substring(schema.get$ref().lastIndexOf('/') + 1);
+			allePflicht(components.getSchemas().get(name), components, gesehen);
+			return;
+		}
+		if (!gesehen.add(schema)) {
+			return;
+		}
+		allePflicht(schema.getItems(), components, gesehen);
+		if (schema.getOneOf() != null) {
+			schema.getOneOf().forEach(variante -> allePflicht(variante, components, gesehen));
+		}
+		if (schema.getProperties() != null) {
+			schema.setRequired(schema.getProperties().keySet().stream().sorted().toList());
+			schema.getProperties().values().forEach(feld -> allePflicht(feld, components, gesehen));
+		}
 	}
 
 	/**

@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -25,18 +26,18 @@ import java.util.UUID;
 record VertragAenderung(
 		@NotNull Long version,
 		@NotBlank @Size(max = 200) String anbieter,
-		@Size(max = 200) String bezeichnung,
+		@Size(max = 200) @Nullable String bezeichnung,
 		@NotNull UUID kategorieId,
-		@Size(max = 100) String vertragsnummer,
+		@Size(max = 100) @Nullable String vertragsnummer,
 		@NotNull @Valid @PositiverBetrag Betrag betrag,
 		@NotNull Zahlweise zahlweise,
 		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
-		Zahlungsweg zahlungsweg,
+		@Nullable Zahlungsweg zahlungsweg,
 		@NotNull Boolean kuendbar,
-		@PlausiblesDatum LocalDate beginn,
-		@PlausiblesDatum LocalDate laufzeitende,
-		Verlaengerung verlaengerung,
-		@Min(0) @Max(24) Integer kuendigungsfristMonate,
-		@PlausiblesDatum LocalDate gekuendigtZum,
-		@Size(max = 1000) String notiz) implements Vertragsangaben {
+		@PlausiblesDatum @Nullable LocalDate beginn,
+		@PlausiblesDatum @Nullable LocalDate laufzeitende,
+		@Nullable Verlaengerung verlaengerung,
+		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,
+		@PlausiblesDatum @Nullable LocalDate gekuendigtZum,
+		@Size(max = 1000) @Nullable String notiz) implements Vertragsangaben {
 }

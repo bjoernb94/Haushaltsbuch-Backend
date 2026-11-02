@@ -6,6 +6,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
 
@@ -15,12 +16,12 @@ import java.time.LocalDate;
  */
 @LaufzeitendeNachBeginn
 record VertragVorschauAnfrage(
-		Zahlweise zahlweise,
-		@PlausiblesDatum LocalDate abbuchungAb,
+		@Nullable Zahlweise zahlweise,
+		@PlausiblesDatum @Nullable LocalDate abbuchungAb,
 		@NotNull Boolean kuendbar,
-		@PlausiblesDatum LocalDate beginn,
-		@PlausiblesDatum LocalDate laufzeitende,
-		Verlaengerung verlaengerung,
-		@Min(0) @Max(24) Integer kuendigungsfristMonate,
-		@PlausiblesDatum LocalDate gekuendigtZum) implements Berechnungsangaben {
+		@PlausiblesDatum @Nullable LocalDate beginn,
+		@PlausiblesDatum @Nullable LocalDate laufzeitende,
+		@Nullable Verlaengerung verlaengerung,
+		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,
+		@PlausiblesDatum @Nullable LocalDate gekuendigtZum) implements Berechnungsangaben {
 }

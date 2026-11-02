@@ -34,8 +34,15 @@ class ProfilController {
 		return new Profil(text(claims, "given_name"), text(claims, "family_name"), text(claims, "email"));
 	}
 
+	/**
+	 * Registrierte Nutzer haben alle Angaben; in Keycloak legt niemand Nutzer von Hand an. Fehlt eine, ist
+	 * der Nutzer falsch angelegt: Das ergibt 500 mit dem Grund im Log statt {@code null} in der Antwort.
+	 */
 	private static String text(Map<String, Object> claims, String name) {
-		return claims.get(name) instanceof String wert ? wert : null;
+		if (claims.get(name) instanceof String wert) {
+			return wert;
+		}
+		throw new IllegalStateException("Login token has no claim " + name + ".");
 	}
 
 }

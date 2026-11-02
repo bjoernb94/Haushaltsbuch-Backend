@@ -1,5 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
+import org.jspecify.annotations.Nullable;
+
 import java.time.LocalDate;
 import java.util.Comparator;
 
@@ -12,7 +14,7 @@ import java.util.Comparator;
  * @param fristMonate die hinterlegte Kündigungsfrist, leer wenn keine angegeben ist
  * @param dringend {@code kuendigenBis} ist höchstens {@value Vertragsberechnung#DRINGEND_TAGE} Tage entfernt
  */
-public record Kuendigung(Kuendigungsart art, LocalDate kuendigenBis, LocalDate zum, Integer fristMonate,
+public record Kuendigung(Kuendigungsart art, @Nullable LocalDate kuendigenBis, @Nullable LocalDate zum, @Nullable Integer fristMonate,
 		boolean dringend) {
 
 	/**
@@ -24,7 +26,7 @@ public record Kuendigung(Kuendigungsart art, LocalDate kuendigenBis, LocalDate z
 	public static final Comparator<Kuendigung> NACH_DRINGLICHKEIT = Comparator.comparingInt(Kuendigung::rang)
 			.thenComparing(Kuendigung::stichtag, Comparator.nullsLast(Comparator.naturalOrder()));
 
-	static Kuendigung ohneDaten(Kuendigungsart art, Integer fristMonate) {
+	static Kuendigung ohneDaten(Kuendigungsart art, @Nullable Integer fristMonate) {
 		return new Kuendigung(art, null, null, fristMonate, false);
 	}
 
