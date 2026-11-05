@@ -118,6 +118,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
   `VIA_DTO`).
 - `/actuator/health/systemstatus` (public, components without details) feeds the SPA login page. The `keycloak`
   health indicator (`shared/systemstatus/SystemstatusConfig`) caches its result for 10 s.
+  `/actuator/info` (public) gives version, build time, commit and stage (`HAUSHALTSBUCH_STAGE`, enum `Stage`, read at
+  startup so a missing or wrong value stops the app); see `docs/api.md`.
 - Tests: Spring tests use `@IntegrationTest` (whole app, MockMvc, shared context) for web/security and cross-module
   flows, or `@ModuleTest` (`@ApplicationModuleTest` with `extraIncludes = "shared"`: Modulith otherwise drops all
   beans outside the module, incl. `FachdatenConfig` and `Clock`; it also resets Modulith's `PER_CLASS` test instance

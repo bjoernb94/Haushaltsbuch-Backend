@@ -22,6 +22,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Kündigungstermin berechnen, siehe [Verträge](#verträge) |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
+| `GET /actuator/info`              | öffentlich      | Version und Umgebung, siehe [Version und Umgebung](#version-und-umgebung) |
 
 Die vollständige API-Beschreibung (OpenAPI 3.1) liegt als [`openapi.json`](openapi.json) im Repo,
 z.&nbsp;B. um daraus Typen für die SPA zu erzeugen; sie wird bei jedem Build neu erzeugt. Antworten
@@ -40,6 +41,20 @@ ohne Details; ist eine Komponente `DOWN`, antwortet der Endpunkt mit 503:
 
 Wie die Prüfung von `keycloak` arbeitet und was für Container-Healthchecks gilt, steht unter
 [Betrieb](betrieb.md#systemstatus).
+
+### Version und Umgebung
+
+`GET /actuator/info` nennt Version und Build-Zeit des Backends, den Commit und die Umgebung
+(`stage`: `DEV` oder `PROD`). Der Endpunkt steht nicht in `openapi.json`, der Typ in der SPA ist
+von Hand geschrieben. `git` ist leer (`{}`), wenn das Backend ohne `.git` gebaut wurde.
+
+```json
+{
+  "build": { "version": "0.1.0", "time": "2026-11-05T17:00:00Z" },
+  "git": { "commit": { "id": "48eaea5" } },
+  "app": { "stage": "DEV" }
+}
+```
 
 ## Anmeldung und Zugriffsschutz
 
