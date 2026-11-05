@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -16,6 +18,9 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.util.Set;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -63,6 +68,28 @@ class SecurityConfigTests {
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(jsonPath("$.status").value("DOWN"))
 				.andExpect(jsonPath("$.components.keycloak.status").value("DOWN"));
+	}
+
+	@Test
+	void infoIsPublicWithVersionBuildTimeAndStage() throws Exception {
+		mockMvc.perform(get("/actuator/info"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.build.version").isNotEmpty())
+				.andExpect(jsonPath("$.build.time", not(startsWith("1980"))))
+				.andExpect(jsonPath("$.build.length()").value(2))
+				.andExpect(jsonPath("$.app.stage").value("DEV"));
+	}
+
+	@Test
+	void infoNamesOnlyCommitBesideBuildAndStage() throws Exception {
+		// Ohne .git (z. B. Quellarchiv) bleibt git.properties leer; in der CI ist der Commit immer da.
+		assumeFalse(PropertiesLoaderUtils.loadProperties(new ClassPathResource("git.properties")).isEmpty());
+
+		mockMvc.perform(get("/actuator/info"))
+				.andExpect(jsonPath("$.git.commit.id").isNotEmpty())
+				.andExpect(jsonPath("$.git.commit.length()").value(1))
+				.andExpect(jsonPath("$.git.length()").value(1))
+				.andExpect(jsonPath("$.length()").value(3));
 	}
 
 	@Test

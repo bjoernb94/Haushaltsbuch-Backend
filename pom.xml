@@ -140,6 +140,36 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<executions>
+					<!-- Version und Build-Zeit für /actuator/info; mehr soll dort nicht öffentlich stehen. -->
+					<execution>
+						<goals>
+							<goal>build-info</goal>
+						</goals>
+						<configuration>
+							<!-- Ohne Angabe gilt project.build.outputTimestamp, das der Boot-Parent fest auf 1980 setzt. -->
+							<time>${maven.build.timestamp}</time>
+							<excludeInfoProperties>
+								<excludeInfoProperty>group</excludeInfoProperty>
+								<excludeInfoProperty>artifact</excludeInfoProperty>
+								<excludeInfoProperty>name</excludeInfoProperty>
+							</excludeInfoProperties>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<!-- Commit für /actuator/info, ohne Branch und Commit-Zeit. Ohne .git (z. B. aus einem
+			     Quellarchiv) läuft der Build trotzdem, git.properties bleibt dann leer. -->
+			<plugin>
+				<groupId>io.github.git-commit-id</groupId>
+				<artifactId>git-commit-id-maven-plugin</artifactId>
+				<configuration>
+					<verbose>false</verbose>
+					<failOnNoGitDirectory>false</failOnNoGitDirectory>
+					<includeOnlyProperties>
+						<includeOnlyProperty>^git\.commit\.id\.abbrev$</includeOnlyProperty>
+					</includeOnlyProperties>
+				</configuration>
 			</plugin>
 			<!-- Nur für manuelle Aufrufe (flyway:info, flyway:validate); die Migration
 			     beim Start übernimmt Spring Boot. Verbindung über -Dflyway.url/user/password. -->

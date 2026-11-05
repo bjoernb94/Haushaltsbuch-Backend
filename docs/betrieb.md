@@ -142,11 +142,16 @@ gibt es Defaults für die lokale Entwicklung, im Profil `prod` sind alle Variabl
 | `KEYCLOAK_CLIENT_ID`     | `haushaltsbuch-backend`                          |
 | `KEYCLOAK_CLIENT_SECRET` | `dev-secret` (passend zum Realm-Import)          |
 | `KEYCLOAK_ADMIN_URI`     | `http://localhost:8180/admin/realms/haushaltsbuch` |
+| `HAUSHALTSBUCH_STAGE`    | `DEV`                                            |
 | `DOCKER_COMPOSE_ENABLED` | `false`                                          |
 
 `KEYCLOAK_ADMIN_URI`
 zeigt auf die Admin REST API des Realms, über die die Registrierung Konten anlegt; Anmeldung und
 Admin API nutzen denselben Client und dasselbe Secret.
+
+`HAUSHALTSBUCH_STAGE` (`DEV` oder `PROD`) nennt die Umgebung der Instanz, die SPA zeigt sie an
+(siehe [API](api.md#version-und-umgebung)). Sie hängt nicht am Spring-Profil. Fehlt sie im Profil
+`prod` oder hat einen anderen Wert, startet das Backend nicht.
 
 Die Keycloak-Endpunkte sind explizit konfiguriert statt über OIDC-Discovery. Dadurch startet
 das Backend auch, wenn Keycloak (noch) nicht erreichbar ist.

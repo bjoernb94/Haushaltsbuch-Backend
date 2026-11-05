@@ -49,6 +49,9 @@ management:
     web:
       exposure:
         include: health, info
+  info:
+    git:
+      mode: simple
   endpoint:
     health:
       probes:
@@ -96,6 +99,7 @@ management:
       show-details: always
 
 haushaltsbuch:
+  stage: ${HAUSHALTSBUCH_STAGE:DEV}
   keycloak:
     # Einrichtung von Realm und Client: siehe docs/betrieb.md, Abschnitt "Keycloak einrichten".
     issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/haushaltsbuch}
@@ -117,6 +121,7 @@ spring:
       enabled: false
 
 haushaltsbuch:
+  stage: ${HAUSHALTSBUCH_STAGE}
   keycloak:
     issuer-uri: ${KEYCLOAK_ISSUER_URI}
     client-id: ${KEYCLOAK_CLIENT_ID}
