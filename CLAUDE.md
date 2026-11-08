@@ -29,7 +29,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
   "Could not find a valid Docker environment" otherwise. `ModularityTests` needs no containers.
 
 - Shared IntelliJ run configs live in `.run/` (not `.idea/`, which is gitignored). The local dev DB is
-  `jdbc:postgresql://localhost:5432/postgres` as user `haushaltsbuch` (see `.run/Run_Backend.run.xml`).
+  `jdbc:postgresql://localhost:5432/haushaltsbuch` as user `haushaltsbuch` (see `.run/Run_Backend.run.xml`), from
+  `compose.yaml`, started separately via the run configs "Umgebung starten"/"Umgebung stoppen".
   `flyway-maven-plugin` is in the pom only for manual `flyway:info`/`flyway:validate` runs.
 
 ## Git workflow
@@ -148,7 +149,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
   no `@ApiResponse` annotations; controllers only get `@Tag(name = "<Fachbereich>")`, public endpoints an empty
   `@SecurityRequirements`. Controller method names become `operationId`s and DTO class names schema names: both
   descriptive and unique app-wide. `POST` returning `ResponseEntity.created(...)` also needs `@ResponseStatus(CREATED)`.
-- Dev uses a locally running Postgres; Boot's Docker Compose support is off by default
+- Dev runs PostgreSQL and Keycloak from `compose.yaml`, started separately ("Umgebung starten", `podman compose up -d`)
+  so restarting the backend does not restart the database; Boot's Docker Compose support is off by default
   (`DOCKER_COMPOSE_ENABLED=true` to enable). `compose.yaml` runs PostgreSQL (app DB + separate `keycloak` DB created by
   `docker/postgres/init/`) and Keycloak on port 8180 with the realm import. Tests use Testcontainers instead
   (`TestcontainersConfiguration`), Docker Compose support is skipped in tests.

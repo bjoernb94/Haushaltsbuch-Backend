@@ -376,10 +376,12 @@ kommt per Pull Request nach `main`, sobald der Build grün ist.
 
 ## IntelliJ Run Configurations
 
-Unter `.run/` liegen gemeinsame Run Configurations (Spring-Boot-Start sowie Maven-Aufrufe für
-Build, Tests, Dependency-Checks, Image-Build und Flyway). Sie enthalten die lokalen Dev-Werte
-(DB `postgres` auf `localhost:5432`, Podman-Socket unter `/run/user/1000`) und müssen auf anderen
-Rechnern ggf. angepasst werden. `flyway:info` / `flyway:validate` arbeiten direkt gegen die
+Unter `.run/` liegen gemeinsame Run Configurations (Spring-Boot-Start, „Umgebung starten“ und
+„Umgebung stoppen“ für PostgreSQL und Keycloak aus `compose.yaml` sowie Maven-Aufrufe für Build, Tests,
+Dependency-Checks, Image-Build und Flyway). „Run Backend“ startet die Umgebung nicht mit, damit sich das
+Backend neu starten lässt, ohne dass die Datenbank neu startet. Die Konfigurationen enthalten die lokalen
+Dev-Werte (DB `haushaltsbuch` auf `localhost:5432`, Podman-Socket unter `/run/user/1000`) und müssen auf
+anderen Rechnern ggf. angepasst werden. `flyway:info` / `flyway:validate` arbeiten direkt gegen die
 lokale Datenbank; die Migration selbst führt Spring Boot beim Start aus.
 
 „Run Backend“ führt vor dem Start `generate-resources` mit Maven aus. IntelliJs eigener Build

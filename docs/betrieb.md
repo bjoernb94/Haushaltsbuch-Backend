@@ -6,17 +6,17 @@ Zum Starten des Backends siehe [README](../README.md#starten).
 
 ## Docker Compose
 
-`compose.yaml` enthält PostgreSQL (App-Datenbank plus separate `keycloak`-Datenbank) und
-Keycloak mit Realm-Import. Der automatische Start durch Spring Boot ist vorerst aus, weil eine
-eigene PostgreSQL-Instanz genutzt wird; einschalten mit `DOCKER_COMPOSE_ENABLED=true`
-(dann darf auf Port 5432 nichts anderes laufen).
-
-Manuell starten:
+`compose.yaml` enthält die lokale Entwicklungsumgebung: PostgreSQL (App-Datenbank `haushaltsbuch` plus
+separate `keycloak`-Datenbank) und Keycloak mit Realm-Import. Sie startet getrennt vom Backend, über die
+Run Configurations „Umgebung starten“ und „Umgebung stoppen“ oder von Hand:
 
 ```bash
-docker compose up -d            # PostgreSQL und Keycloak
-docker compose up -d keycloak   # nur Keycloak (startet den PostgreSQL-Container mit)
+podman compose up -d   # oder docker compose up -d
+podman compose stop    # anhalten, die Daten bleiben im Volume postgres-data
 ```
+
+So lässt sich das Backend neu starten, ohne dass die Datenbank neu startet. Spring Boot kann die Umgebung
+auch selbst mitstarten (`DOCKER_COMPOSE_ENABLED=true`), das ist aber aus.
 
 Der Keycloak-Container hängt vom PostgreSQL-Container aus `compose.yaml` ab. Läuft auf Port 5432
 bereits eine andere PostgreSQL-Instanz, `POSTGRES_PORT` auf einen freien Port setzen
@@ -50,8 +50,9 @@ Für die eigene Nutzung im Heimnetz gedacht, nicht für das offene Internet: Key
 die Session-Cookies gehen unverschlüsselt durchs lokale Netz. TLS, Reverse Proxy und Keycloak für prod
 folgen mit v1.0.0 (#7, #17).
 
-1. Bei `ghcr.io` anmelden, die Images sind privat: `podman login ghcr.io` mit einem Token mit
-   `read:packages`.
+1. Bei `ghcr.io` anmelden, die Images sind privat: `podman login ghcr.io -u <GitHub-Name>`, als Passwort ein
+   klassischer Token mit `read:packages` (GitHub: Settings → Developer settings → Personal access tokens →
+   Tokens (classic)). Fine-grained Tokens haben kein Recht für Packages.
 2. Paket entpacken und darin `.env` aus `.env.beispiel` anlegen. Alle Werte sind Pflicht, außer
    `HAUSHALTSBUCH_PORT` (Standard `8080`); fehlt einer, bricht Compose mit einer Meldung ab. Passwörter und
    Secret zufällig wählen, z.&nbsp;B. `openssl rand -base64 32`. `HAUSHALTSBUCH_STAGE` ist `PROD` für echte

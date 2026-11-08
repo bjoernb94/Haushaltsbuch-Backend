@@ -40,7 +40,7 @@ dann aber fehl, und der [Systemstatus](docs/betrieb.md#systemstatus) meldet `key
 
 ### Lokal mit Keycloak
 
-1. Keycloak starten, z.&nbsp;B. per `docker compose up -d keycloak` (siehe
+1. PostgreSQL und Keycloak starten: Run Configuration „Umgebung starten“ oder `podman compose up -d` (siehe
    [Docker Compose](docs/betrieb.md#docker-compose)). Der Realm wird beim ersten Start automatisch eingerichtet,
    siehe [Keycloak einrichten](docs/betrieb.md#keycloak-einrichten).
 2. Backend starten: `./mvnw spring-boot:run`. Das Client-Secret ist in dev mit dem Realm-Import
