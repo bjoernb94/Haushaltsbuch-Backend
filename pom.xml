@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>de.bochmann</groupId>
 	<artifactId>Haushaltsbuch-Backend</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.1.0</version>
 	<packaging>jar</packaging>
 	<name>Haushaltsbuch-Backend</name>
 	<description>Backend der Haushaltsbuch-Anwendung</description>
@@ -31,6 +31,8 @@
 		<java.version>25</java.version>
 		<spring-modulith.version>2.1.2</spring-modulith.version>
 		<springdoc-openapi.version>3.2.0</springdoc-openapi.version>
+		<!-- Unter rootless Podman true: Die Buildpacks brauchen dann den Socket aus DOCKER_HOST (README, Hinweis für Podman). -->
+		<image.podman>false</image.podman>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -140,6 +142,18 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<!-- spring-boot:build-image; der Release-Workflow veröffentlicht das Image (README, Veröffentlichen). -->
+					<docker>
+						<bindHostToBuilder>${image.podman}</bindHostToBuilder>
+					</docker>
+					<image>
+						<name>ghcr.io/bjoernb94/haushaltsbuch-backend:${project.version}</name>
+						<env>
+							<BP_IMAGE_LABELS>org.opencontainers.image.title="Haushaltsbuch Backend" org.opencontainers.image.source="https://github.com/bjoernb94/Haushaltsbuch-Backend" org.opencontainers.image.version="${project.version}"</BP_IMAGE_LABELS>
+						</env>
+					</image>
+				</configuration>
 				<executions>
 					<!-- Version und Build-Zeit für /actuator/info; mehr soll dort nicht öffentlich stehen. -->
 					<execution>

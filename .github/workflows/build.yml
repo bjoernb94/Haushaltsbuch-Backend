@@ -7,10 +7,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Vom Release-Workflow aufgerufen, damit ein Release nur mit grünem Build entsteht.
+  workflow_call:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Ein hängender Download soll schnell scheitern statt bis zum Standard von sechs Stunden zu laufen.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 

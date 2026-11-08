@@ -39,6 +39,10 @@ python3 scripts/testdaten.py                        # local test accounts with c
   `chore/<kurzname>`, prefixed with the issue number if there is one (e.g. `feature/14-haushalt`). Link the
   issue in the PR with `Closes #<n>`.
 - Before starting work, create the branch from an up-to-date `main` if you are still on `main`.
+- Releases come only from a tag `v<version>` on `main` that matches the `pom.xml` and the image versions in
+  `betrieb/compose.yaml`, with an open milestone named exactly like the tag and no open issues
+  (`.github/workflows/release.yml`, README "Veröffentlichen"). Release notes are grouped by PR labels, so
+  label PRs (`feature/` → `enhancement`, `fix/` → `bug`, `docs/` → `documentation`).
 
 ## Architecture
 
