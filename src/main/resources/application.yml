@@ -82,8 +82,8 @@ spring:
   config:
     activate:
       on-profile: dev
-  # Docker Compose Support ist vorerst aus, die Anwendung nutzt die lokal laufende
-  # PostgreSQL-Instanz. Auf true setzen, um compose.yaml automatisch zu starten.
+  # Docker Compose Support ist aus: Die Umgebung aus compose.yaml startet getrennt („Umgebung starten“),
+  # damit ein Neustart des Backends die Datenbank nicht mit neu startet. Auf true setzen, um sie mitzustarten.
   docker:
     compose:
       enabled: ${DOCKER_COMPOSE_ENABLED:false}

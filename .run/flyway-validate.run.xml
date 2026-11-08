@@ -19,7 +19,7 @@
             <list>
               <option value="compile" />
               <option value="flyway:validate" />
-              <option value="-Dflyway.url=jdbc:postgresql://localhost:5432/postgres" />
+              <option value="-Dflyway.url=jdbc:postgresql://localhost:5432/haushaltsbuch" />
               <option value="-Dflyway.user=haushaltsbuch" />
               <option value="-Dflyway.password=haushaltsbuch" />
             </list>
