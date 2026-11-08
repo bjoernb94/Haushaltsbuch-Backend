@@ -381,3 +381,7 @@ Build, Tests, Dependency-Checks, Image-Build und Flyway). Sie enthalten die loka
 (DB `postgres` auf `localhost:5432`, Podman-Socket unter `/run/user/1000`) und müssen auf anderen
 Rechnern ggf. angepasst werden. `flyway:info` / `flyway:validate` arbeiten direkt gegen die
 lokale Datenbank; die Migration selbst führt Spring Boot beim Start aus.
+
+„Run Backend“ führt vor dem Start `generate-resources` mit Maven aus. IntelliJs eigener Build
+erzeugt `META-INF/build-info.properties` und `git.properties` nicht, ohne sie nennt
+`/actuator/info` weder Version noch Commit.
