@@ -24,6 +24,7 @@
             <list>
               <option value="spring-boot:build-image" />
               <option value="-DskipTests" />
+              <option value="-Dimage.podman=true" />
             </list>
           </option>
           <option name="multimoduleDir" />

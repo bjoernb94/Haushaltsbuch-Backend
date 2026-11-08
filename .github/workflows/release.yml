@@ -1,0 +1,126 @@
+name: Release
+
+# Ein Tag v<Version> auf main veröffentlicht das Image und legt das GitHub Release an, aber nur mit
+# grünem Build und wenn der Milestone mit genau diesem Namen keine offenen Issues mehr hat; danach wird
+# er geschlossen. Vor 1.0 ist jedes Release eine Vorabversion ohne Image-Tag latest.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Tag, Version und Milestone
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      version: ${{ steps.pruefen.outputs.version }}
+      milestone: ${{ steps.milestone.outputs.nummer }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - id: pruefen
+        run: |
+          version=$(./mvnw -B -q help:evaluate -Dexpression=project.version -DforceStdout)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Der Tag $GITHUB_REF_NAME passt nicht zur Version $version in der pom.xml."
+            exit 1
+          fi
+          # Die Compose-Datei startet feste Versionen; beide Images müssen zu diesem Release passen.
+          for image in haushaltsbuch-backend haushaltsbuch-frontend; do
+            if ! grep -q "ghcr.io/bjoernb94/$image:$version'" betrieb/compose.yaml; then
+              echo "::error::betrieb/compose.yaml nutzt nicht $image:$version."
+              exit 1
+            fi
+          done
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - id: milestone
+        name: Milestone prüfen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          milestone=$(gh api "repos/$GITHUB_REPOSITORY/milestones?state=all&per_page=100" \
+            --jq '.[] | select(.title == env.GITHUB_REF_NAME) | "\(.number) \(.state)"')
+          if [ -z "$milestone" ]; then
+            echo "::error::Es gibt keinen Milestone $GITHUB_REF_NAME."
+            exit 1
+          fi
+          read -r nummer zustand <<< "$milestone"
+          if [ "$zustand" != open ]; then
+            echo "::error::Der Milestone $GITHUB_REF_NAME ist schon geschlossen."
+            exit 1
+          fi
+          offen=$(gh issue list --repo "$GITHUB_REPOSITORY" --milestone "$GITHUB_REF_NAME" --state open \
+            --limit 100 --json number,title --jq '.[] | "#\(.number) \(.title)"')
+          if [ -n "$offen" ]; then
+            echo "::error::Im Milestone $GITHUB_REF_NAME sind noch Issues offen:"
+            echo "$offen"
+            exit 1
+          fi
+          echo "nummer=$nummer" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build und Tests
+    needs: version
+    uses: ./.github/workflows/build.yml
+
+  veroeffentlichen:
+    name: Image und Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      issues: write
+    env:
+      IMAGE: ghcr.io/bjoernb94/haushaltsbuch-backend
+      VERSION: ${{ needs.version.outputs.version }}
+      MILESTONE: ${{ needs.version.outputs.milestone }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Image bauen
+        run: ./mvnw -B -DskipTests spring-boot:build-image
+      - name: Image veröffentlichen
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          tags="${VERSION%.*}"
+          if [ "${VERSION%%.*}" -ge 1 ]; then tags="$tags latest"; fi
+          docker push "$IMAGE:$VERSION"
+          for tag in $tags; do
+            docker tag "$IMAGE:$VERSION" "$IMAGE:$tag"
+            docker push "$IMAGE:$tag"
+          done
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          paket=$(scripts/betrieb-paket.sh "$VERSION")
+          vorab=()
+          hinweis=""
+          if [ "${VERSION%%.*}" = 0 ]; then
+            vorab=(--prerelease)
+            hinweis="Vorabversion für die eigene Nutzung im Heimnetz, nicht für das offene Internet: Keycloak läuft ohne HTTPS, TLS und Reverse Proxy folgen mit v1.0.0. Start per Compose siehe docs/betrieb.md."
+          fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes "$hinweis" "${vorab[@]}" \
+            "$paket" docs/openapi.json
+      - name: Milestone schließen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method PATCH "repos/$GITHUB_REPOSITORY/milestones/$MILESTONE" -f state=closed --silent

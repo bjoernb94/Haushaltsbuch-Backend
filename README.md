@@ -20,7 +20,8 @@ export DOCKER_HOST=unix://$XDG_RUNTIME_DIR/podman/podman.sock
 ```
 
 Falls der Ryuk-Container von Testcontainers unter rootless Podman nicht startet,
-zusätzlich `TESTCONTAINERS_RYUK_DISABLED=true` setzen.
+zusätzlich `TESTCONTAINERS_RYUK_DISABLED=true` setzen. Das Image (`./mvnw spring-boot:build-image`) baut
+unter rootless Podman nur mit `-Dimage.podman=true`; dann bekommen die Buildpacks den Socket aus `DOCKER_HOST`.
 
 ## Starten
 
@@ -61,13 +62,32 @@ Testkonten mit Verträgen für alle fachlichen Zustände legt `python3 scripts/t
 Build und Tests: `./mvnw verify` (braucht eine Container-Umgebung für Testcontainers), Details
 unter [Build und Tests](docs/entwicklung.md#build-und-tests).
 
+## Veröffentlichen
+
+Ein Release entsteht aus einem Tag auf `main`, nicht von Hand. Der Workflow `.github/workflows/release.yml`
+prüft, dass der Tag zur Version in der `pom.xml` passt und `betrieb/compose.yaml` Backend und Frontend in
+dieser Version startet. Außerdem verlangt er einen offenen Milestone mit genau dem Namen des Tags ohne offene
+Issues (auch für Bugfix-Releases wie `v0.1.1`); sonst bricht er ab und nennt die offenen Issues. Dann baut und
+testet er wie die CI (`build.yml`), veröffentlicht das Image als `ghcr.io/bjoernb94/haushaltsbuch-backend`,
+legt das GitHub Release mit generierten Notes an (gruppiert nach den Labels der Pull Requests, siehe
+`.github/release.yml`) und schließt den Milestone. Am Release hängen `docs/openapi.json` und das Paket für den
+Betrieb per Compose ([Betrieb per Compose](docs/betrieb.md#betrieb-per-compose)).
+
+1. Version per Pull Request anheben: `<version>` in der `pom.xml` und die beiden Image-Versionen in
+   `betrieb/compose.yaml`.
+2. Nach dem Merge auf `main` taggen: `git tag v0.2.0 && git push origin v0.2.0`.
+
+Backend und Frontend zählen gleich hoch; das Backend wird zuerst veröffentlicht. Solange die Hauptversion 0
+ist, ist jedes Release eine Vorabversion (Pre-release) und das Image bekommt nur die Tags `0.2.0` und `0.2`;
+ab 1.0 kommt `latest` dazu. Die Images sind privat wie die Repos und nur für amd64.
+
 ## Dokumentation
 
 | Datei                                                  | Inhalt                                                                         |
 |--------------------------------------------------------|--------------------------------------------------------------------------------|
 | [`docs/api.md`](docs/api.md)                           | API für die SPA: Anmeldung, Endpunkte, Fehlercodes, Geldbeträge, Fachendpunkte |
 | [`docs/entwicklung.md`](docs/entwicklung.md)           | Konventionen: Module, Fachdaten, Trennung der Haushalte, Datenbank, Tests, Git |
-| [`docs/betrieb.md`](docs/betrieb.md)                   | Docker Compose, Keycloak einrichten, Konfiguration, prod, Systemstatus         |
+| [`docs/betrieb.md`](docs/betrieb.md)                   | Docker Compose, Betrieb per Compose, Keycloak, Konfiguration, prod, Systemstatus |
 | [`docs/entscheidungen/`](docs/entscheidungen/README.md) | Architekturentscheidungen mit Begründung                                       |
 | [`docs/openapi.json`](docs/openapi.json)               | von `OpenApiExportTests` erzeugte OpenAPI-Beschreibung der API                 |
 | [`docs/module/`](docs/module)                          | von `ModularityTests` erzeugte Modul-Dokumentation                             |
