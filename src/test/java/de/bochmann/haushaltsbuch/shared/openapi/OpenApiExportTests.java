@@ -178,14 +178,18 @@ class OpenApiExportTests {
 		String nurPflichtfelder = """
 				{"anbieter": "Streamingdienst", "kategorieId": "%s",
 				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}],
-				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "einmalkosten": [], "kuendbar": true%s}
+				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "einmalkosten": [], "erinnerungSonderkuendigung": true,
+				 "kuendbar": true%s}
 				""";
 
 		for (String zusatz : List.of("",
 				// Beendet: keine nächste Abbuchung.
 				", \"gekuendigtZum\": \"%s\"".formatted(heute.minusDays(1)),
 				// Mit Kündigungsfrist, erscheint auch in der Übersicht.
-				", \"laufzeitende\": \"%s\", \"verlaengerung\": \"ZWOELF_MONATE\"".formatted(heute.plusMonths(6)))) {
+				", \"laufzeitende\": \"%s\", \"verlaengerung\": \"ZWOELF_MONATE\"".formatted(heute.plusMonths(6)),
+				// Mit Preissteigerung in Prozent (ohne Betrag) und Garantie: Prognose und Preisverlauf.
+				", \"preissteigerung\": {\"art\": \"PROZENT\", \"prozent\": 2.5, \"rhythmus\": \"JAEHRLICH\", \"naechsteAm\": \"%s\"}, \"preisgarantieBis\": \"%s\""
+						.formatted(heute.plusMonths(2), heute.plusMonths(1)))) {
 			String antwort = mockMvc.perform(post("/api/vertraege").with(csrf()).with(haushalt.anmeldung())
 							.contentType(MediaType.APPLICATION_JSON)
 							.content(nurPflichtfelder.formatted(KATEGORIE, heute.plusDays(9), zusatz)))

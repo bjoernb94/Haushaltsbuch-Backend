@@ -184,6 +184,9 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "zahlungsweg": None,
         "anteilProzent": None,
         "einmalkosten": [],
+        "preissteigerung": None,
+        "preisgarantieBis": None,
+        "erinnerungSonderkuendigung": True,
         "kuendbar": fall.kuendbar,
         "beginn": None,
         "laufzeitende": None,
@@ -217,6 +220,12 @@ def pruefe_berechnung(fall, antwort):
                        Decimal(0))
     if Decimal(str(berechnet["einmalkosten"]["wert"])) != einmalkosten:
         fehler.append(f"einmalkosten {berechnet['einmalkosten']['wert']} statt {einmalkosten}")
+    prognose = len(berechnet["prognose"])
+    if fall.felder.get("preissteigerung"):
+        if prognose != 3 or berechnet["naechstePreisaenderung"]["art"] != "PROGNOSE":
+            fehler.append(f"{prognose} Prognosepreise, nächste Preisänderung {berechnet['naechstePreisaenderung']}")
+    elif prognose:
+        fehler.append(f"{prognose} Prognosepreise ohne Preissteigerung")
     if (berechnet["eigenerAnteil"] is not None) != geteilt(fall):
         fehler.append(f"eigenerAnteil {berechnet['eigenerAnteil']} bei anteilProzent {fall.felder.get('anteilProzent')}")
     if fehler:
@@ -370,6 +379,18 @@ def faelle_alles(heute):
         Fall("Geteilt – 33,3 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET", zahlweise="VIERTELJAEHRLICH",
              felder={"anteilProzent": 33.3}),
         Fall("Geteilt – 100 %", "KEINE_LAUFZEIT", felder={"anteilProzent": 100}),
+        # Preissteigerung: Prognose der nächsten drei Preise, auch mit Garantie und vergangenem Anker.
+        Fall("Preissteigerung – 2,5 % jährlich", "KEINE_LAUFZEIT", kategorie="VERSICHERUNG", zahlweise="JAEHRLICH",
+             felder={"preissteigerung": {"art": "PROZENT", "prozent": 2.5, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": tage(60).isoformat()}}),
+        Fall("Preissteigerung – 1 € vierteljährlich mit Preisgarantie", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             felder={"preisgarantieBis": tage(100),
+                     "preissteigerung": {"art": "BETRAG", "prozent": None, "betrag": {"wert": 1.00, "waehrung": "EUR"},
+                                         "rhythmus": "VIERTELJAEHRLICH", "naechsteAm": tage(20).isoformat()}}),
+        Fall("Preissteigerung – nächste Erhöhung vergangen, ohne Erinnerung", "KEINE_LAUFZEIT",
+             felder={"erinnerungSonderkuendigung": False,
+                     "preissteigerung": {"art": "PROZENT", "prozent": 3, "betrag": None, "rhythmus": "ZWEIJAEHRLICH",
+                                         "naechsteAm": tage(-400).isoformat()}}),
         # Einmalkosten: im Jahr und im Vorjahr; in der Übersicht nur die im Jahr, beim geteilten nur der Anteil.
         Fall("Einmalkosten – im Jahr und im Vorjahr", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET",
              felder={"einmalkosten": [

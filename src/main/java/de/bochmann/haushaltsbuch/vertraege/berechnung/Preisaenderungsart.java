@@ -4,6 +4,9 @@ package de.bochmann.haushaltsbuch.vertraege.berechnung;
 public enum Preisaenderungsart {
 
 	/** Ein Eintrag der Preisliste in der Zukunft. */
-	ANGEKUENDIGT
+	ANGEKUENDIGT,
+
+	/** Ein Preis der {@link Preisprognose}. */
+	PROGNOSE
 
 }

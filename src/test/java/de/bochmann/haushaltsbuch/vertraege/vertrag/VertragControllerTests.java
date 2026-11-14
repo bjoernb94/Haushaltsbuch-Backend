@@ -62,7 +62,8 @@ class VertragControllerTests {
 				{"anbieter": "Streamingdienst", "bezeichnung": "", "kategorieId": "%s", "vertragsnummer": null,
 				 "preise": [{"gueltigAb": null, "betrag": {"wert": %s, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
 				 "abbuchungAb": "%s",
-				 "zahlungsweg": "KREDITKARTE", "einmalkosten": [], "kuendbar": true, "beginn": %s, "laufzeitende": %s,
+				 "zahlungsweg": "KREDITKARTE", "einmalkosten": [], "preissteigerung": null, "preisgarantieBis": null,
+				 "erinnerungSonderkuendigung": true, "kuendbar": true, "beginn": %s, "laufzeitende": %s,
 				 "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": %s, "gekuendigtZum": null,
 				 "notiz": "Familien-Abo"}
 				""".formatted(VertragServiceTests.VERSICHERUNG, betrag, heute.plusDays(9), json(beginn),
@@ -201,7 +202,8 @@ class VertragControllerTests {
 				.andExpect(content().json("""
 						{"laufendeVertraege": 1,
 						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
-						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "einmalkostenImJahr": [], "jahr": %d,
+						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "kostenImJahrMitPrognose": false,
+						 "einmalkostenImJahr": [], "jahr": %d,
 						 "hatAnteile": false,
 						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
 						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
@@ -220,7 +222,8 @@ class VertragControllerTests {
 		mockMvc.perform(get("/api/vertraege/uebersicht").with(fremder.anmeldung()))
 				.andExpect(status().isOk())
 				.andExpect(content().json("""
-						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "einmalkostenImJahr": [], "jahr": %d,
+						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "kostenImJahrMitPrognose": false,
+						 "einmalkostenImJahr": [], "jahr": %d,
 						 "hatAnteile": false, "naechsteKuendigungsfristen": []}
 						""".formatted(heute.getYear()), true));
 	}
@@ -355,6 +358,71 @@ class VertragControllerTests {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[0].feld").value("einmalkosten"))
 				.andExpect(jsonPath("$.felder[0].code").value("Size"));
+	}
+
+	/** {@code vertrag} (JSON wie aus {@link #abo}) mit der Preissteigerung {@code regel} (JSON-Objekt). */
+	private static String mitSteigerung(String vertrag, String regel) {
+		return vertrag.replaceFirst("\"preissteigerung\": null", "\"preissteigerung\": " + regel);
+	}
+
+	@Test
+	void preissteigerungMitPrognose() throws Exception {
+		String regel = """
+				{"art": "PROZENT", "prozent": 10, "betrag": null, "rhythmus": "JAEHRLICH", "naechsteAm": "%s"}"""
+				.formatted(heute.plusMonths(2));
+
+		String angelegt = mockMvc.perform(anlegen(mitSteigerung(abo("10.00", null, null, 0), regel)
+						.replace("\"preisgarantieBis\": null", "\"preisgarantieBis\": \"" + heute.plusMonths(1) + "\"")))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.preissteigerung.art").value("PROZENT"))
+				.andExpect(jsonPath("$.preissteigerung.prozent").value(10.00))
+				.andExpect(jsonPath("$.preissteigerung.rhythmus").value("JAEHRLICH"))
+				.andExpect(jsonPath("$.preisgarantieBis").value(heute.plusMonths(1).toString()))
+				.andExpect(jsonPath("$.erinnerungSonderkuendigung").value(true))
+				.andExpect(jsonPath("$.berechnet.prognose", hasSize(3)))
+				.andExpect(jsonPath("$.berechnet.prognose[0].ab").value(heute.plusMonths(2).toString()))
+				.andExpect(jsonPath("$.berechnet.prognose[0].betrag.wert").value(11.00))
+				.andExpect(jsonPath("$.berechnet.prognose[1].betrag.wert").value(12.10))
+				.andExpect(jsonPath("$.berechnet.naechstePreisaenderung.art").value("PROGNOSE"))
+				.andExpect(jsonPath("$.berechnet.preisverlauf[0].art").value("GEZAHLT"))
+				.andExpect(jsonPath("$.berechnet.preisverlauf[1].art").value("PROGNOSE"))
+				.andExpect(jsonPath("$.berechnet.preisverlauf", hasSize(4)))
+				.andReturn().getResponse().getContentAsString();
+
+		mockMvc.perform(get("/api/vertraege/{id}", JsonPath.<String>read(angelegt, "$.id")).with(haushalt.anmeldung()))
+				.andExpect(content().json(angelegt, true));
+	}
+
+	@Test
+	void prueftPreissteigerung() throws Exception {
+		String falscherWert = """
+				{"art": "PROZENT", "prozent": null, "betrag": {"wert": 1.00, "waehrung": "EUR"}, "rhythmus": null,
+				 "naechsteAm": null}""";
+		mockMvc.perform(anlegen(mitSteigerung(abo("10.00", null, null, 0), falscherWert)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.prozent')].code").value("PassenderWert"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.betrag')].code").value("PassenderWert"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.rhythmus')].code").value("NotNull"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.naechsteAm')].code").value("NotNull"))
+				.andExpect(jsonPath("$.felder", hasSize(4)));
+
+		for (var fall : new String[][] {{"0", "DecimalMin"}, {"100.01", "DecimalMax"}, {"2.555", "Digits"}}) {
+			mockMvc.perform(anlegen(mitSteigerung(abo("10.00", null, null, 0), """
+							{"art": "PROZENT", "prozent": %s, "rhythmus": "JAEHRLICH", "naechsteAm": "2027-01-01"}"""
+							.formatted(fall[0]))))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.felder[0].feld").value("preissteigerung.prozent"))
+					.andExpect(jsonPath("$.felder[0].code").value(fall[1]));
+		}
+
+		mockMvc.perform(anlegen(mitSteigerung(abo("10.00", null, null, 0), """
+						{"art": "BETRAG", "betrag": {"wert": 0.00, "waehrung": "USD"}, "rhythmus": "JAEHRLICH",
+						 "naechsteAm": "2027-01-01"}""")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.betrag')].code").value("PositiverBetrag"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.betrag.waehrung')].code")
+						.value(containsInAnyOrder("ErlaubteWaehrung", "GleicheWaehrung")))
+				.andExpect(jsonPath("$.felder", hasSize(3)));
 	}
 
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */
@@ -676,7 +744,8 @@ class VertragControllerTests {
 		mockMvc.perform(anlegen("{}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder(
-						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "einmalkosten", "kuendbar")));
+						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "einmalkosten", "erinnerungSonderkuendigung",
+						"kuendbar")));
 	}
 
 	@Test

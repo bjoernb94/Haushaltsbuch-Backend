@@ -286,6 +286,9 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
   "einmalkosten": [
     { "bezeichnung": "Anschlussgebühr", "betrag": { "wert": 49.00, "waehrung": "EUR" }, "faelligAm": "2023-01-15" }
   ],
+  "preissteigerung": { "art": "PROZENT", "prozent": 2.5, "betrag": null, "rhythmus": "JAEHRLICH", "naechsteAm": "2027-01-01" },
+  "preisgarantieBis": null,
+  "erinnerungSonderkuendigung": true,
   "kuendbar": true,
   "beginn": "2023-01-01",
   "laufzeitende": "2023-12-31",
@@ -308,6 +311,9 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
 | `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
 | `einmalkosten` | ja | 0–100 Einträge `{ bezeichnung, betrag, faelligAm }` in beliebiger Reihenfolge, leer `[]`; siehe [Einmalkosten](#einmalkosten) |
+| `preissteigerung` | nein | „Preis steigt regelmäßig“, `null` wenn nicht; siehe [Preissteigerung](#preissteigerung) |
+| `preisgarantieBis` | nein | bis einschließlich dieses Tages rechnet die Prognose keine Erhöhung ein; auch ohne `preissteigerung` erlaubt (dann nur gespeichert) |
+| `erinnerungSonderkuendigung` | ja | „Vor jeder Preiserhöhung daran erinnern“, im Formular standardmäßig `true`. Wird vorerst nur gespeichert, die Erinnerung selbst kommt mit den zentralen Meldungen ([Frontend #49](https://github.com/bjoernb94/Haushaltsbuch-Frontend/issues/49)) |
 | `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
 | `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
 | `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
@@ -357,6 +363,28 @@ vorab bezahlte Hardware); gleiche Einträge auch (zwei Geräte am selben Tag).
 Dazu `PlausiblesDatum` an `einmalkosten[i].faelligAm`. Die Antwort liefert `einmalkosten` sortiert nach
 `faelligAm`, dann `bezeichnung`.
 
+#### Preissteigerung
+
+Die Regel, nach der ein Vertrag regelmäßig teurer wird: `{ art, prozent, betrag, rhythmus, naechsteAm }`. Daraus
+rechnet das Backend eine **Prognose** (siehe [Antwort](#antwort)), gespeichert wird nur die Regel.
+
+| Feld | Pflicht | Werte und Regeln |
+|---|---|---|
+| `art` | ja | `PROZENT` oder `BETRAG` |
+| `prozent` | bei `PROZENT` | größer 0, höchstens 100, höchstens zwei Nachkommastellen (z.&nbsp;B. `2.75`); die Antwort liefert zwei (`2.50`) |
+| `betrag` | bei `BETRAG` | größer 0, in derselben Währung wie der erste Preis |
+| `rhythmus` | ja | `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH`, `ZWEIJAEHRLICH`, `DREIJAEHRLICH` |
+| `naechsteAm` | ja | Datum der nächsten Erhöhung; Anker im Rhythmus wie `abbuchungAb`, darf in der Vergangenheit liegen |
+
+| Regel | Feldfehler (an `preissteigerung.…`) |
+|---|---|
+| `art`, `rhythmus`, `naechsteAm` angegeben | `NotNull` |
+| zur `art` genau der passende Wert (`prozent` bzw. `betrag`), der andere leer | `PassenderWert` an `prozent` bzw. `betrag` |
+| `prozent` größer 0, höchstens 100, zwei Nachkommastellen | `DecimalMin`, `DecimalMax`, `Digits` an `prozent` |
+| `betrag` größer 0, Währung wie der erste Preis | `PositiverBetrag` an `betrag`, `GleicheWaehrung` an `betrag.waehrung` |
+
+Dazu `PlausiblesDatum` an `naechsteAm` und an `preisgarantieBis`.
+
 **`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
 von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
 „Nächste Abbuchung“. Beim Bearbeiten zeigt die SPA dort `berechnet.naechsteAbbuchung` an (nur wenn das
@@ -383,11 +411,23 @@ nicht zurückgeschickt:
   "status": "AKTIV",
   "kostenProMonat": { "wert": 48.90, "waehrung": "EUR" },
   "kostenImJahr": { "wert": 586.80, "waehrung": "EUR" },
+  "kostenImJahrMitPrognose": false,
   "jahr": 2026,
   "eigenerAnteil": null,
   "einmalkosten": { "wert": 49.00, "waehrung": "EUR" },
-  "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } },
-  "naechstePreisaenderung": null,
+  "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" } },
+  "naechstePreisaenderung": { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" }, "art": "PROGNOSE" },
+  "prognose": [
+    { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" } },
+    { "ab": "2028-01-01", "betrag": { "wert": 616.51, "waehrung": "EUR" } },
+    { "ab": "2029-01-01", "betrag": { "wert": 631.92, "waehrung": "EUR" } }
+  ],
+  "preisverlauf": [
+    { "ab": "2023-01-01", "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "GEZAHLT" },
+    { "ab": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "art": "GEZAHLT" },
+    { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" }, "art": "PROGNOSE" },
+    …
+  ],
   "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true }
 }
 ```
@@ -400,7 +440,10 @@ nicht zurückgeschickt:
   beschriftet damit „Kosten <Jahr>“ statt mit der Uhr des Browsers), jede mit dem Preis, der an ihrem Tag gilt.
   Gezählt wird von `abbuchungAb` aus im Takt der Zahlweise vorwärts **und rückwärts**, also auch schon erfolgte
   Abbuchungen: frühestens ab dem 01.01., nicht vor `beginn` und nicht nach dem Vertragsende (wie bei der nächsten
-  Abbuchung). Ohne Abbuchungen im Jahr 0.
+  Abbuchung). Ohne Abbuchungen im Jahr 0. Ab einem Termin der [Prognose](#prognose) rechnet eine Abbuchung mit dem
+  prognostizierten Preis; dafür zählen alle Termine im Jahr, nicht nur die drei aus `prognose`.
+- **`kostenImJahrMitPrognose`:** `true`, wenn eine Abbuchung in `kostenImJahr` mit einem prognostizierten Preis
+  rechnet; die SPA zeigt dann „inkl. Prognose“.
 - **`eigenerAnteil`:** `{ kostenProMonat, kostenImJahr }`, der eigene Anteil an diesen beiden Werten bei einem
   `anteilProzent` unter 100; sonst `null` (dann sind die vollen Kosten der eigene Anteil). Der Anteil wird auf die
   ungerundeten Werte angewendet und erst dann gerundet ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
@@ -409,13 +452,27 @@ nicht zurückgeschickt:
 - **`einmalkosten`:** Summe aller [Einmalkosten](#einmalkosten) des Vertrags, unabhängig vom Jahr und mit dem vollen
   Betrag (ohne Anteil; die Details zeigen sie als „Gesamt“). Ohne Einträge 0 in der Währung der Preise.
 - **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`, mit dem Preis
-  dieses Tages (`{ am, betrag }`); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
+  dieses Tages (`{ am, betrag }`, ab einem Termin der Prognose der prognostizierte); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
   `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
   Abbuchung genau an diesem Tag wird noch genannt. Ein Laufzeitende ohne Angabe zur Verlängerung zählt nicht
   als Ende.
 - **`naechstePreisaenderung`:** `{ ab, betrag, art }`, der Eintrag der Preisliste nach dem heute gültigen, `art`
   `ANGEKUENDIGT`. Beginnt der Vertrag erst in der Zukunft, ist der erste Eintrag keine Änderung (er ist schon
-  `betrag`). `null`, wenn keine bekannt ist, der Vertrag beendet ist oder der Eintrag nach dem Vertragsende liegt.
+  `betrag`). Sonst der erste Preis der [Prognose](#prognose) mit `art` `PROGNOSE`; ein angekündigter Eintrag kommt
+  immer zuerst, weil die Prognose erst danach beginnt. `null`, wenn keine bekannt ist, der Vertrag beendet ist oder
+  der Eintrag nach dem Vertragsende liegt.
+- <a id="prognose"></a>**`prognose`:** die nächsten drei Preise `{ ab, betrag }` aus der
+  [Preissteigerung](#preissteigerung); leer ohne Regel oder bei einem beendeten Vertrag. Sie setzt beim letzten
+  Eintrag der Preisliste an und zählt von `naechsteAm` aus im Rhythmus vorwärts. Übersprungen werden Termine bis
+  einschließlich des `gueltigAb` des letzten Eintrags, bis einschließlich `preisgarantieBis`, vor heute und nach dem
+  Vertragsende; übersprungene Termine erhöhen nichts. Jeder Schritt wird kaufmännisch auf Cent gerundet, der
+  nächste rechnet mit dem gerundeten Preis weiter ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
+  100&nbsp;€ + 2,5&nbsp;% = 102,50&nbsp;€, + 2,5&nbsp;% = 105,06&nbsp;€. Trägt der Nutzer den echten neuen Preis
+  ein, rechnet die Prognose von dort weiter. `betrag` und `kostenProMonat` bleiben der bekannte Preis von heute.
+- **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
+  Preisliste (bis zum heute gültigen `GEZAHLT`, danach `ANGEKUENDIGT`) und die drei aus `prognose` (`PROGNOSE`).
+  Einträge nach dem Vertragsende fallen weg. `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
+  `beginn`, sonst 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute. Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
@@ -509,6 +566,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   "laufendeVertraege": 9,
   "kostenProMonat": [ { "wert": 202.08, "waehrung": "EUR" } ],
   "kostenImJahr": [ { "wert": 2398.43, "waehrung": "EUR" } ],
+  "kostenImJahrMitPrognose": true,
   "einmalkostenImJahr": [ { "wert": 149.00, "waehrung": "EUR" } ],
   "jahr": 2026,
   "hatAnteile": true,
@@ -532,7 +590,9 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   - `kostenImJahr`: Summe von `berechnet.kostenImJahr` über die laufenden Verträge **und** die im Jahr
     beendeten, die bis dahin etwas gekostet haben; `jahr` wie dort. Sie passt also nicht zwingend zu
     `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung). Ohne
-    Einmalkosten.
+    Einmalkosten, mit der Prognose wie am Vertrag.
+  - `kostenImJahrMitPrognose`: `true`, wenn ein Vertrag mit `berechnet.kostenImJahrMitPrognose` in `kostenImJahr`
+    eingeht („inkl. Prognose“).
   - `einmalkostenImJahr`: Summe der im Kalenderjahr `jahr` fälligen [Einmalkosten](#einmalkosten) über **alle**
     Verträge, auch beendete (eine Gebühr im März zählt, auch wenn der Vertrag im Juni endet); leer ohne solche
     Einträge.

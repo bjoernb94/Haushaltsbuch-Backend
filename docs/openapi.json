@@ -772,6 +772,10 @@
         },
         "required" : [ "waehrung", "wert" ]
       },
+      "Erhoehungsrhythmus" : {
+        "type" : "string",
+        "enum" : [ "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH", "ZWEIJAEHRLICH", "DREIJAEHRLICH" ]
+      },
       "Feldfehler" : {
         "type" : "object",
         "properties" : {
@@ -841,7 +845,27 @@
       },
       "Preisaenderungsart" : {
         "type" : "string",
-        "enum" : [ "ANGEKUENDIGT" ]
+        "enum" : [ "ANGEKUENDIGT", "PROGNOSE" ]
+      },
+      "Preispunkt" : {
+        "type" : "object",
+        "properties" : {
+          "ab" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "art" : {
+            "$ref" : "#/components/schemas/Preispunktart"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "ab", "art", "betrag" ]
+      },
+      "Preispunktart" : {
+        "type" : "string",
+        "enum" : [ "GEZAHLT", "ANGEKUENDIGT", "PROGNOSE" ]
       },
       "Problem" : {
         "type" : "object",
@@ -891,6 +915,19 @@
         },
         "required" : [ "email", "name", "vorname" ]
       },
+      "Prognosepreis" : {
+        "type" : "object",
+        "properties" : {
+          "ab" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "ab", "betrag" ]
+      },
       "RegistrierungAnfrage" : {
         "type" : "object",
         "properties" : {
@@ -925,6 +962,10 @@
           }
         },
         "required" : [ "email", "komponenten", "name", "passwort", "vorname" ]
+      },
+      "Steigerungsart" : {
+        "type" : "string",
+        "enum" : [ "PROZENT", "BETRAG" ]
       },
       "Verlaengerung" : {
         "type" : "string",
@@ -964,6 +1005,9 @@
             "maxItems" : 100,
             "minItems" : 0
           },
+          "erinnerungSonderkuendigung" : {
+            "type" : "boolean"
+          },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -998,6 +1042,17 @@
             "maxItems" : 100,
             "minItems" : 0
           },
+          "preisgarantieBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "preissteigerung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragPreissteigerungAnfrage"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1025,7 +1080,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",
@@ -1061,6 +1116,9 @@
             "maxItems" : 100,
             "minItems" : 0
           },
+          "erinnerungSonderkuendigung" : {
+            "type" : "boolean"
+          },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1095,6 +1153,17 @@
             "maxItems" : 100,
             "minItems" : 0
           },
+          "preisgarantieBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "preissteigerung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragPreissteigerungAnfrage"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1118,7 +1187,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "kategorieId", "kuendbar", "preise", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "zahlweise" ]
       },
       "VertragAntwort" : {
         "type" : "object",
@@ -1152,6 +1221,9 @@
               "$ref" : "#/components/schemas/VertragEinmalkostenAntwort"
             }
           },
+          "erinnerungSonderkuendigung" : {
+            "type" : "boolean"
+          },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1183,6 +1255,17 @@
               "$ref" : "#/components/schemas/VertragPreisAntwort"
             }
           },
+          "preisgarantieBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "preissteigerung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragPreissteigerungAntwort"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1208,7 +1291,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1230,6 +1313,9 @@
           "kostenImJahr" : {
             "$ref" : "#/components/schemas/Betrag"
           },
+          "kostenImJahrMitPrognose" : {
+            "type" : "boolean"
+          },
           "kostenProMonat" : {
             "$ref" : "#/components/schemas/Betrag"
           },
@@ -1250,11 +1336,23 @@
               "type" : "null"
             } ]
           },
+          "preisverlauf" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Preispunkt"
+            }
+          },
+          "prognose" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Prognosepreis"
+            }
+          },
           "status" : {
             "$ref" : "#/components/schemas/Vertragsstatus"
           }
         },
-        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
+        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "preisverlauf", "prognose", "status" ]
       },
       "VertragEigenerAnteil" : {
         "type" : "object",
@@ -1352,6 +1450,60 @@
         },
         "required" : [ "betrag", "gueltigAb" ]
       },
+      "VertragPreissteigerungAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "$ref" : "#/components/schemas/Steigerungsart"
+          },
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "naechsteAm" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "prozent" : {
+            "type" : [ "number", "null" ],
+            "exclusiveMinimum" : 0,
+            "maximum" : 100
+          },
+          "rhythmus" : {
+            "$ref" : "#/components/schemas/Erhoehungsrhythmus"
+          }
+        },
+        "required" : [ "art", "naechsteAm", "rhythmus" ]
+      },
+      "VertragPreissteigerungAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "$ref" : "#/components/schemas/Steigerungsart"
+          },
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "naechsteAm" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "prozent" : {
+            "type" : [ "number", "null" ]
+          },
+          "rhythmus" : {
+            "$ref" : "#/components/schemas/Erhoehungsrhythmus"
+          }
+        },
+        "required" : [ "art", "betrag", "naechsteAm", "prozent", "rhythmus" ]
+      },
       "VertragVorschauAnfrage" : {
         "type" : "object",
         "properties" : {
@@ -1432,6 +1584,9 @@
               "$ref" : "#/components/schemas/Betrag"
             }
           },
+          "kostenImJahrMitPrognose" : {
+            "type" : "boolean"
+          },
           "kostenProMonat" : {
             "type" : "array",
             "items" : {
@@ -1449,7 +1604,7 @@
             }
           }
         },
-        "required" : [ "einmalkostenImJahr", "hatAnteile", "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+        "required" : [ "einmalkostenImJahr", "hatAnteile", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
       },
       "Zahlungsweg" : {
         "type" : "string",

@@ -21,6 +21,9 @@ public class Vertragsberechnung {
 	/** Ab so vielen Tagen bis „kündigen bis“ gilt eine Kündigung als dringend. */
 	public static final int DRINGEND_TAGE = 45;
 
+	/** So viele Preise zeigt {@link #prognose}. */
+	public static final int PROGNOSE_PREISE = 3;
+
 	private final LocalDate heute;
 
 	public Vertragsberechnung(LocalDate heute) {
@@ -71,9 +74,12 @@ public class Vertragsberechnung {
 		return Optional.of(abbuchung);
 	}
 
-	/** Wie {@link #naechsteAbbuchung(Vertragsdaten)}, mit dem an diesem Tag gültigen Preis. */
-	public Optional<Abbuchung> naechsteAbbuchung(Vertragsdaten vertrag, Preisliste preise) {
-		return naechsteAbbuchung(vertrag).map(am -> new Abbuchung(am, preise.am(am)));
+	/**
+	 * Wie {@link #naechsteAbbuchung(Vertragsdaten)}, mit dem an diesem Tag gültigen Preis; ab einem Termin der
+	 * Prognose mit dem prognostizierten.
+	 */
+	public Optional<Abbuchung> naechsteAbbuchung(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		return naechsteAbbuchung(vertrag).map(am -> new Abbuchung(am, mitPrognose(vertrag, preise, prognose, am).am(am)));
 	}
 
 	/**
@@ -109,17 +115,79 @@ public class Vertragsberechnung {
 		return abbuchungen;
 	}
 
-	/** Summe der {@link #abbuchungenImJahr Abbuchungen im laufenden Jahr}, jede mit ihrem Preis. */
-	public Betrag kostenImJahr(Vertragsdaten vertrag, Preisliste preise) {
-		return preise.summe(abbuchungenImJahr(vertrag));
+	/**
+	 * Summe der {@link #abbuchungenImJahr Abbuchungen im laufenden Jahr}, jede mit ihrem Preis; ab einem Termin der
+	 * Prognose mit dem prognostizierten (alle Termine im Jahr, nicht nur die {@value #PROGNOSE_PREISE} angezeigten).
+	 */
+	public Betrag kostenImJahr(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		return mitPrognose(vertrag, preise, prognose, jahresende()).summe(abbuchungenImJahr(vertrag));
 	}
 
-	/** Siehe {@link Preisliste#naechsteAenderung}; leer bei einem beendeten Vertrag. */
-	public Optional<Preisaenderung> naechstePreisaenderung(Vertragsdaten vertrag, Preisliste preise) {
+	/** Ob eine Abbuchung in {@link #kostenImJahr} mit einem prognostizierten Preis rechnet. */
+	public boolean kostenImJahrMitPrognose(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		var erster = prognose.preise(preise, heute, ende(vertrag), jahresende(), 1);
+		return !erster.isEmpty()
+				&& abbuchungenImJahr(vertrag).stream().anyMatch(am -> !am.isBefore(erster.getFirst().gueltigAb()));
+	}
+
+	/**
+	 * Die nächste angekündigte Änderung (siehe {@link Preisliste#naechsteAenderung}), sonst der erste Preis der
+	 * Prognose; leer bei einem beendeten Vertrag. Die Prognose beginnt erst nach dem letzten Eintrag, ein
+	 * angekündigter Preis kommt also immer zuerst.
+	 */
+	public Optional<Preisaenderung> naechstePreisaenderung(Vertragsdaten vertrag, Preisliste preise,
+			Preisprognose prognose) {
 		if (status(vertrag) == Vertragsstatus.BEENDET) {
 			return Optional.empty();
 		}
-		return preise.naechsteAenderung(heute, ende(vertrag));
+		return preise.naechsteAenderung(heute, ende(vertrag))
+				.or(() -> prognose.preise(preise, heute, ende(vertrag), LocalDate.MAX, 1).stream()
+						.findFirst()
+						.map(preis -> new Preisaenderung(preis.gueltigAb(), preis.betrag(), Preisaenderungsart.PROGNOSE)));
+	}
+
+	/** Die nächsten {@value #PROGNOSE_PREISE} Preise der {@link Preisprognose}; leer ohne Regel. */
+	public List<Prognosepreis> prognose(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		return prognose.preise(preise, heute, ende(vertrag), LocalDate.MAX, PROGNOSE_PREISE).stream()
+				.map(preis -> new Prognosepreis(preis.gueltigAb(), preis.betrag()))
+				.toList();
+	}
+
+	/**
+	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die Preisliste (bis zum heute gültigen
+	 * {@link Preispunktart#GEZAHLT}, danach {@link Preispunktart#ANGEKUENDIGT}) und die {@link #prognose}. Einträge
+	 * nach dem Vertragsende fallen weg. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst
+	 * 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute, damit die SPA nur zeichnet.
+	 */
+	public List<Preispunkt> preisverlauf(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		var liste = preise.preise();
+		int heutiger = preise.index(heute);
+		Optional<LocalDate> ende = ende(vertrag);
+		List<Preispunkt> punkte = new ArrayList<>();
+		for (int i = 0; i < liste.size(); i++) {
+			LocalDate ab = liste.get(i).gueltigAb();
+			if (ab == null) {
+				ab = vertrag.beginn() != null ? vertrag.beginn()
+						: liste.size() > 1 ? liste.get(1).gueltigAb().minusMonths(12) : heute.minusMonths(12);
+			}
+			else if (ende.isPresent() && ab.isAfter(ende.get())) {
+				continue;
+			}
+			punkte.add(new Preispunkt(ab, liste.get(i).betrag(),
+					i <= heutiger ? Preispunktart.GEZAHLT : Preispunktart.ANGEKUENDIGT));
+		}
+		prognose(vertrag, preise, prognose)
+				.forEach(preis -> punkte.add(new Preispunkt(preis.ab(), preis.betrag(), Preispunktart.PROGNOSE)));
+		return punkte;
+	}
+
+	/** Die Preisliste ergänzt um die Prognose bis einschließlich {@code bis}. */
+	private Preisliste mitPrognose(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose, LocalDate bis) {
+		return preise.mit(prognose.preise(preise, heute, ende(vertrag), bis, Integer.MAX_VALUE));
+	}
+
+	private LocalDate jahresende() {
+		return LocalDate.of(heute.getYear(), 12, 31);
 	}
 
 	/**

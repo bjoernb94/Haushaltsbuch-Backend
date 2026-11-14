@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Die Preise eines Vertrags, sortiert nach {@code gueltigAb} (der Eintrag ohne Datum zuerst). Ein Preis gilt von
@@ -69,8 +70,18 @@ public final class Preisliste {
 		return preise;
 	}
 
+	/** Der Eintrag mit dem spätesten {@code gueltigAb}; bei ihm setzt die {@link Preisprognose} an. */
+	public Preis letzter() {
+		return preise.getLast();
+	}
+
+	/** Diese Liste ergänzt um {@code weitere} Einträge, z.&nbsp;B. die prognostizierten. */
+	public Preisliste mit(List<Preis> weitere) {
+		return weitere.isEmpty() ? this : new Preisliste(Stream.concat(preise.stream(), weitere.stream()).toList());
+	}
+
 	/** Index des an {@code datum} gültigen Eintrags; 0, wenn das Datum vor allen liegt. */
-	private int index(LocalDate datum) {
+	int index(LocalDate datum) {
 		int gueltig = 0;
 		for (int i = 1; i < preise.size(); i++) {
 			if (preise.get(i).gueltigAb().isAfter(datum)) {

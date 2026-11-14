@@ -31,6 +31,10 @@ import java.util.UUID;
  *        Übersichten zählen nur diesen Anteil der Kosten, Beträge und Abbuchungen bleiben die vollen
  * @param einmalkosten einmalige Kosten wie eine Anschlussgebühr in beliebiger Reihenfolge, auch leer; Pflicht, damit
  *        ein {@code PUT} ohne das Feld sie nicht still löscht. Sie zählen nicht zu den laufenden Kosten
+ * @param preissteigerung „Preis steigt regelmäßig“; leer, wenn nicht. Daraus rechnet das Backend die Prognose
+ * @param preisgarantieBis bis einschließlich dieses Tages rechnet die Prognose keine Erhöhung ein; auch ohne Regel
+ * @param erinnerungSonderkuendigung „Vor jeder Preiserhöhung daran erinnern“, im Formular standardmäßig an; wird nur
+ *        gespeichert und angezeigt
  * @param kuendbar {@code false} z.&nbsp;B. für den Rundfunkbeitrag; dann werden {@code verlaengerung} und
  *        {@code kuendigungsfristMonate} nicht gespeichert, {@code beginn} und {@code laufzeitende} bleiben (#67)
  * @param gekuendigtZum gesetzt, wenn gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag
@@ -50,6 +54,9 @@ record VertragAnfrage(
 		@Nullable Zahlungsweg zahlungsweg,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@NotNull @Size(max = 100) List<@NotNull @Valid VertragEinmalkostenAnfrage> einmalkosten,
+		@Valid @Nullable VertragPreissteigerungAnfrage preissteigerung,
+		@PlausiblesDatum @Nullable LocalDate preisgarantieBis,
+		@NotNull Boolean erinnerungSonderkuendigung,
 		@NotNull Boolean kuendbar,
 		@PlausiblesDatum @Nullable LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,
