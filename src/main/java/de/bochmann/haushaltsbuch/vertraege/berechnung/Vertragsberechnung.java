@@ -1,12 +1,16 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
+import de.bochmann.haushaltsbuch.shared.geld.Betrag;
+
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * Berechnete Angaben eines Vertrags zu einem Stichtag ({@code heute}): Status, nächste Abbuchung und
- * Kündigung. Ohne Spring und ohne Uhr, damit Tests jeden Tag festlegen können; die Aufrufer geben
+ * Berechnete Angaben eines Vertrags zu einem Stichtag ({@code heute}): Status, Abbuchungen, Kosten im Jahr,
+ * Preisänderung und Kündigung. Ohne Spring und ohne Uhr, damit Tests jeden Tag festlegen können; die Aufrufer geben
  * {@code LocalDate.now(clock)} mit.
  * <p>
  * Weitergezählt wird immer vom gespeicherten Datum aus ({@code abbuchungAb}, Laufzeitende), nicht Schritt für Schritt, damit Monatsenden
@@ -21,6 +25,11 @@ public class Vertragsberechnung {
 
 	public Vertragsberechnung(LocalDate heute) {
 		this.heute = heute;
+	}
+
+	/** Der Stichtag; sein Jahr ist das laufende Jahr für {@link #kostenImJahr}. */
+	public LocalDate heute() {
+		return heute;
 	}
 
 	/**
@@ -55,13 +64,74 @@ public class Vertragsberechnung {
 			k++;
 		}
 		LocalDate abbuchung = anker.plusMonths(k * schritt);
-		if (vertrag.gekuendigtZum() != null && abbuchung.isAfter(vertrag.gekuendigtZum())) {
-			return Optional.empty();
-		}
-		if (endetMitLaufzeitende(vertrag) && abbuchung.isAfter(vertrag.laufzeitende())) {
+		Optional<LocalDate> ende = ende(vertrag);
+		if (ende.isPresent() && abbuchung.isAfter(ende.get())) {
 			return Optional.empty();
 		}
 		return Optional.of(abbuchung);
+	}
+
+	/** Wie {@link #naechsteAbbuchung(Vertragsdaten)}, mit dem an diesem Tag gültigen Preis. */
+	public Optional<Abbuchung> naechsteAbbuchung(Vertragsdaten vertrag, Preisliste preise) {
+		return naechsteAbbuchung(vertrag).map(am -> new Abbuchung(am, preise.am(am)));
+	}
+
+	/**
+	 * Alle Abbuchungen im laufenden Kalenderjahr, auch die schon erfolgten: von {@code abbuchungAb} aus im Takt der
+	 * Zahlweise vorwärts und rückwärts ({@code abbuchungAb} ist nur der Anker), nicht vor {@code beginn} und nicht
+	 * nach dem Vertragsende (eine Abbuchung genau an diesem Tag zählt noch). Leer, wenn Angaben fehlen.
+	 */
+	public List<LocalDate> abbuchungenImJahr(Vertragsdaten vertrag) {
+		if (vertrag.zahlweise() == null || vertrag.abbuchungAb() == null) {
+			return List.of();
+		}
+		LocalDate von = LocalDate.of(heute.getYear(), 1, 1);
+		if (vertrag.beginn() != null && vertrag.beginn().isAfter(von)) {
+			von = vertrag.beginn();
+		}
+		LocalDate bis = LocalDate.of(heute.getYear(), 12, 31);
+		Optional<LocalDate> ende = ende(vertrag);
+		if (ende.isPresent() && ende.get().isBefore(bis)) {
+			bis = ende.get();
+		}
+		int schritt = vertrag.zahlweise().monate();
+		LocalDate anker = vertrag.abbuchungAb();
+		// Geschätzt und dann vorgezählt; negativ, wenn der Anker nach dem Jahresbeginn liegt.
+		long k = ChronoUnit.MONTHS.between(anker, von) / schritt - 1;
+		while (anker.plusMonths(k * schritt).isBefore(von)) {
+			k++;
+		}
+		List<LocalDate> abbuchungen = new ArrayList<>();
+		for (LocalDate abbuchung = anker.plusMonths(k * schritt); !abbuchung.isAfter(bis);
+				abbuchung = anker.plusMonths(++k * schritt)) {
+			abbuchungen.add(abbuchung);
+		}
+		return abbuchungen;
+	}
+
+	/** Summe der {@link #abbuchungenImJahr Abbuchungen im laufenden Jahr}, jede mit ihrem Preis. */
+	public Betrag kostenImJahr(Vertragsdaten vertrag, Preisliste preise) {
+		return preise.summe(abbuchungenImJahr(vertrag));
+	}
+
+	/** Siehe {@link Preisliste#naechsteAenderung}; leer bei einem beendeten Vertrag. */
+	public Optional<Preisaenderung> naechstePreisaenderung(Vertragsdaten vertrag, Preisliste preise) {
+		if (status(vertrag) == Vertragsstatus.BEENDET) {
+			return Optional.empty();
+		}
+		return preise.naechsteAenderung(heute, ende(vertrag));
+	}
+
+	/**
+	 * Letzter Tag des Vertrags: {@code gekuendigtZum} oder das Laufzeitende, wenn er damit endet (kündbar, ohne
+	 * Verlängerung), bei beiden das frühere; leer, wenn er nicht endet.
+	 */
+	private static Optional<LocalDate> ende(Vertragsdaten vertrag) {
+		LocalDate ende = vertrag.gekuendigtZum();
+		if (endetMitLaufzeitende(vertrag) && (ende == null || vertrag.laufzeitende().isBefore(ende))) {
+			ende = vertrag.laufzeitende();
+		}
+		return Optional.ofNullable(ende);
 	}
 
 	/** Art und Termine der Kündigung; die Regeln stehen in {@code docs/api.md}, Abschnitt Verträge. */

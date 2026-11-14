@@ -5,9 +5,10 @@ import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import java.math.BigDecimal;
 
 /**
- * Kosten eines Vertrags pro Jahr und Monat. Pro Jahr ist exakt (die Monate jeder Zahlweise teilen 12
- * ohne Rest); pro Monat wird aus dem Jahr gerundet. Summen über mehrere Verträge (#40) addieren daher
- * die Jahreswerte und runden erst am Ende.
+ * Ein Betrag auf Jahr und Monat umgerechnet (ADR 0011). Pro Jahr ist exakt (die Monate jeder Zahlweise teilen 12
+ * ohne Rest); pro Monat wird aus dem Jahr gerundet. Summen über mehrere Verträge addieren daher die Jahreswerte
+ * und runden erst am Ende. Umgerechnet, nicht abgebucht: Was im Kalenderjahr tatsächlich abgebucht wird, rechnet
+ * {@link Vertragsberechnung#kostenImJahr}.
  */
 public final class Kosten {
 

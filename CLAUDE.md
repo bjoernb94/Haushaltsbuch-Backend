@@ -85,7 +85,7 @@ python3 scripts/testdaten.py                        # local test accounts with c
 - Business data belongs to a household (module `haushalt`), not to a single user, so several users can share one
   Haushaltsbuch; booked components belong to the household (`haushalt_komponente`). Registration (`nutzer`) creates
   the household via `HaushaltService` in the same transaction as the user. Business tables store `haushalt_id`
-  (no FK across modules), never `nutzer_id` as owner (audit columns `angelegt_von`/`geaendert_von` are fine). Another
+  (no FK across modules; `@ElementCollection` child tables like `vertrag_preis` don't, they're loaded only via their entity), never `nutzer_id` as owner (audit columns `angelegt_von`/`geaendert_von` are fine). Another
   household's IDs must yield 404, not 403. Household separation is automatic: `FachEntity.haushaltId` is a Hibernate
   `@TenantId`, resolved by `HaushaltTenantResolver` from `HaushaltKontext` (request: logged-in user's household via
   `HaushaltAbfrage`, implemented in `haushalt` with JDBC since it runs while Hibernate opens a session; jobs/listeners:

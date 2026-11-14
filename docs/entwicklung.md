@@ -86,6 +86,9 @@ schlicht „nicht gefunden“ (404).
   betrifft anonyme Requests (auch die Registrierung, die den Haushalt erst anlegt) und Code ohne
   Request und ohne `fuer(...)`. Registrierte Nutzer haben immer einen Haushalt; nur Konten, die
   direkt in Keycloak angelegt wurden, fallen zur Sicherheit ebenfalls darunter.
+- **Kindtabellen** einer Fach-Entity (`@ElementCollection`, z.&nbsp;B. `vertrag_preis`) haben keine eigene
+  `haushalt_id`: Hibernate lädt sie nur über ihre Entity, die schon gefiltert ist. Native SQL auf ihnen muss
+  über die Tabelle der Entity einschränken.
 - **Nicht gefiltert:** native SQL-Abfragen und Tabellen ohne `FachEntity`. Tabellen mit gemischten
   Zeilen (z.&nbsp;B. Standardkategorien mit `haushalt_id IS NULL` und eigene eines Haushalts) nutzen
   kein `@TenantId` und filtern selbst mit `HaushaltKontext.id()`.

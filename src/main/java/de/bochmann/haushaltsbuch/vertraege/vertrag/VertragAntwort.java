@@ -1,8 +1,10 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Abbuchung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
@@ -11,12 +13,14 @@ import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieAntwort;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * Ein Vertrag mit den gespeicherten Angaben (wie in {@link VertragAnfrage}, Kategorie als Objekt) und
  * den berechneten in {@code berechnet}. Die gespeicherten Angaben schickt die SPA beim Ändern
- * unverändert zurück; {@code berechnet} nie.
+ * unverändert zurück; {@code berechnet} nie. {@code betrag} ist berechnet (der heute gültige Preis aus
+ * {@code preise}) und wird beim Ändern ignoriert.
  */
 record VertragAntwort(
 		UUID id,
@@ -26,6 +30,7 @@ record VertragAntwort(
 		VertragKategorieAntwort kategorie,
 		@Nullable String vertragsnummer,
 		Betrag betrag,
+		List<VertragPreisAntwort> preise,
 		Zahlweise zahlweise,
 		LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
@@ -41,27 +46,38 @@ record VertragAntwort(
 	/**
 	 * Zum Stichtag berechnet, ändert sich also mit der Zeit.
 	 *
+	 * @param kostenProMonat der heute gültige Betrag auf einen Monat umgerechnet
+	 * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr}, jede mit ihrem Preis
+	 * @param jahr das laufende Jahr laut Backend, für die Beschriftung „Kosten &lt;Jahr&gt;“
 	 * @param naechsteAbbuchung die erste Abbuchung ab heute; leer, wenn keine mehr kommt
+	 * @param naechstePreisaenderung der nächste Eintrag nach dem heute gültigen; leer, wenn keiner bekannt ist
 	 */
 	record VertragBerechnet(
 			Vertragsstatus status,
 			Betrag kostenProMonat,
-			Betrag kostenProJahr,
-			@Nullable LocalDate naechsteAbbuchung,
+			Betrag kostenImJahr,
+			int jahr,
+			@Nullable Abbuchung naechsteAbbuchung,
+			@Nullable Preisaenderung naechstePreisaenderung,
 			Kuendigung kuendigung) {
 	}
 
+	/** {@code betrag} ist der heute gültige Preis; beginnt der Vertrag erst in der Zukunft, der erste. */
 	static VertragAntwort aus(Vertrag vertrag, Vertragsberechnung berechnung) {
 		var daten = vertrag.daten();
+		var preise = vertrag.preisliste();
+		Betrag betrag = preise.am(berechnung.heute());
 		var berechnet = new VertragBerechnet(
 				berechnung.status(daten),
-				Kosten.proMonat(vertrag.getBetrag(), vertrag.getZahlweise()),
-				Kosten.proJahr(vertrag.getBetrag(), vertrag.getZahlweise()),
-				berechnung.naechsteAbbuchung(daten).orElse(null),
+				Kosten.proMonat(betrag, vertrag.getZahlweise()),
+				berechnung.kostenImJahr(daten, preise),
+				berechnung.heute().getYear(),
+				berechnung.naechsteAbbuchung(daten, preise).orElse(null),
+				berechnung.naechstePreisaenderung(daten, preise).orElse(null),
 				berechnung.kuendigung(daten));
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
-				vertrag.getBetrag(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
+				betrag, vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
 				vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
 				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(), berechnet);
 	}

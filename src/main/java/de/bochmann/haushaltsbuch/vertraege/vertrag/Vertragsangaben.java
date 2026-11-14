@@ -1,7 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
-import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,7 +18,7 @@ interface Vertragsangaben extends Berechnungsangaben {
 
 	String vertragsnummer();
 
-	Betrag betrag();
+	List<VertragPreisAnfrage> preise();
 
 	Zahlungsweg zahlungsweg();
 

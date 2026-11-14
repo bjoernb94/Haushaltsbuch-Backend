@@ -1,7 +1,5 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
-import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.shared.geld.PositiverBetrag;
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
@@ -9,11 +7,13 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -23,13 +23,15 @@ import java.util.UUID;
  * und beim Anlegen nicht auftaucht; die Feldliste muss mit {@link VertragAnfrage} übereinstimmen.
  */
 @LaufzeitendeNachBeginn
+@PreisNichtVorBeginn
 record VertragAenderung(
 		@NotNull Long version,
 		@NotBlank @Size(max = 200) String anbieter,
 		@Size(max = 200) @Nullable String bezeichnung,
 		@NotNull UUID kategorieId,
 		@Size(max = 100) @Nullable String vertragsnummer,
-		@NotNull @Valid @PositiverBetrag Betrag betrag,
+		@NotEmpty @Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
+		List<@NotNull @Valid VertragPreisAnfrage> preise,
 		@NotNull Zahlweise zahlweise,
 		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,

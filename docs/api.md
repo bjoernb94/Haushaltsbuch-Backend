@@ -275,7 +275,10 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
   "bezeichnung": "Kfz-Versicherung",
   "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec",
   "vertragsnummer": "KFZ-4711-23",
-  "betrag": { "wert": 586.80, "waehrung": "EUR" },
+  "preise": [
+    { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" } },
+    { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } }
+  ],
   "zahlweise": "JAEHRLICH",
   "abbuchungAb": "2027-01-01",
   "zahlungsweg": "LASTSCHRIFT",
@@ -295,7 +298,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `bezeichnung` | nein | höchstens 200 Zeichen; leer = die SPA zeigt den Anbieter |
 | `kategorieId` | ja | Standardkategorie oder eigene des Haushalts, sonst Feldfehler `Unbekannt` |
 | `vertragsnummer` | nein | höchstens 100 Zeichen |
-| `betrag` | ja | größer 0 (Feldfehler `PositiverBetrag`) |
+| `preise` | ja | 1–100 Einträge `{ gueltigAb, betrag }` in beliebiger Reihenfolge, siehe [Preise](#preise) |
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
 | `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
@@ -309,6 +312,25 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 Alle Datumsfelder zwischen `1900-01-01` und `2199-12-31` (Feldfehler `PlausiblesDatum`, siehe
 [Geldbeträge und Datum](#geldbeträge-und-datum)). Leere Texte speichert das Backend als `null`. Einen **Status** schickt die SPA nicht mit; er wird
 berechnet (siehe unten).
+
+#### Preise
+
+Ein Vertrag hat eine Liste von Preisen mit Gültigkeitsdatum, z.&nbsp;B. frühere Preise, angekündigte
+Erhöhungen oder Aktionspreise. Ein Preis gilt von seinem `gueltigAb` bis zum nächsten Eintrag; `betrag` in der
+[Antwort](#antwort) ist der heute gültige. Vor dem ersten Eintrag gilt der erste rückwirkend (z.&nbsp;B. für
+Abbuchungen im Jahr vor seinem `gueltigAb`).
+
+| Regel | Feldfehler (an `preise[i]…`, `i` = Position in der Anfrage) |
+|---|---|
+| mindestens ein, höchstens 100 Einträge | `NotEmpty` bzw. `Size` an `preise` |
+| `gueltigAb` darf nur bei einem Eintrag fehlen (gilt dann ab Vertragsbeginn) | `GueltigAbPflicht` an `preise[i].gueltigAb` |
+| kein `gueltigAb` doppelt | `GueltigAbEindeutig` an `preise[i].gueltigAb` |
+| kein `gueltigAb` vor `beginn`, auch wenn der Beginn später nach hinten verschoben wird | `PreisNichtVorBeginn` an `preise[i].gueltigAb` |
+| `betrag` größer 0 | `PositiverBetrag` an `preise[i].betrag` |
+| alle Beträge in derselben Währung wie der erste (eine Währung am Vertrag kommt mit [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)) | `GleicheWaehrung` an `preise[i].betrag.waehrung` |
+
+Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort liefert `preise` sortiert nach
+`gueltigAb`, der Eintrag ohne Datum zuerst.
 
 **`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
 von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
@@ -325,28 +347,41 @@ Kündigungstermine hängen daran (siehe Vertragsende unter [Antwort](#antwort)).
 ### Antwort
 
 Die Antwort enthält die gespeicherten Felder wie oben, die Kategorie als Objekt (wie bei den
-Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berechnet, steht in
-`berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern nicht zurückgeschickt:
+Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den heute gültigen Preis (beginnt
+der Vertrag erst in der Zukunft: der erste Eintrag). `betrag` ist berechnet und wird beim Ändern ignoriert.
+Was das Backend sonst berechnet, steht in `berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern
+nicht zurückgeschickt:
 
 ```json
+"betrag": { "wert": 586.80, "waehrung": "EUR" },
 "berechnet": {
   "status": "AKTIV",
   "kostenProMonat": { "wert": 48.90, "waehrung": "EUR" },
-  "kostenProJahr": { "wert": 586.80, "waehrung": "EUR" },
-  "naechsteAbbuchung": "2027-01-01",
+  "kostenImJahr": { "wert": 586.80, "waehrung": "EUR" },
+  "jahr": 2026,
+  "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } },
+  "naechstePreisaenderung": null,
   "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true }
 }
 ```
 
 - **Status:** `BEENDET`, wenn `gekuendigtZum` vorbei ist oder ein Vertrag mit Verlängerung `KEINE`
   sein Laufzeitende überschritten hat; `GEKUENDIGT`, solange `gekuendigtZum` noch kommt; sonst `AKTIV`.
-- **Kosten:** pro Jahr = Betrag × 12 ÷ Monate der Zahlweise, pro Monat = Betrag ÷ Monate der Zahlweise
-  (gerundet nach [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
-- **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`;
-  `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
+- **`kostenProMonat`:** der heute gültige Betrag ÷ Monate der Zahlweise (gerundet nach
+  [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)); umgerechnet, nicht abgebucht.
+- **`kostenImJahr`:** Summe aller Abbuchungen im Kalenderjahr `jahr` (dem laufenden Jahr laut Backend; die SPA
+  beschriftet damit „Kosten <Jahr>“ statt mit der Uhr des Browsers), jede mit dem Preis, der an ihrem Tag gilt.
+  Gezählt wird von `abbuchungAb` aus im Takt der Zahlweise vorwärts **und rückwärts**, also auch schon erfolgte
+  Abbuchungen: frühestens ab dem 01.01., nicht vor `beginn` und nicht nach dem Vertragsende (wie bei der nächsten
+  Abbuchung). Ohne Abbuchungen im Jahr 0.
+- **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`, mit dem Preis
+  dieses Tages (`{ am, betrag }`); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
   `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
   Abbuchung genau an diesem Tag wird noch genannt. Ein Laufzeitende ohne Angabe zur Verlängerung zählt nicht
   als Ende.
+- **`naechstePreisaenderung`:** `{ ab, betrag, art }`, der Eintrag der Preisliste nach dem heute gültigen, `art`
+  `ANGEKUENDIGT`. Beginnt der Vertrag erst in der Zukunft, ist der erste Eintrag keine Änderung (er ist schon
+  `betrag`). `null`, wenn keine bekannt ist, der Vertrag beendet ist oder der Eintrag nach dem Vertragsende liegt.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
@@ -408,7 +443,8 @@ plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem V
 { "version": 2, "anbieter": "Musterversicherung AG", "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec", … }
 ```
 
-Alle Felder werden ersetzt, auch `abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
+Alle Felder werden ersetzt, `preise` als ganze Liste (Konflikte deckt die `version` des Vertrags ab), auch
+`abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
 Zahlweise ab diesem Tag ab. Die SPA schickt deshalb das gespeicherte `abbuchungAb`, solange Datum und
 Zahlweise unverändert sind, und lässt das Datum bei einem Wechsel der Zahlweise bestätigen (siehe
 [`abbuchungAb`](#vertrag-anlegen) beim Anlegen). Bei `kuendbar: false` gilt dasselbe Leeren wie beim
@@ -438,7 +474,8 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 {
   "laufendeVertraege": 9,
   "kostenProMonat": [ { "wert": 202.08, "waehrung": "EUR" } ],
-  "kostenProJahr": [ { "wert": 2424.96, "waehrung": "EUR" } ],
+  "kostenImJahr": [ { "wert": 2398.43, "waehrung": "EUR" } ],
+  "jahr": 2026,
   "naechsteKuendigungsfristen": [
     { "id": "…", "anbieter": "Musterversicherung AG", "bezeichnung": "Kfz-Versicherung",
       "betrag": { "wert": 586.80, "waehrung": "EUR" }, "zahlweise": "JAEHRLICH",
@@ -449,16 +486,20 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 
 - **Laufend** sind alle Verträge mit `berechnet.status` ungleich `BEENDET`; gekündigte zählen bis zu
   ihrem Ende mit.
-- **Kosten:** Summe über die laufenden Verträge, je Währung ein Eintrag, nach Währungscode sortiert. Es
-  sind auf Monat und Jahr umgerechnete Werte, nicht die tatsächlichen Abbuchungen. Summiert werden die
-  exakten Jahreswerte, der Monatswert ist Summe ÷ 12, erst dann gerundet. Die Summe der
-  `kostenProMonat` aus der Liste kann daher um einige Cent abweichen
-  ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
+- **Kosten:** je Währung ein Eintrag, nach Währungscode sortiert.
+  - `kostenProMonat`: über die laufenden Verträge aus den heute gültigen Beträgen, umgerechnet, nicht
+    abgebucht. Summiert werden die exakten Jahreswerte (Betrag × 12 ÷ Monate der Zahlweise), der Monatswert
+    ist Summe ÷ 12, erst dann gerundet. Die Summe der `kostenProMonat` aus der Liste kann daher um einige Cent
+    abweichen ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
+  - `kostenImJahr`: Summe von `berechnet.kostenImJahr` über die laufenden Verträge **und** die im Jahr
+    beendeten, die bis dahin etwas gekostet haben; `jahr` wie dort. Sie passt also nicht zwingend zu
+    `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung).
 - **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
-  Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel; `kuendigenBis`,
+  Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = heute gültiger
+  Preis); `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
-- Ohne laufende Verträge: `laufendeVertraege` 0 und leere Listen.
+- Ohne laufende und im Jahr beendete Verträge: `laufendeVertraege` 0 und leere Listen.
 
 ### Vorschau des Kündigungstermins
 
