@@ -2,8 +2,6 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Abbuchung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Einmalkosten;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunkt;
@@ -93,33 +91,26 @@ record VertragAntwort(
 
 	/** {@code betrag} ist der heute gültige Preis; beginnt der Vertrag erst in der Zukunft, der erste. */
 	static VertragAntwort aus(Vertrag vertrag, Vertragsberechnung berechnung) {
-		var daten = vertrag.daten();
-		var preise = vertrag.preisliste();
-		var prognose = vertrag.preisprognose();
-		Betrag betrag = preise.am(berechnung.heute());
-		Betrag proJahr = Kosten.proJahr(betrag, vertrag.getZahlweise());
-		Betrag kostenImJahr = berechnung.kostenImJahr(daten, preise, prognose);
-		var anteil = vertrag.anteil();
-		var eigenerAnteil = anteil.geteilt()
-				? new VertragEigenerAnteil(Kosten.proMonat(anteil.von(proJahr)), anteil.von(kostenImJahr).gerundet())
-				: null;
+		// Gespeichert ist alles vollständig, die Werte also gesetzt, wo die API keine null kennt.
+		var werte = berechnung.werte(vertrag.grundlage());
 		var berechnet = new VertragBerechnet(
-				berechnung.status(daten),
-				Kosten.proMonat(proJahr),
-				kostenImJahr,
-				berechnung.kostenImJahrMitPrognose(daten, preise, prognose),
+				werte.status(),
+				werte.kostenProMonat(),
+				werte.kostenImJahr(),
+				werte.kostenImJahrMitPrognose(),
 				berechnung.heute().getYear(),
-				eigenerAnteil,
-				Einmalkosten.summe(vertrag.getEinmalkosten().stream().map(VertragEinmalkosten::einmalkosten).toList(),
-						preise.waehrung()),
-				berechnung.naechsteAbbuchung(daten, preise, prognose).orElse(null),
-				berechnung.naechstePreisaenderung(daten, preise, prognose).orElse(null),
-				berechnung.prognose(daten, preise, prognose),
-				berechnung.preisverlauf(daten, preise, prognose),
-				berechnung.kuendigung(daten));
+				werte.eigenerAnteilProMonat() != null
+						? new VertragEigenerAnteil(werte.eigenerAnteilProMonat(), werte.eigenerAnteilImJahr())
+						: null,
+				werte.einmalkosten(),
+				werte.naechsteAbbuchung(),
+				werte.naechstePreisaenderung(),
+				werte.prognose(),
+				werte.preisverlauf(),
+				werte.kuendigung());
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
-				betrag, vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
+				werte.betrag(), vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
 				vertrag.getAnteilProzent(),
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
 				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(),

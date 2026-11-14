@@ -205,6 +205,18 @@ class OpenApiExportTests {
 				.andReturn().getResponse().getContentAsString();
 		pruefeNull(JsonPath.read(uebersicht, "$"), Map.of("$ref", "#/components/schemas/VertragsuebersichtAntwort"),
 				schemas(api), "VertragsuebersichtAntwort");
+		// Die Vorschau eines leeren und eines halb ausgefüllten Formulars: fast alles null.
+		for (String formular : List.of("{\"kuendbar\": true}", """
+				{"kuendbar": true, "zahlweise": "MONATLICH", "anteilProzent": 50,
+				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}]}""")) {
+			String vorschau = mockMvc.perform(post("/api/vertraege/vorschau").with(csrf()).with(haushalt.anmeldung())
+							.contentType(MediaType.APPLICATION_JSON)
+							.content(formular))
+					.andExpect(status().isOk())
+					.andReturn().getResponse().getContentAsString();
+			pruefeNull(JsonPath.read(vorschau, "$"), Map.of("$ref", "#/components/schemas/VertragVorschauAntwort"),
+					schemas(api), "VertragVorschauAntwort");
+		}
 	}
 
 	private Map<String, Object> beschreibung() throws Exception {

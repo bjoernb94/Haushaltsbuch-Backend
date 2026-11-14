@@ -19,7 +19,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
 | `DELETE /api/vertraege/{id}`      | `VERTRAGSUEBERSICHT` | Vertrag löschen, siehe [Verträge](#verträge)    |
 | `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
-| `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Kündigungstermin berechnen, siehe [Verträge](#verträge) |
+| `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Werte fürs Formular berechnen, siehe [Vorschau](#vorschau) |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
 | `/actuator/health/systemstatus`   | öffentlich      | Status für die Login-Seite: `db`, `keycloak`     |
 | `GET /actuator/info`              | öffentlich      | Version und Umgebung, siehe [Version und Umgebung](#version-und-umgebung) |
@@ -606,28 +606,58 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 - Ohne laufende Verträge, im Jahr beendete und Einmalkosten im Jahr: `laufendeVertraege` 0, leere Listen und
   `hatAnteile` `false`.
 
-### Vorschau des Kündigungstermins
+### Vorschau
 
-`POST /api/vertraege/vorschau` berechnet den „Nächsten Kündigungstermin“ für das Formular „Neuer Vertrag“ bzw.
-„Vertrag bearbeiten“, ohne etwas zu speichern → **200** (ohne `Location`):
+`POST /api/vertraege/vorschau` berechnet die Werte für die **Zusammenfassung** und die Statuszeilen des Formulars
+„Neuer Vertrag“ bzw. „Vertrag bearbeiten“ („Dein Anteil“, „Prognose“, „Einmalkosten gesamt“), ohne etwas zu
+speichern → **200** (ohne `Location`):
 
 ```json
-{ "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true } }
+{
+  "betrag": { "wert": 13.99, "waehrung": "EUR" },
+  "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
+  "eigenerAnteil": { "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
+  "naechsteAbbuchung": { "am": "2026-11-23", "betrag": { "wert": 13.99, "waehrung": "EUR" } },
+  "naechstePreisaenderung": null,
+  "prognose": [],
+  "einmalkosten": null,
+  "kuendigung": { "art": "MONATLICH_KUENDBAR", "kuendigenBis": "2026-11-22", "zum": "2026-11-22", "fristMonate": 0, "dringend": false }
+}
 ```
 
-- **Anfrage:** die Formularwerte `zahlweise`, `abbuchungAb`, `kuendbar`, `beginn`, `laufzeitende`,
-  `verlaengerung`, `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere
-  Felder ignoriert das Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle
-  anderen dürfen fehlen (ergibt z.&nbsp;B. `KEINE_LAUFZEIT`). Für `abbuchungAb` gilt beim Bearbeiten dieselbe
-  Regel wie beim [Speichern](#vertrag-anlegen): das gespeicherte Datum, solange Datum und Zahlweise unverändert
-  sind, sonst zeigt die Vorschau einen anderen Termin als später die Liste.
-- **`kuendigung`** wie `berechnet.kuendigung` in der [Antwort](#antwort): Für dieselben Werte steht nach dem
-  Speichern dasselbe in der Liste, auch für eine eingetragene Kündigung (`GEKUENDIGT` bzw. `BEENDET`). Bei
-  `kuendbar: false` zählen Verlängerung und Frist wie beim Speichern nicht.
-- Das Objekt kann später weitere Werte bekommen; die SPA liest nur, was sie braucht.
-- **Fehler:** Die Prüfungen sind dieselben wie beim Anlegen, nur ohne Pflichtfelder: **400** `VALIDIERUNG`
-  mit `felder`, z.&nbsp;B. `LaufzeitendeNachBeginn` oder `Max` bei `kuendigungsfristMonate`. Die Vorschau
-  zeigt also nie einen Termin für Werte, die sich nicht speichern lassen. Unbekannter Enum-Wert oder kaputtes
-  JSON: **400** `ANFRAGE_UNGUELTIG`.
+- **Anfrage:** die Formularwerte `preise`, `zahlweise`, `abbuchungAb`, `anteilProzent`, `einmalkosten`,
+  `preissteigerung`, `preisgarantieBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
+  `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
+  Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen. Für
+  `abbuchungAb` gilt beim Bearbeiten dieselbe Regel wie beim [Speichern](#vertrag-anlegen): das gespeicherte Datum,
+  solange Datum und Zahlweise unverändert sind, sonst zeigt die Vorschau einen anderen Termin als später die Liste.
+- **Fehlende Werte sind kein Fehler:** Fehlt eine Angabe, ist jeder Wert `null`, der sie braucht (die SPA zeigt
+  „Noch offen“); die übrigen werden trotzdem berechnet. **Unvollständige Zeilen** ignoriert die Vorschau: eine
+  Preiszeile ohne `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne
+  `art`, `rhythmus`, `naechsteAm` oder den Wert zur `art` (dann keine Prognose; der Wert der anderen Art zählt
+  nicht). Die Regeln über die Liste (`GueltigAbPflicht`, `GueltigAbEindeutig`, `PreisNichtVorBeginn`,
+  `GleicheWaehrung`) gelten für die vollständigen Zeilen.
+- **Antwort**, je Wert wie in `berechnet` eines gespeicherten Vertrags ([Antwort](#antwort)); dieselbe Berechnung,
+  für dieselben Werte steht nach dem Speichern dasselbe in der Liste:
+
+  | Feld | `null`, wenn |
+  |---|---|
+  | `betrag` (heute gültiger Preis) | keine vollständige Preiszeile |
+  | `kostenProMonat` | kein Preis oder keine `zahlweise` |
+  | `eigenerAnteil` (`{ kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein `kostenProMonat` oder kein Anteil unter 100&nbsp;% |
+  | `naechsteAbbuchung` (`{ am, betrag }`) | keine `zahlweise`, kein `abbuchungAb`, kein Preis, oder es kommt keine mehr |
+  | `naechstePreisaenderung` | kein Preis oder keine Änderung bekannt |
+  | `prognose` | nie; leere Liste ohne oder mit unvollständiger Preissteigerung |
+  | `einmalkosten` (Summe) | keine vollständige Zeile; ohne Preis in der Währung der Einmalkosten |
+  | `kuendigung` | nie; ohne Angaben z.&nbsp;B. `KEINE_LAUFZEIT`, bei `kuendbar: false` zählen Verlängerung und Frist wie beim Speichern nicht |
+
+  `kostenImJahr`, `preisverlauf` und der Anteil am Jahr stehen nicht in der Vorschau. Das Objekt kann später weitere
+  Werte bekommen; die SPA liest nur, was sie braucht.
+- **Fehler:** Vorhandene Werte prüft die Vorschau wie das Anlegen, nur ohne Pflicht: **400** `VALIDIERUNG` mit
+  `felder`, z.&nbsp;B. `LaufzeitendeNachBeginn`, `Max` bei `kuendigungsfristMonate` oder `PositiverBetrag` an
+  `preise[i].betrag`. Die Vorschau zeigt also nie Werte, die sich nicht speichern lassen; `PassenderWert` gibt es in
+  der Vorschau nicht (eine Regel ohne passenden Wert ist nur unvollständig). Unbekannter Enum-Wert oder kaputtes
+  JSON: **400** `ANFRAGE_UNGUELTIG`. Ob ungültige Werte künftig nur die betroffenen Ergebnisse leeren, klärt
+  [#79](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/79).
 - Die SPA ruft die Vorschau verzögert auf (Debounce), nicht bei jedem Tastendruck; CSRF-Token wie bei allen
   `POST`.

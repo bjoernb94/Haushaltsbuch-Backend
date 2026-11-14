@@ -17,9 +17,9 @@ import java.time.LocalDate;
  */
 record VertragPreisAnfrage(
 		@PlausiblesDatum @Nullable LocalDate gueltigAb,
-		@NotNull @Valid @PositiverBetrag Betrag betrag) {
+		@NotNull @Valid @PositiverBetrag Betrag betrag) implements Preisangabe {
 
-	VertragPreis preis() {
+	VertragPreis vertragPreis() {
 		return new VertragPreis(gueltigAb, betrag);
 	}
 

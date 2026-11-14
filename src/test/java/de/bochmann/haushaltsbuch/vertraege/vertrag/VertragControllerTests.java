@@ -699,23 +699,64 @@ class VertragControllerTests {
 	}
 
 	@Test
-	void vorschauBerechnetKuendigungOhneZuSpeichern() throws Exception {
-		String angelegt = mockMvc.perform(anlegen(abo("13.99", null, heute.plusDays(100).toString(), 1)))
+	void vorschauBerechnetWieGespeichertOhneZuSpeichern() throws Exception {
+		String vertrag = mitAnteil(abo("13.99", null, heute.plusDays(100).toString(), 1), "50");
+		String angelegt = mockMvc.perform(anlegen(vertrag))
 				.andExpect(status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 
-		// Dieselben Werte (überzählige Felder ignoriert das Backend) ergeben dieselbe Kündigung.
-		mockMvc.perform(vorschau(abo("13.99", null, heute.plusDays(100).toString(), 1)))
+		// Dieselben Werte (überzählige Felder ignoriert das Backend) ergeben dieselben Ergebnisse.
+		String vorschau = mockMvc.perform(vorschau(vertrag))
 				.andExpect(status().isOk())
 				.andExpect(header().doesNotExist("Location"))
-				.andExpect(content().json("""
-						{"kuendigung": {"art": "KUENDIGEN_BIS", "kuendigenBis": "%s", "zum": "%s", "fristMonate": 1,
-						 "dringend": %s}}
-						""".formatted(JsonPath.read(angelegt, "$.berechnet.kuendigung.kuendigenBis"), heute.plusDays(100),
-						JsonPath.read(angelegt, "$.berechnet.kuendigung.dringend")), true));
+				.andExpect(jsonPath("$.eigenerAnteil.kostenProMonat.wert").value(7.00))
+				.andExpect(jsonPath("$.prognose", hasSize(0)))
+				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
+				.andReturn().getResponse().getContentAsString();
+		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.kostenProMonat", "$.berechnet.kostenProMonat"},
+				{"$.naechsteAbbuchung", "$.berechnet.naechsteAbbuchung"},
+				{"$.naechstePreisaenderung", "$.berechnet.naechstePreisaenderung"},
+				{"$.kuendigung", "$.berechnet.kuendigung"}}) {
+			assertThat(JsonPath.<Object>read(vorschau, paar[0])).as(paar[0])
+					.isEqualTo(JsonPath.read(angelegt, paar[1]));
+		}
 		assertThat(jdbc.sql("SELECT count(*) FROM vertrag WHERE haushalt_id = ?").param(haushalt.haushaltId())
 				.query(Long.class)
 				.single()).isEqualTo(1);
+	}
+
+	/** Halb ausgefüllte Zeilen ignoriert die Vorschau; ungültige Werte darin lehnt sie ab wie das Speichern. */
+	@Test
+	void vorschauMitZeilen() throws Exception {
+		mockMvc.perform(vorschau("""
+						{"kuendbar": true, "zahlweise": "MONATLICH",
+						 "preise": [{"gueltigAb": null, "betrag": {"wert": 10.00, "waehrung": "EUR"}},
+						            {"gueltigAb": "2027-01-01", "betrag": null}, {"gueltigAb": "2027-01-01", "betrag": null}],
+						 "einmalkosten": [{"bezeichnung": "Router", "betrag": null, "faelligAm": null}],
+						 "preissteigerung": {"art": "BETRAG", "rhythmus": "JAEHRLICH"}}
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.betrag.wert").value(10.00))
+				.andExpect(jsonPath("$.kostenProMonat.wert").value(10.00))
+				.andExpect(jsonPath("$.naechsteAbbuchung").doesNotExist())
+				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
+				.andExpect(jsonPath("$.prognose", hasSize(0)));
+
+		mockMvc.perform(vorschau("""
+						{"kuendbar": true,
+						 "preise": [{"gueltigAb": "2027-01-01", "betrag": {"wert": 0.00, "waehrung": "EUR"}},
+						            {"gueltigAb": "2027-01-01", "betrag": {"wert": 11.00, "waehrung": "EUR"}}],
+						 "einmalkosten": [{"bezeichnung": "Router", "betrag": {"wert": 5.00, "waehrung": "USD"}}],
+						 "preissteigerung": {"art": "PROZENT", "prozent": 101}}
+						"""))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[0].betrag')].code").value("PositiverBetrag"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[1].gueltigAb')].code").value("GueltigAbEindeutig"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[0].betrag.waehrung')].code")
+						.value(containsInAnyOrder("ErlaubteWaehrung", "GleicheWaehrung")))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preissteigerung.prozent')].code").value("DecimalMax"))
+				.andExpect(jsonPath("$.felder", hasSize(5)));
 	}
 
 	@Test

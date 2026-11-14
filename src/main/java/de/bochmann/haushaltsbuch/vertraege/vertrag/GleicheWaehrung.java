@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import jakarta.validation.Constraint;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
@@ -18,7 +19,8 @@ import java.util.List;
  *   <li>An {@code preise}: jeder abweichende Preis ist ein Verstoß an {@code preise[i].betrag.waehrung}.</li>
  *   <li>Am Vertrag: jeder abweichende Eintrag der Einmalkosten ist ein Verstoß an
  *   {@code einmalkosten[i].betrag.waehrung}, ein abweichender Betrag der Preissteigerung an
- *   {@code preissteigerung.betrag.waehrung}. Ohne gültigen ersten Preis prüft das Feld {@code preise}.</li>
+ *   {@code preissteigerung.betrag.waehrung}. Ohne Preis (nur in der Vorschau möglich) zählt die Währung der ersten
+ *   Einmalkosten.</li>
  * </ul>
  */
 @Target({ElementType.TYPE, ElementType.FIELD, ElementType.METHOD})
@@ -32,10 +34,10 @@ import java.util.List;
 
 	Class<? extends Payload>[] payload() default {};
 
-	class Pruefung implements ConstraintValidator<GleicheWaehrung, List<VertragPreisAnfrage>> {
+	class Pruefung implements ConstraintValidator<GleicheWaehrung, List<? extends Preisangabe>> {
 
 		@Override
-		public boolean isValid(List<VertragPreisAnfrage> preise, ConstraintValidatorContext context) {
+		public boolean isValid(List<? extends Preisangabe> preise, ConstraintValidatorContext context) {
 			if (preise == null) {
 				return true;
 			}
@@ -59,19 +61,23 @@ import java.util.List;
 
 	}
 
-	class VertragPruefung implements ConstraintValidator<GleicheWaehrung, Vertragsangaben> {
+	class VertragPruefung implements ConstraintValidator<GleicheWaehrung, Berechnungsangaben> {
 
 		@Override
-		public boolean isValid(Vertragsangaben anfrage, ConstraintValidatorContext context) {
-			if (anfrage.preise() == null || anfrage.preise().isEmpty() || anfrage.preise().getFirst() == null
-					|| anfrage.preise().getFirst().betrag() == null) {
+		public boolean isValid(Berechnungsangaben anfrage, ConstraintValidatorContext context) {
+			// Die Währung des ersten Preises; ohne Preis (nur in der Vorschau) die der ersten Einmalkosten.
+			Currency waehrung = erste(anfrage.preise() == null ? null
+					: anfrage.preise().stream().map(preis -> preis == null ? null : preis.betrag()).toList());
+			if (waehrung == null) {
+				waehrung = erste(anfrage.einmalkosten() == null ? null
+						: anfrage.einmalkosten().stream().map(eintrag -> eintrag == null ? null : eintrag.betrag()).toList());
+			}
+			if (waehrung == null) {
 				return true;
 			}
-			Currency waehrung = anfrage.preise().getFirst().betrag().waehrung();
 			boolean gueltig = true;
 			var steigerung = anfrage.preissteigerung();
-			if (steigerung != null && steigerung.betrag() != null && steigerung.betrag().waehrung() != null
-					&& !steigerung.betrag().waehrung().equals(waehrung)) {
+			if (steigerung != null && abweichend(steigerung.betrag(), waehrung)) {
 				context.disableDefaultConstraintViolation();
 				context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
 						.addPropertyNode("preissteigerung")
@@ -82,8 +88,7 @@ import java.util.List;
 			}
 			for (int i = 0; anfrage.einmalkosten() != null && i < anfrage.einmalkosten().size(); i++) {
 				var eintrag = anfrage.einmalkosten().get(i);
-				if (eintrag != null && eintrag.betrag() != null && eintrag.betrag().waehrung() != null
-						&& !eintrag.betrag().waehrung().equals(waehrung)) {
+				if (eintrag != null && abweichend(eintrag.betrag(), waehrung)) {
 					context.disableDefaultConstraintViolation();
 					context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
 							.addPropertyNode("einmalkosten")
@@ -94,6 +99,17 @@ import java.util.List;
 				}
 			}
 			return gueltig;
+		}
+
+		private static Currency erste(List<Betrag> betraege) {
+			return betraege == null ? null : betraege.stream()
+					.filter(betrag -> betrag != null && betrag.waehrung() != null)
+					.map(Betrag::waehrung)
+					.findFirst().orElse(null);
+		}
+
+		private static boolean abweichend(Betrag betrag, Currency waehrung) {
+			return betrag != null && betrag.waehrung() != null && !betrag.waehrung().equals(waehrung);
 		}
 
 	}

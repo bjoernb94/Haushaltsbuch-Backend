@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
@@ -147,7 +148,7 @@ class Vertrag extends FachEntity {
 		this.bezeichnung = text(anfrage.bezeichnung());
 		this.kategorie = kategorie;
 		this.vertragsnummer = text(anfrage.vertragsnummer());
-		var preise = anfrage.preise().stream().map(VertragPreisAnfrage::preis).sorted(REIHENFOLGE).toList();
+		var preise = anfrage.preise().stream().map(VertragPreisAnfrage::vertragPreis).sorted(REIHENFOLGE).toList();
 		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
 		if (!getPreise().equals(preise)) {
 			this.preise.clear();
@@ -225,6 +226,12 @@ class Vertrag extends FachEntity {
 
 	boolean isErinnerungSonderkuendigung() {
 		return erinnerungSonderkuendigung;
+	}
+
+	/** Alle Angaben für die Berechnung, siehe {@code Vertragsberechnung#werte}. */
+	Berechnungsgrundlage grundlage() {
+		return new Berechnungsgrundlage(daten(), preisliste(), preisprognose(), anteil(),
+				einmalkosten.stream().map(VertragEinmalkosten::einmalkosten).toList());
 	}
 
 	/** Steigerungsregel und Garantie für die Berechnung. */

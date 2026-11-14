@@ -103,9 +103,10 @@ class VertragService {
 		return VertragsuebersichtAntwort.aus(auflisten(berechnung), berechnung.heute().getYear());
 	}
 
-	/** Die Kündigung zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte Verträge. */
+	/** Die berechneten Werte zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte Verträge. */
 	VertragVorschauAntwort vorschau(VertragVorschauAnfrage anfrage) {
-		return new VertragVorschauAntwort(berechnung().kuendigung(anfrage.daten()));
+		var grundlage = anfrage.grundlage();
+		return VertragVorschauAntwort.aus(berechnung().werte(grundlage), grundlage);
 	}
 
 	/**

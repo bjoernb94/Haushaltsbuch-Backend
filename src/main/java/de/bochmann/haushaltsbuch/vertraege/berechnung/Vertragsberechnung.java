@@ -5,6 +5,7 @@ import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 
@@ -33,6 +34,51 @@ public class Vertragsberechnung {
 	/** Der Stichtag; sein Jahr ist das laufende Jahr für {@link #kostenImJahr}. */
 	public LocalDate heute() {
 		return heute;
+	}
+
+	/**
+	 * Alle berechneten Werte, für den gespeicherten Vertrag wie für die Vorschau (eine Berechnung für beide). Fehlt
+	 * eine Angabe, bleiben die Werte leer, die sie brauchen; siehe {@link Vertragswerte}. Der Anteil wird auf die
+	 * ungerundeten Werte angewendet (ADR 0011).
+	 */
+	public Vertragswerte werte(Berechnungsgrundlage grundlage) {
+		var daten = grundlage.daten();
+		var preise = grundlage.preise();
+		var prognose = grundlage.prognose();
+		var anteil = grundlage.anteil();
+		Betrag betrag = null;
+		Betrag kostenProMonat = null;
+		Betrag kostenImJahr = null;
+		boolean mitPrognose = false;
+		Betrag anteilProMonat = null;
+		Betrag anteilImJahr = null;
+		Abbuchung naechsteAbbuchung = null;
+		Preisaenderung naechstePreisaenderung = null;
+		List<Prognosepreis> prognosepreise = List.of();
+		List<Preispunkt> preisverlauf = List.of();
+		if (preise != null) {
+			betrag = preise.am(heute);
+			naechsteAbbuchung = naechsteAbbuchung(daten, preise, prognose).orElse(null);
+			naechstePreisaenderung = naechstePreisaenderung(daten, preise, prognose).orElse(null);
+			prognosepreise = prognose(daten, preise, prognose);
+			preisverlauf = preisverlauf(daten, preise, prognose);
+			if (daten.zahlweise() != null) {
+				Betrag proJahr = Kosten.proJahr(betrag, daten.zahlweise());
+				kostenProMonat = Kosten.proMonat(proJahr);
+				anteilProMonat = anteil.geteilt() ? Kosten.proMonat(anteil.von(proJahr)) : null;
+				if (daten.abbuchungAb() != null) {
+					kostenImJahr = kostenImJahr(daten, preise, prognose);
+					mitPrognose = kostenImJahrMitPrognose(daten, preise, prognose);
+					anteilImJahr = anteil.geteilt() ? anteil.von(kostenImJahr).gerundet() : null;
+				}
+			}
+		}
+		var einmalkosten = grundlage.einmalkosten();
+		Currency waehrung = preise != null ? preise.waehrung()
+				: einmalkosten.isEmpty() ? null : einmalkosten.getFirst().betrag().waehrung();
+		return new Vertragswerte(status(daten), betrag, kostenProMonat, kostenImJahr, mitPrognose, anteilProMonat,
+				anteilImJahr, waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
+				naechstePreisaenderung, prognosepreise, preisverlauf, kuendigung(daten));
 	}
 
 	/**
