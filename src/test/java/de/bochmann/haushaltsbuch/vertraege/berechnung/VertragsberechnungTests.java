@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.List;
 
+import static de.bochmann.haushaltsbuch.shared.geld.Betrag.euro;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.BEENDET;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.ENDET;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.GEKUENDIGT;
@@ -161,6 +163,88 @@ class VertragsberechnungTests {
 			assertThat(berechnung.naechsteAbbuchung(gekuendigtZum("2026-10-31"))).isEmpty();
 			assertThat(berechnung.naechsteAbbuchung(mit(null, "2026-11-15", null, null, null, null))).isEmpty();
 			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, null, null, null, null, null))).isEmpty();
+		}
+
+	}
+
+	@Nested
+	class AbbuchungenImJahr {
+
+		/** Der Anker liegt meist in der Zukunft („Nächste Abbuchung“); gezählt wird auch rückwärts bis Januar. */
+		@Test
+		void ankerInDerZukunftZaehltRueckwaertsBisJanuar() {
+			assertThat(berechnung.abbuchungenImJahr(vertrag())).hasSize(12)
+					.startsWith(d("2026-01-15"))
+					.endsWith(d("2026-12-15"));
+		}
+
+		@Test
+		void nichtVorDemBeginn() {
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-11-15", "2026-04-20", null, null, null)))
+					.containsExactly(d("2026-05-15"), d("2026-06-15"), d("2026-07-15"), d("2026-08-15"), d("2026-09-15"),
+							d("2026-10-15"), d("2026-11-15"), d("2026-12-15"));
+		}
+
+		@Test
+		void nurBisZumEnde() {
+			assertThat(berechnung.abbuchungenImJahr(gekuendigtZum("2026-03-15")))
+					.containsExactly(d("2026-01-15"), d("2026-02-15"), d("2026-03-15"));
+			var endet = mit(Zahlweise.VIERTELJAEHRLICH, "2026-02-01", null, "2026-06-30", Verlaengerung.KEINE, null);
+			assertThat(berechnung.abbuchungenImJahr(endet)).containsExactly(d("2026-02-01"), d("2026-05-01"));
+		}
+
+		@Test
+		void jaehrlichEineAbbuchung() {
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2020-07-01", null, null, null, null)))
+					.containsExactly(d("2026-07-01"));
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2028-03-01", null, null, null, null)))
+					.containsExactly(d("2026-03-01"));
+		}
+
+		/** Wie bei der nächsten Abbuchung vom Anker aus gezählt, auch rückwärts: 31.01. → 28.02. → 31.03. */
+		@Test
+		void monatsendeRutschtNichtAb() {
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-12-31", null, null, null, null)))
+					.contains(d("2026-02-28"), d("2026-03-31"), d("2026-04-30"));
+		}
+
+		@Test
+		void beendetInEinemFruherenJahrKeine() {
+			assertThat(berechnung.abbuchungenImJahr(gekuendigtZum("2025-12-31"))).isEmpty();
+		}
+
+		@Test
+		void ohneAngabenKeine() {
+			assertThat(berechnung.abbuchungenImJahr(mit(null, "2026-11-15", null, null, null, null))).isEmpty();
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, null, null, null, null, null))).isEmpty();
+		}
+
+		@Test
+		void kostenImJahrMitPreiswechsel() {
+			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("20.00"))));
+
+			// Januar bis Juni zu 10 €, Juli bis Dezember zu 20 €.
+			assertThat(berechnung.kostenImJahr(mit(Zahlweise.MONATLICH, "2026-11-01", null, null, null, null), preise))
+					.isEqualTo(euro("180.00"));
+			// Jährlich im Oktober: nur der neue Preis.
+			assertThat(berechnung.kostenImJahr(mit(Zahlweise.JAEHRLICH, "2026-10-01", null, null, null, null), preise))
+					.isEqualTo(euro("20.00"));
+		}
+
+		@Test
+		void naechsteAbbuchungMitPreisDesTages() {
+			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2026-11-15"), euro("12.00"))));
+
+			assertThat(berechnung.naechsteAbbuchung(vertrag(), preise)).contains(new Abbuchung(d("2026-11-15"), euro("12.00")));
+		}
+
+		@Test
+		void keinePreisaenderungBeiBeendetemVertrag() {
+			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2027-01-01"), euro("12.00"))));
+
+			assertThat(berechnung.naechstePreisaenderung(vertrag(), preise)).isPresent();
+			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-12-31"), preise)).isEmpty();
+			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-10-31"), preise)).isEmpty();
 		}
 
 	}

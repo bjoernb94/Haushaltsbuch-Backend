@@ -1,13 +1,15 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
-import de.bochmann.haushaltsbuch.shared.geld.Betrag;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.Embedded;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -19,11 +21,14 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Vertrag eines Haushalts, z.&nbsp;B. ein Abo oder eine Versicherung. Gespeichert werden nur die
- * Angaben des Nutzers; Status, Kosten, nächste Abbuchung und Kündigung berechnet
- * {@link de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung} beim Lesen.
+ * Angaben des Nutzers, auch die Preise mit Gültigkeitsdatum; aktueller Betrag, Status, Kosten, nächste Abbuchung
+ * und Kündigung berechnet {@link de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung} beim Lesen.
  * <p>
  * Angaben, die nicht zum Vertrag passen, leert {@link #setzen}: Ein nicht kündbarer Vertrag hat weder
  * Verlängerung noch Kündigungsfrist; leere Texte werden {@code null}.
@@ -45,8 +50,15 @@ class Vertrag extends FachEntity {
 	@Column(name = "vertragsnummer", length = 100)
 	private String vertragsnummer;
 
-	@Embedded
-	private Betrag betrag;
+	/**
+	 * Gehört zum Vertrag und ist nur über ihn erreichbar, daher ohne eigene {@code haushalt_id}. {@code PUT} ersetzt
+	 * die Liste als Ganzes; die {@code version} des Vertrags deckt sie mit ab.
+	 */
+	@ElementCollection
+	@CollectionTable(name = "vertrag_preis", joinColumns = @JoinColumn(name = "vertrag_id"))
+	@AttributeOverride(name = "betrag.wert", column = @Column(name = "betrag_wert"))
+	@AttributeOverride(name = "betrag.waehrung", column = @Column(name = "betrag_waehrung"))
+	private List<VertragPreis> preise = new ArrayList<>();
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "zahlweise", nullable = false, length = 40)
@@ -82,6 +94,9 @@ class Vertrag extends FachEntity {
 	@Column(name = "notiz", length = 1000)
 	private String notiz;
 
+	private static final Comparator<VertragPreis> REIHENFOLGE = Comparator.comparing(VertragPreis::preis,
+			Preisliste.REIHENFOLGE);
+
 	protected Vertrag() {
 	}
 
@@ -95,7 +110,12 @@ class Vertrag extends FachEntity {
 		this.bezeichnung = text(anfrage.bezeichnung());
 		this.kategorie = kategorie;
 		this.vertragsnummer = text(anfrage.vertragsnummer());
-		this.betrag = anfrage.betrag();
+		var preise = anfrage.preise().stream().map(VertragPreisAnfrage::preis).sorted(REIHENFOLGE).toList();
+		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
+		if (!getPreise().equals(preise)) {
+			this.preise.clear();
+			this.preise.addAll(preise);
+		}
 		this.zahlweise = anfrage.zahlweise();
 		this.abbuchungAb = anfrage.abbuchungAb();
 		this.zahlungsweg = anfrage.zahlungsweg();
@@ -136,8 +156,14 @@ class Vertrag extends FachEntity {
 		return vertragsnummer;
 	}
 
-	Betrag getBetrag() {
-		return betrag;
+	/** Sortiert nach {@code gueltigAb}, der Eintrag ohne Datum zuerst. */
+	List<VertragPreis> getPreise() {
+		return preise.stream().sorted(REIHENFOLGE).toList();
+	}
+
+	/** Die Preise für die Berechnung. */
+	Preisliste preisliste() {
+		return new Preisliste(preise.stream().map(VertragPreis::preis).toList());
 	}
 
 	Zahlweise getZahlweise() {

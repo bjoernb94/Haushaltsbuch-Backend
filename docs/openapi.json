@@ -700,6 +700,19 @@
   },
   "components" : {
     "schemas" : {
+      "Abbuchung" : {
+        "type" : "object",
+        "properties" : {
+          "am" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "am", "betrag" ]
+      },
       "AnmeldungAnfrage" : {
         "type" : "object",
         "properties" : {
@@ -810,6 +823,26 @@
         "type" : "string",
         "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET" ]
       },
+      "Preisaenderung" : {
+        "type" : "object",
+        "properties" : {
+          "ab" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "art" : {
+            "$ref" : "#/components/schemas/Preisaenderungsart"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "ab", "art", "betrag" ]
+      },
+      "Preisaenderungsart" : {
+        "type" : "string",
+        "enum" : [ "ANGEKUENDIGT" ]
+      },
       "Problem" : {
         "type" : "object",
         "properties" : {
@@ -913,9 +946,6 @@
             "type" : [ "string", "null" ],
             "format" : "date"
           },
-          "betrag" : {
-            "$ref" : "#/components/schemas/Betrag"
-          },
           "bezeichnung" : {
             "type" : [ "string", "null" ],
             "maxLength" : 200,
@@ -946,6 +976,14 @@
             "type" : [ "string", "null" ],
             "maxLength" : 1000,
             "minLength" : 0
+          },
+          "preise" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragPreisAnfrage"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
           },
           "verlaengerung" : {
             "oneOf" : [ {
@@ -974,7 +1012,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "betrag", "kategorieId", "kuendbar", "version", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",
@@ -991,9 +1029,6 @@
           "beginn" : {
             "type" : [ "string", "null" ],
             "format" : "date"
-          },
-          "betrag" : {
-            "$ref" : "#/components/schemas/Betrag"
           },
           "bezeichnung" : {
             "type" : [ "string", "null" ],
@@ -1026,6 +1061,14 @@
             "maxLength" : 1000,
             "minLength" : 0
           },
+          "preise" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragPreisAnfrage"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1049,7 +1092,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "betrag", "kategorieId", "kuendbar", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "kategorieId", "kuendbar", "preise", "zahlweise" ]
       },
       "VertragAntwort" : {
         "type" : "object",
@@ -1099,6 +1142,12 @@
           "notiz" : {
             "type" : [ "string", "null" ]
           },
+          "preise" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragPreisAntwort"
+            }
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1124,12 +1173,16 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
         "properties" : {
-          "kostenProJahr" : {
+          "jahr" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "kostenImJahr" : {
             "$ref" : "#/components/schemas/Betrag"
           },
           "kostenProMonat" : {
@@ -1139,14 +1192,24 @@
             "$ref" : "#/components/schemas/Kuendigung"
           },
           "naechsteAbbuchung" : {
-            "type" : [ "string", "null" ],
-            "format" : "date"
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Abbuchung"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "naechstePreisaenderung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Preisaenderung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "status" : {
             "$ref" : "#/components/schemas/Vertragsstatus"
           }
         },
-        "required" : [ "kostenProJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "status" ]
+        "required" : [ "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
       },
       "VertragKategorieAntwort" : {
         "type" : "object",
@@ -1171,6 +1234,32 @@
       "VertragKategorieSchluessel" : {
         "type" : "string",
         "enum" : [ "STREAMING_ABOS", "SOFTWARE_APPS", "VERSICHERUNG", "MOBILFUNK_INTERNET", "MITGLIEDSCHAFTEN", "GEBUEHREN_BEITRAEGE", "SONSTIGES" ]
+      },
+      "VertragPreisAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "gueltigAb" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          }
+        },
+        "required" : [ "betrag" ]
+      },
+      "VertragPreisAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "gueltigAb" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          }
+        },
+        "required" : [ "betrag", "gueltigAb" ]
       },
       "VertragVorschauAnfrage" : {
         "type" : "object",
@@ -1233,7 +1322,11 @@
       "VertragsuebersichtAntwort" : {
         "type" : "object",
         "properties" : {
-          "kostenProJahr" : {
+          "jahr" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "kostenImJahr" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/Betrag"
@@ -1256,7 +1349,7 @@
             }
           }
         },
-        "required" : [ "kostenProJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+        "required" : [ "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
       },
       "Zahlungsweg" : {
         "type" : "string",

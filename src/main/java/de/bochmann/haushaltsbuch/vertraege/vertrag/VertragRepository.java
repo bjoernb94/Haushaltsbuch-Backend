@@ -9,9 +9,9 @@ import java.util.UUID;
 /** Hibernate filtert alle Abfragen auf den aktuellen Haushalt ({@code FachEntity}). */
 interface VertragRepository extends JpaRepository<Vertrag, UUID> {
 
-	/** Mit Kategorie, damit die Liste nicht je Vertrag nachlädt. */
+	/** Mit Kategorie und Preisen, damit die Liste nicht je Vertrag nachlädt. */
 	@Override
-	@EntityGraph(attributePaths = "kategorie")
+	@EntityGraph(attributePaths = {"kategorie", "preise"})
 	List<Vertrag> findAll();
 
 }

@@ -85,7 +85,10 @@ class VertragService {
 	/** Alle Verträge des Haushalts in der {@link #REIHENFOLGE} der Vertragsliste; ohne Paging (überschaubar viele). */
 	@Transactional(readOnly = true)
 	List<VertragAntwort> auflisten() {
-		var berechnung = berechnung();
+		return auflisten(berechnung());
+	}
+
+	private List<VertragAntwort> auflisten(Vertragsberechnung berechnung) {
 		return repository.findAll().stream()
 				.map(vertrag -> VertragAntwort.aus(vertrag, berechnung))
 				.sorted(REIHENFOLGE)
@@ -95,7 +98,9 @@ class VertragService {
 	/** Kennzahlen für Startseite und Vertragsseite; passt zur {@link #auflisten Liste}, weil es sie auswertet. */
 	@Transactional(readOnly = true)
 	VertragsuebersichtAntwort uebersicht() {
-		return VertragsuebersichtAntwort.aus(auflisten());
+		// Ein Stichtag für Liste und Jahr, auch um Mitternacht an Silvester.
+		var berechnung = berechnung();
+		return VertragsuebersichtAntwort.aus(auflisten(berechnung), berechnung.heute().getYear());
 	}
 
 	/** Die Kündigung zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte Verträge. */

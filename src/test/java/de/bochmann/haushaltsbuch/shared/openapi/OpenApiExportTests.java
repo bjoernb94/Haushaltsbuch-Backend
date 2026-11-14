@@ -176,7 +176,8 @@ class OpenApiExportTests {
 		var haushalt = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
 		LocalDate heute = LocalDate.now(clock);
 		String nurPflichtfelder = """
-				{"anbieter": "Streamingdienst", "kategorieId": "%s", "betrag": {"wert": 10, "waehrung": "EUR"},
+				{"anbieter": "Streamingdienst", "kategorieId": "%s",
+				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}],
 				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "kuendbar": true%s}
 				""";
 

@@ -177,7 +177,7 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "bezeichnung": None,
         "kategorieId": kategorie_ids[fall.kategorie],
         "vertragsnummer": None,
-        "betrag": {"wert": 9.99, "waehrung": "EUR"},
+        "preise": [{"gueltigAb": None, "betrag": {"wert": 9.99, "waehrung": "EUR"}}],
         "zahlweise": fall.zahlweise,
         "abbuchungAb": fall.abbuchung_ab or heute + timedelta(days=9),
         "zahlungsweg": None,
@@ -196,7 +196,7 @@ def pruefe_berechnung(fall, antwort):
     """Vergleicht mit der Erwartung des Falls; gibt zurück, was die Tabelle am Ende zeigt."""
     berechnet = antwort["berechnet"]
     art = berechnet["kuendigung"]["art"]
-    naechste = berechnet["naechsteAbbuchung"]
+    naechste = berechnet["naechsteAbbuchung"] and berechnet["naechsteAbbuchung"]["am"]
     fehler = []
     if art != fall.art:
         fehler.append(f"art {art} statt {fall.art}")
@@ -324,6 +324,12 @@ def faelle_alles(heute):
         Fall("Beendet – Kündigungsdatum vorbei", "BEENDET", erwartet_naechste=None, felder={"gekuendigtZum": tage(-1)}),
         Fall("Beendet – Laufzeitende vorbei, Verlängerung KEINE", "BEENDET", erwartet_naechste=None,
              felder={"laufzeitende": tage(-1), "verlaengerung": "KEINE"}),
+        # Preisliste: früherer Preis, aktueller und angekündigte Erhöhung.
+        Fall("Preise – Erhöhung angekündigt", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             felder={"beginn": tage(-400), "preise": [
+                 {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 7.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(-100).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(30).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
         # Felder: Höchstlängen wie in VertragAnfrage.
         Fall("Sehr lange Namen – " + "Langer Anbietername " * 9, "KEINE_LAUFZEIT",
              felder={"bezeichnung": "Lange Bezeichnung " * 11, "vertragsnummer": "1234567890" * 10,

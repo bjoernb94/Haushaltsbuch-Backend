@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,7 +60,8 @@ class VertragControllerTests {
 	private String abo(String betrag, String beginn, String laufzeitende, Object frist) {
 		return """
 				{"anbieter": "Streamingdienst", "bezeichnung": "", "kategorieId": "%s", "vertragsnummer": null,
-				 "betrag": {"wert": %s, "waehrung": "EUR"}, "zahlweise": "MONATLICH", "abbuchungAb": "%s",
+				 "preise": [{"gueltigAb": null, "betrag": {"wert": %s, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
+				 "abbuchungAb": "%s",
 				 "zahlungsweg": "KREDITKARTE", "kuendbar": true, "beginn": %s, "laufzeitende": %s,
 				 "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": %s, "gekuendigtZum": null,
 				 "notiz": "Familien-Abo"}
@@ -89,8 +91,14 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.status").doesNotExist())
 				.andExpect(jsonPath("$.berechnet.status").value("AKTIV"))
 				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
-				.andExpect(jsonPath("$.berechnet.kostenProJahr.wert").value(167.88))
-				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung").value(heute.plusDays(9).toString()))
+				.andExpect(jsonPath("$.preise[0].gueltigAb").doesNotExist())
+				.andExpect(jsonPath("$.preise[0].betrag.wert").value(13.99))
+				// Ohne Beginn zwölf Abbuchungen im Jahr, auch die vor dem Anker.
+				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
+				.andExpect(jsonPath("$.berechnet.jahr").value(heute.getYear()))
+				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.am").value(heute.plusDays(9).toString()))
+				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.betrag.wert").value(13.99))
+				.andExpect(jsonPath("$.berechnet.naechstePreisaenderung").doesNotExist())
 				.andExpect(jsonPath("$.berechnet.kuendigung.art").value("MONATLICH_KUENDBAR"))
 				.andExpect(jsonPath("$.berechnet.kuendigung.zum").value(heute.plusDays(8).toString()))
 				.andReturn().getResponse();
@@ -193,11 +201,11 @@ class VertragControllerTests {
 				.andExpect(content().json("""
 						{"laufendeVertraege": 1,
 						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
-						 "kostenProJahr": [{"wert": 167.88, "waehrung": "EUR"}],
+						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "jahr": %d,
 						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
 						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
 						   "kuendigenBis": "%s", "zum": "%s", "dringend": %s}]}
-						""".formatted(JsonPath.read(angelegt, "$.id"),
+						""".formatted(heute.getYear(), JsonPath.read(angelegt, "$.id"),
 						JsonPath.read(angelegt, "$.berechnet.kuendigung.kuendigenBis"), heute.plusDays(100),
 						JsonPath.read(angelegt, "$.berechnet.kuendigung.dringend")), true));
 	}
@@ -211,8 +219,9 @@ class VertragControllerTests {
 		mockMvc.perform(get("/api/vertraege/uebersicht").with(fremder.anmeldung()))
 				.andExpect(status().isOk())
 				.andExpect(content().json("""
-						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenProJahr": [], "naechsteKuendigungsfristen": []}
-						""", true));
+						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "jahr": %d,
+						 "naechsteKuendigungsfristen": []}
+						""".formatted(heute.getYear()), true));
 	}
 
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */
@@ -235,7 +244,7 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.id").value(id))
 				.andExpect(jsonPath("$.version").value(1))
 				.andExpect(jsonPath("$.betrag.wert").value(20.00))
-				.andExpect(jsonPath("$.berechnet.kostenProJahr.wert").value(240.00))
+				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(240.00))
 				.andReturn().getResponse().getContentAsString();
 
 		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
@@ -413,10 +422,47 @@ class VertragControllerTests {
 		mockMvc.perform(anlegen(abo("0.00", "2026-05-01", "2026-04-30", 25)))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
-				.andExpect(jsonPath("$.felder[?(@.feld == 'betrag')].code").value("PositiverBetrag"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[0].betrag')].code").value("PositiverBetrag"))
 				.andExpect(jsonPath("$.felder[?(@.feld == 'laufzeitende')].code").value("LaufzeitendeNachBeginn"))
 				.andExpect(jsonPath("$.felder[?(@.feld == 'kuendigungsfristMonate')].code").value("Max"))
 				.andExpect(jsonPath("$.felder[?(@.feld == 'kuendigungsfristMonate')].parameter.value").value(24));
+	}
+
+	/** Die Regeln der Preisliste; die Fehler hängen an der Zeile in der Reihenfolge der Anfrage. */
+	@Test
+	void prueftPreise() throws Exception {
+		String preise = """
+				"preise": [{"gueltigAb": null, "betrag": {"wert": 10.00, "waehrung": "EUR"}},
+				           {"gueltigAb": null, "betrag": {"wert": 11.00, "waehrung": "EUR"}},
+				           {"gueltigAb": "2026-01-01", "betrag": {"wert": 12.00, "waehrung": "EUR"}},
+				           {"gueltigAb": "2026-01-01", "betrag": {"wert": 13.00, "waehrung": "EUR"}},
+				           {"gueltigAb": "2019-01-01", "betrag": {"wert": 14.00, "waehrung": "USD"}}],""";
+
+		mockMvc.perform(anlegen(abo("10.00", "2020-01-01", null, 0).replaceFirst("\"preise\": \\[.*?\\],", preise)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[1].gueltigAb')].code").value("GueltigAbPflicht"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[3].gueltigAb')].code").value("GueltigAbEindeutig"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[4].gueltigAb')].code").value("PreisNichtVorBeginn"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise[4].betrag.waehrung')].code")
+						.value(containsInAnyOrder("GleicheWaehrung", "ErlaubteWaehrung")))
+				.andExpect(jsonPath("$.felder", hasSize(5)));
+	}
+
+	@Test
+	void preiseNichtLeerUndBegrenzt() throws Exception {
+		String preis = "{\"gueltigAb\": null, \"betrag\": {\"wert\": 10.00, \"waehrung\": \"EUR\"}}";
+
+		mockMvc.perform(anlegen(abo("10.00", null, null, 0).replaceFirst("\"preise\": \\[.*?\\],", "\"preise\": [],")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("preise"))
+				.andExpect(jsonPath("$.felder[0].code").value("NotEmpty"));
+		// 101 Einträge; dass alle ohne Datum sind, meldet zusätzlich GueltigAbPflicht.
+		mockMvc.perform(anlegen(abo("10.00", null, null, 0).replaceFirst("\"preise\": \\[.*?\\],",
+						"\"preise\": [" + String.join(",", Collections.nCopies(101, preis)) + "],")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise')].code").value("Size"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise')].parameter.max").value(100));
 	}
 
 	/** Ohne Grenze gäbe es einen Überlauf beim Weiterzählen bzw. Postgres könnte nicht speichern: 500 statt 400. */
@@ -497,7 +543,7 @@ class VertragControllerTests {
 		mockMvc.perform(anlegen("{}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder(
-						"anbieter", "kategorieId", "betrag", "zahlweise", "abbuchungAb", "kuendbar")));
+						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "kuendbar")));
 	}
 
 	@Test
