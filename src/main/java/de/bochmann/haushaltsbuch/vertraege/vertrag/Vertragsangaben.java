@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,6 +27,12 @@ interface Vertragsangaben extends Berechnungsangaben {
 	BigDecimal anteilProzent();
 
 	List<VertragEinmalkostenAnfrage> einmalkosten();
+
+	VertragPreissteigerungAnfrage preissteigerung();
+
+	LocalDate preisgarantieBis();
+
+	Boolean erinnerungSonderkuendigung();
 
 	String notiz();
 

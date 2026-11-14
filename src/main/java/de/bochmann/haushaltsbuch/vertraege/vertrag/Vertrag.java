@@ -3,6 +3,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
@@ -11,6 +12,7 @@ import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -63,6 +65,17 @@ class Vertrag extends FachEntity {
 	@AttributeOverride(name = "betrag.wert", column = @Column(name = "betrag_wert"))
 	@AttributeOverride(name = "betrag.waehrung", column = @Column(name = "betrag_waehrung"))
 	private List<VertragPreis> preise = new ArrayList<>();
+
+	/** Spalten {@code preissteigerung_*}; {@code null} ohne Regel (alle Spalten leer). */
+	@Embedded
+	private VertragPreissteigerung preissteigerung;
+
+	@Column(name = "preisgarantie_bis")
+	private LocalDate preisgarantieBis;
+
+	/** Wird in v0.2 nur gespeichert und angezeigt; die Erinnerung selbst kommt mit den zentralen Meldungen. */
+	@Column(name = "erinnerung_sonderkuendigung", nullable = false)
+	private boolean erinnerungSonderkuendigung;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "zahlweise", nullable = false, length = 40)
@@ -140,6 +153,9 @@ class Vertrag extends FachEntity {
 			this.preise.clear();
 			this.preise.addAll(preise);
 		}
+		this.preissteigerung = anfrage.preissteigerung() != null ? anfrage.preissteigerung().preissteigerung() : null;
+		this.preisgarantieBis = anfrage.preisgarantieBis();
+		this.erinnerungSonderkuendigung = anfrage.erinnerungSonderkuendigung();
 		this.zahlweise = anfrage.zahlweise();
 		this.abbuchungAb = anfrage.abbuchungAb();
 		this.zahlungsweg = anfrage.zahlungsweg();
@@ -197,6 +213,23 @@ class Vertrag extends FachEntity {
 	/** Die Preise für die Berechnung. */
 	Preisliste preisliste() {
 		return new Preisliste(preise.stream().map(VertragPreis::preis).toList());
+	}
+
+	VertragPreissteigerung getPreissteigerung() {
+		return preissteigerung;
+	}
+
+	LocalDate getPreisgarantieBis() {
+		return preisgarantieBis;
+	}
+
+	boolean isErinnerungSonderkuendigung() {
+		return erinnerungSonderkuendigung;
+	}
+
+	/** Steigerungsregel und Garantie für die Berechnung. */
+	Preisprognose preisprognose() {
+		return new Preisprognose(preissteigerung != null ? preissteigerung.preissteigerung() : null, preisgarantieBis);
 	}
 
 	Zahlweise getZahlweise() {

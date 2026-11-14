@@ -17,12 +17,13 @@ import java.util.List;
  * <ul>
  *   <li>An {@code preise}: jeder abweichende Preis ist ein Verstoß an {@code preise[i].betrag.waehrung}.</li>
  *   <li>Am Vertrag: jeder abweichende Eintrag der Einmalkosten ist ein Verstoß an
- *   {@code einmalkosten[i].betrag.waehrung}. Ohne gültigen ersten Preis prüft das Feld {@code preise}.</li>
+ *   {@code einmalkosten[i].betrag.waehrung}, ein abweichender Betrag der Preissteigerung an
+ *   {@code preissteigerung.betrag.waehrung}. Ohne gültigen ersten Preis prüft das Feld {@code preise}.</li>
  * </ul>
  */
 @Target({ElementType.TYPE, ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Constraint(validatedBy = {GleicheWaehrung.Pruefung.class, GleicheWaehrung.EinmalkostenPruefung.class})
+@Constraint(validatedBy = {GleicheWaehrung.Pruefung.class, GleicheWaehrung.VertragPruefung.class})
 @interface GleicheWaehrung {
 
 	String message() default "Alle Beträge brauchen dieselbe Währung";
@@ -58,17 +59,28 @@ import java.util.List;
 
 	}
 
-	class EinmalkostenPruefung implements ConstraintValidator<GleicheWaehrung, Vertragsangaben> {
+	class VertragPruefung implements ConstraintValidator<GleicheWaehrung, Vertragsangaben> {
 
 		@Override
 		public boolean isValid(Vertragsangaben anfrage, ConstraintValidatorContext context) {
-			if (anfrage.einmalkosten() == null || anfrage.preise() == null || anfrage.preise().isEmpty()
-					|| anfrage.preise().getFirst() == null || anfrage.preise().getFirst().betrag() == null) {
+			if (anfrage.preise() == null || anfrage.preise().isEmpty() || anfrage.preise().getFirst() == null
+					|| anfrage.preise().getFirst().betrag() == null) {
 				return true;
 			}
 			Currency waehrung = anfrage.preise().getFirst().betrag().waehrung();
 			boolean gueltig = true;
-			for (int i = 0; i < anfrage.einmalkosten().size(); i++) {
+			var steigerung = anfrage.preissteigerung();
+			if (steigerung != null && steigerung.betrag() != null && steigerung.betrag().waehrung() != null
+					&& !steigerung.betrag().waehrung().equals(waehrung)) {
+				context.disableDefaultConstraintViolation();
+				context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
+						.addPropertyNode("preissteigerung")
+						.addPropertyNode("betrag")
+						.addPropertyNode("waehrung")
+						.addConstraintViolation();
+				gueltig = false;
+			}
+			for (int i = 0; anfrage.einmalkosten() != null && i < anfrage.einmalkosten().size(); i++) {
 				var eintrag = anfrage.einmalkosten().get(i);
 				if (eintrag != null && eintrag.betrag() != null && eintrag.betrag().waehrung() != null
 						&& !eintrag.betrag().waehrung().equals(waehrung)) {

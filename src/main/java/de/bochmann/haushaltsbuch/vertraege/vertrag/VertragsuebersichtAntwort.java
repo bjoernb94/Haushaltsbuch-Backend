@@ -26,6 +26,7 @@ import java.util.stream.Stream;
  *        leer ohne laufende Verträge
  * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr} je Währung, über die laufenden Verträge und
  *        die im Jahr beendeten (die bis dahin gekostet haben); leer ohne solche Verträge
+ * @param kostenImJahrMitPrognose ob ein Vertrag mit Prognose in {@code kostenImJahr} eingeht („inkl. Prognose“)
  * @param einmalkostenImJahr Summe der im Kalenderjahr {@code jahr} fälligen Einmalkosten je Währung, über alle
  *        Verträge, auch beendete; leer ohne solche Einträge
  * @param jahr das laufende Jahr laut Backend
@@ -38,6 +39,7 @@ record VertragsuebersichtAntwort(
 		int laufendeVertraege,
 		List<Betrag> kostenProMonat,
 		List<Betrag> kostenImJahr,
+		boolean kostenImJahrMitPrognose,
 		List<Betrag> einmalkostenImJahr,
 		int jahr,
 		boolean hatAnteile,
@@ -100,7 +102,8 @@ record VertragsuebersichtAntwort(
 				.map(AnstehendeKuendigung::aus)
 				.toList();
 		return new VertragsuebersichtAntwort(laufende.size(), proJahr.stream().map(Kosten::proMonat).toList(),
-				imJahr.stream().map(Betrag::gerundet).toList(), einmalImJahr.stream().map(Betrag::gerundet).toList(), jahr,
+				imJahr.stream().map(Betrag::gerundet).toList(),
+				imJahrVertraege.stream().anyMatch(vertrag -> vertrag.berechnet().kostenImJahrMitPrognose()), einmalImJahr.stream().map(Betrag::gerundet).toList(), jahr,
 				hatAnteile, fristen);
 	}
 
