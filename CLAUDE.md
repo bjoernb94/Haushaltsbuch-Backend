@@ -106,7 +106,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
 - Money is always `shared.geld.Betrag` (value + `Currency`, `@Embedded`, columns `<feld>_wert NUMERIC(19, 2)` and
   `<feld>_waehrung VARCHAR(3)` via `ImplicitNamingStrategyComponentPathImpl`; JSON `{"wert": 12.34, "waehrung": "EUR"}`,
   value as number). Only EUR is allowed for now (`ErlaubteWaehrung`, foreign currencies in #30), but never assume
-  one currency: arithmetic only within a currency, sums group by currency. Rounding `HALF_UP`, only in calculations.
+  one currency: arithmetic only within a currency, sums group by currency. Compute unrounded; round (`HALF_UP`) only where an amount arises (price, charge) or is output
+  (ADR 0011).
   Request DTOs use `@NotNull @Valid Betrag`. Business dates are `LocalDate`, in request DTOs with `shared.zeit.PlausiblesDatum` (1900–2199, avoids overflow/DB errors as 500); "today" is `LocalDate.now(clock)` with
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.

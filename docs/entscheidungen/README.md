@@ -16,6 +16,7 @@ bekommt den Status *ersetzt durch …*.
 | [0008](0008-modultests-mit-shared.md)                | Modultests binden `shared` ein                          | angenommen |
 | [0009](0009-nur-session-anmeldung.md)                | Nur Session-Anmeldung, keine Bearer-Tokens              | angenommen |
 | [0010](0010-berechnungen-nur-im-backend.md)          | Fachliche Berechnungen nur im Backend                   | angenommen |
+| [0011](0011-rundung-von-geldbetraegen.md)            | Ungerundet rechnen, erst bei der Ausgabe runden         | angenommen |
 
 Vorlage für neue Einträge: Datei `NNNN-kurzname.md` mit den Abschnitten *Kontext*,
 *Entscheidung* und *Folgen*, Status mit Datum und Issue/PR.
