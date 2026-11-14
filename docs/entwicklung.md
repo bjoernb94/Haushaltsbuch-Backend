@@ -174,8 +174,9 @@ Das Format für die SPA steht unter [Fehlerantworten](api.md#fehlerantworten).
 
 - Geldbeträge sind immer `shared.geld.Betrag` (Wert und `Currency`, `@Embedded`). Request-DTOs
   markieren sie mit `@NotNull @Valid`. Nie eine einzige Währung annehmen: Rechnen nur innerhalb
-  einer Währung, Summen nach Währung gruppieren. Gerundet wird mit `HALF_UP` und nur in
-  Berechnungen.
+  einer Währung, Summen nach Währung gruppieren. Gerechnet wird ungerundet, gerundet (`HALF_UP`) erst,
+  wo ein Betrag entsteht oder ausgegeben wird; `Betrag.mal`/`geteilt` runden sofort und taugen nur für
+  den letzten Schritt ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
 - Fachliche Daten sind `LocalDate`. „Heute“ ist `LocalDate.now(clock)` mit dem `Clock`-Bean
   (Europe/Berlin, `shared.zeit`), damit Tests das Datum festlegen können. Zeitstempel sind `Instant`.
   Datumsfelder in Anfrage-DTOs bekommen `@PlausiblesDatum` (1900–2199): Extremwerte ergäben sonst beim

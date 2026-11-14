@@ -188,8 +188,10 @@ Geldbeträge haben überall dasselbe Format mit Wert und Währung:
 - Vorerst ist nur `EUR` erlaubt; der Typ ist für weitere Währungen ausgelegt (Fremdwährungen:
   [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)). Rechnen geht nur mit
   Beträgen derselben Währung, Summen gruppieren nach Währung.
-- Rundung kaufmännisch (`HALF_UP`, 2,345 → 2,35), nur bei Berechnungen; Eingaben mit mehr als 2
-  Nachkommastellen werden abgelehnt.
+- Eingaben mit mehr als 2 Nachkommastellen werden abgelehnt. Berechnete Beträge rechnet das Backend
+  ungerundet und rundet erst bei der Ausgabe kaufmännisch (2,345 → 2,35); verbindlich ist nur der
+  Betrag je Abbuchung, umgerechnete Werte und Summen können um wenige Cent abweichen
+  ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
 - Ungültige Beträge erscheinen in `felder`, z.&nbsp;B.
   `{ "feld": "preis.wert", "code": "Digits", "parameter": { "integer": 17, "fraction": 2 } }` oder `{ "feld": "preis.waehrung", "code": "ErlaubteWaehrung" }`.
 
@@ -338,8 +340,8 @@ Kategorien) statt `kategorieId`, dazu `id` und `version`. Was das Backend berech
 
 - **Status:** `BEENDET`, wenn `gekuendigtZum` vorbei ist oder ein Vertrag mit Verlängerung `KEINE`
   sein Laufzeitende überschritten hat; `GEKUENDIGT`, solange `gekuendigtZum` noch kommt; sonst `AKTIV`.
-- **Kosten:** pro Jahr = Betrag × 12 ÷ Monate der Zahlweise, pro Monat = pro Jahr ÷ 12 (kaufmännisch
-  gerundet).
+- **Kosten:** pro Jahr = Betrag × 12 ÷ Monate der Zahlweise, pro Monat = Betrag ÷ Monate der Zahlweise
+  (gerundet nach [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
 - **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`;
   `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
   `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
@@ -449,8 +451,9 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   ihrem Ende mit.
 - **Kosten:** Summe über die laufenden Verträge, je Währung ein Eintrag, nach Währungscode sortiert. Es
   sind auf Monat und Jahr umgerechnete Werte, nicht die tatsächlichen Abbuchungen. Summiert werden die
-  exakten Jahreswerte, der Monatswert ist Summe ÷ 12, erst dann kaufmännisch gerundet. Die Summe der
-  `kostenProMonat` aus der Liste kann daher um einige Cent abweichen.
+  exakten Jahreswerte, der Monatswert ist Summe ÷ 12, erst dann gerundet. Die Summe der
+  `kostenProMonat` aus der Liste kann daher um einige Cent abweichen
+  ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
 - **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
   Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel; `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
