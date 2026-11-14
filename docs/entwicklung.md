@@ -86,7 +86,7 @@ schlicht „nicht gefunden“ (404).
   betrifft anonyme Requests (auch die Registrierung, die den Haushalt erst anlegt) und Code ohne
   Request und ohne `fuer(...)`. Registrierte Nutzer haben immer einen Haushalt; nur Konten, die
   direkt in Keycloak angelegt wurden, fallen zur Sicherheit ebenfalls darunter.
-- **Kindtabellen** einer Fach-Entity (`@ElementCollection`, z.&nbsp;B. `vertrag_preis`) haben keine eigene
+- **Kindtabellen** einer Fach-Entity (`@ElementCollection`, z.&nbsp;B. `vertrag_preis`, `vertrag_einmalkosten`) haben keine eigene
   `haushalt_id`: Hibernate lädt sie nur über ihre Entity, die schon gefiltert ist. Native SQL auf ihnen muss
   über die Tabelle der Entity einschränken.
 - **Nicht gefiltert:** native SQL-Abfragen und Tabellen ohne `FachEntity`. Tabellen mit gemischten
@@ -356,9 +356,10 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
 - **Nächste Abbuchung:** vorhanden, keine mehr, genau am Vertragsende, Monatsende als Anker (31.01.). Das
   Abrutschen zeigt sich nur, wenn die nächste Abbuchung in einen kürzeren Monat fällt.
 - **Anteil:** geteilte Verträge mit 50&nbsp;% und 33,3&nbsp;% sowie einer mit 100&nbsp;% (zählt wie ohne Anteil).
+- **Einmalkosten:** im laufenden Jahr und im Vorjahr, einmal bei einem geteilten Vertrag.
 
-Für jeden Fall prüft das Skript `art`, `dringend`, die nächste Abbuchung und ob es `eigenerAnteil` gibt, in der
-Übersicht `hatAnteile`, und bricht bei einer Abweichung ab,
+Für jeden Fall prüft das Skript `art`, `dringend`, die nächste Abbuchung, `berechnet.einmalkosten` und ob es
+`eigenerAnteil` gibt, in der Übersicht `hatAnteile` und `einmalkostenImJahr`, und bricht bei einer Abweichung ab,
 ebenso wenn eine Feldvariante fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
 

@@ -18,6 +18,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -76,6 +78,17 @@ class Vertrag extends FachEntity {
 	@Column(name = "anteil_prozent", precision = 4, scale = 1)
 	private BigDecimal anteilProzent;
 
+	/**
+	 * Wie {@link #preise} ohne eigene {@code haushalt_id} und als Ganzes ersetzt. Nachgeladen für alle Verträge einer
+	 * Abfrage auf einmal, weil Hibernate nicht zwei Listen zugleich per Join laden kann.
+	 */
+	@ElementCollection
+	@CollectionTable(name = "vertrag_einmalkosten", joinColumns = @JoinColumn(name = "vertrag_id"))
+	@AttributeOverride(name = "betrag.wert", column = @Column(name = "betrag_wert"))
+	@AttributeOverride(name = "betrag.waehrung", column = @Column(name = "betrag_waehrung"))
+	@Fetch(FetchMode.SUBSELECT)
+	private List<VertragEinmalkosten> einmalkosten = new ArrayList<>();
+
 	@Column(name = "kuendbar", nullable = false)
 	private boolean kuendbar;
 
@@ -102,6 +115,12 @@ class Vertrag extends FachEntity {
 	private static final Comparator<VertragPreis> REIHENFOLGE = Comparator.comparing(VertragPreis::preis,
 			Preisliste.REIHENFOLGE);
 
+	/** Nach Fälligkeit, dann Bezeichnung; der Betrag nur, damit gleiche Tage und Namen fest sortiert sind. */
+	private static final Comparator<VertragEinmalkosten> EINMALKOSTEN_REIHENFOLGE = Comparator
+			.comparing(VertragEinmalkosten::faelligAm)
+			.thenComparing(VertragEinmalkosten::bezeichnung)
+			.thenComparing(einmalkosten -> einmalkosten.betrag().wert());
+
 	protected Vertrag() {
 	}
 
@@ -126,6 +145,13 @@ class Vertrag extends FachEntity {
 		this.zahlungsweg = anfrage.zahlungsweg();
 		// Mit fester Nachkommastelle wie aus der Datenbank, damit die Antwort beim Anlegen dieselbe ist (50 → 50.0).
 		this.anteilProzent = anfrage.anteilProzent() != null ? anfrage.anteilProzent().setScale(1) : null;
+		var einmalkosten = anfrage.einmalkosten().stream().map(VertragEinmalkostenAnfrage::einmalkosten)
+				.sorted(EINMALKOSTEN_REIHENFOLGE).toList();
+		// Wie bei den Preisen nur bei einer Änderung ersetzen.
+		if (!getEinmalkosten().equals(einmalkosten)) {
+			this.einmalkosten.clear();
+			this.einmalkosten.addAll(einmalkosten);
+		}
 		this.kuendbar = anfrage.kuendbar();
 		this.beginn = anfrage.beginn();
 		this.laufzeitende = anfrage.laufzeitende();
@@ -183,6 +209,11 @@ class Vertrag extends FachEntity {
 
 	Zahlungsweg getZahlungsweg() {
 		return zahlungsweg;
+	}
+
+	/** Sortiert nach Fälligkeit, dann Bezeichnung. */
+	List<VertragEinmalkosten> getEinmalkosten() {
+		return einmalkosten.stream().sorted(EINMALKOSTEN_REIHENFOLGE).toList();
 	}
 
 	BigDecimal getAnteilProzent() {

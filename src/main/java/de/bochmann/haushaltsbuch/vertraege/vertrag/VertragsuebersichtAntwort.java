@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Einmalkosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
@@ -25,9 +26,11 @@ import java.util.stream.Stream;
  *        leer ohne laufende Verträge
  * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr} je Währung, über die laufenden Verträge und
  *        die im Jahr beendeten (die bis dahin gekostet haben); leer ohne solche Verträge
+ * @param einmalkostenImJahr Summe der im Kalenderjahr {@code jahr} fälligen Einmalkosten je Währung, über alle
+ *        Verträge, auch beendete; leer ohne solche Einträge
  * @param jahr das laufende Jahr laut Backend
- * @param hatAnteile ob ein Vertrag in {@code kostenProMonat} oder {@code kostenImJahr} nur mit einem Anteil unter
- *        100&nbsp;% zählt, für den Hinweis „Bei geteilten Verträgen nur dein Anteil“
+ * @param hatAnteile ob ein Vertrag in {@code kostenProMonat}, {@code kostenImJahr} oder {@code einmalkostenImJahr}
+ *        nur mit einem Anteil unter 100&nbsp;% zählt, für den Hinweis „Bei geteilten Verträgen nur dein Anteil“
  * @param naechsteKuendigungsfristen die {@value #FRISTEN} nächsten mit {@link Kuendigungsart#KUENDIGEN_BIS},
  *        in der Reihenfolge der Vertragsliste
  */
@@ -35,6 +38,7 @@ record VertragsuebersichtAntwort(
 		int laufendeVertraege,
 		List<Betrag> kostenProMonat,
 		List<Betrag> kostenImJahr,
+		List<Betrag> einmalkostenImJahr,
 		int jahr,
 		boolean hatAnteile,
 		List<AnstehendeKuendigung> naechsteKuendigungsfristen) {
@@ -82,14 +86,29 @@ record VertragsuebersichtAntwort(
 				.map(vertrag -> anteil(vertrag).von(Kosten.proJahr(vertrag.betrag(), vertrag.zahlweise()))));
 		List<Betrag> imJahr = jeWaehrung(imJahrVertraege.stream()
 				.map(vertrag -> anteil(vertrag).von(vertrag.berechnet().kostenImJahr())));
-		boolean hatAnteile = imJahrVertraege.stream().anyMatch(vertrag -> anteil(vertrag).geteilt());
+		// Alle Verträge, auch beendete, mit Einmalkosten im Jahr (Beträge sind größer 0).
+		var mitEinmalkosten = vertraege.stream()
+				.filter(vertrag -> einmalkostenImJahr(vertrag, jahr).wert().signum() != 0)
+				.toList();
+		List<Betrag> einmalImJahr = jeWaehrung(mitEinmalkosten.stream()
+				.map(vertrag -> anteil(vertrag).von(einmalkostenImJahr(vertrag, jahr))));
+		boolean hatAnteile = Stream.concat(imJahrVertraege.stream(), mitEinmalkosten.stream())
+				.anyMatch(vertrag -> anteil(vertrag).geteilt());
 		var fristen = laufende.stream()
 				.filter(vertrag -> vertrag.berechnet().kuendigung().art() == Kuendigungsart.KUENDIGEN_BIS)
 				.limit(FRISTEN)
 				.map(AnstehendeKuendigung::aus)
 				.toList();
 		return new VertragsuebersichtAntwort(laufende.size(), proJahr.stream().map(Kosten::proMonat).toList(),
-				imJahr.stream().map(Betrag::gerundet).toList(), jahr, hatAnteile, fristen);
+				imJahr.stream().map(Betrag::gerundet).toList(), einmalImJahr.stream().map(Betrag::gerundet).toList(), jahr,
+				hatAnteile, fristen);
+	}
+
+	/** Die im Jahr fälligen Einmalkosten des Vertrags, voll. */
+	private static Betrag einmalkostenImJahr(VertragAntwort vertrag, int jahr) {
+		return Einmalkosten.imJahr(vertrag.einmalkosten().stream()
+				.map(eintrag -> new Einmalkosten(eintrag.faelligAm(), eintrag.betrag()))
+				.toList(), jahr, vertrag.betrag().waehrung());
 	}
 
 	private static Anteil anteil(VertragAntwort vertrag) {

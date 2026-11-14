@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Abbuchung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Einmalkosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
@@ -36,6 +37,7 @@ record VertragAntwort(
 		LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
 		@Nullable BigDecimal anteilProzent,
+		List<VertragEinmalkostenAntwort> einmalkosten,
 		boolean kuendbar,
 		@Nullable LocalDate beginn,
 		@Nullable LocalDate laufzeitende,
@@ -53,6 +55,7 @@ record VertragAntwort(
 	 * @param jahr das laufende Jahr laut Backend, für die Beschriftung „Kosten &lt;Jahr&gt;“
 	 * @param eigenerAnteil der eigene Anteil an den Kosten; leer ohne Anteil unter 100&nbsp;% (dann sind die vollen
 	 *        Kosten der eigene Anteil)
+	 * @param einmalkosten Summe aller Einmalkosten, unabhängig vom Jahr und mit dem vollen Betrag; ohne Einträge 0
 	 * @param naechsteAbbuchung die erste Abbuchung ab heute; leer, wenn keine mehr kommt
 	 * @param naechstePreisaenderung der nächste Eintrag nach dem heute gültigen; leer, wenn keiner bekannt ist
 	 */
@@ -62,6 +65,7 @@ record VertragAntwort(
 			Betrag kostenImJahr,
 			int jahr,
 			@Nullable VertragEigenerAnteil eigenerAnteil,
+			Betrag einmalkosten,
 			@Nullable Abbuchung naechsteAbbuchung,
 			@Nullable Preisaenderung naechstePreisaenderung,
 			Kuendigung kuendigung) {
@@ -91,13 +95,16 @@ record VertragAntwort(
 				kostenImJahr,
 				berechnung.heute().getYear(),
 				eigenerAnteil,
+				Einmalkosten.summe(vertrag.getEinmalkosten().stream().map(VertragEinmalkosten::einmalkosten).toList(),
+						preise.waehrung()),
 				berechnung.naechsteAbbuchung(daten, preise).orElse(null),
 				berechnung.naechstePreisaenderung(daten, preise).orElse(null),
 				berechnung.kuendigung(daten));
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
 				betrag, vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
-				vertrag.getAnteilProzent(), vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
+				vertrag.getAnteilProzent(),
+				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(), vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
 				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(), berechnet);
 	}
 

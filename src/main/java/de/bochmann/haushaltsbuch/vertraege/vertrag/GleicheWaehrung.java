@@ -13,15 +13,19 @@ import java.util.Currency;
 import java.util.List;
 
 /**
- * Alle Preise in derselben Währung wie der erste; jeder abweichende ist ein Verstoß an
- * {@code preise[i].betrag.waehrung}. Eine Währung am Vertrag selbst kommt mit #30.
+ * Alle Beträge des Vertrags in derselben Währung wie der erste Preis; eine Währung am Vertrag selbst kommt mit #30.
+ * <ul>
+ *   <li>An {@code preise}: jeder abweichende Preis ist ein Verstoß an {@code preise[i].betrag.waehrung}.</li>
+ *   <li>Am Vertrag: jeder abweichende Eintrag der Einmalkosten ist ein Verstoß an
+ *   {@code einmalkosten[i].betrag.waehrung}. Ohne gültigen ersten Preis prüft das Feld {@code preise}.</li>
+ * </ul>
  */
-@Target({ElementType.FIELD, ElementType.METHOD})
+@Target({ElementType.TYPE, ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Constraint(validatedBy = GleicheWaehrung.Pruefung.class)
+@Constraint(validatedBy = {GleicheWaehrung.Pruefung.class, GleicheWaehrung.EinmalkostenPruefung.class})
 @interface GleicheWaehrung {
 
-	String message() default "Alle Preise brauchen dieselbe Währung";
+	String message() default "Alle Beträge brauchen dieselbe Währung";
 
 	Class<?>[] groups() default {};
 
@@ -47,6 +51,34 @@ import java.util.List;
 				}
 				else if (!erste.equals(waehrung)) {
 					gueltig = Preisregeln.verstoss(context, i, "betrag", "waehrung");
+				}
+			}
+			return gueltig;
+		}
+
+	}
+
+	class EinmalkostenPruefung implements ConstraintValidator<GleicheWaehrung, Vertragsangaben> {
+
+		@Override
+		public boolean isValid(Vertragsangaben anfrage, ConstraintValidatorContext context) {
+			if (anfrage.einmalkosten() == null || anfrage.preise() == null || anfrage.preise().isEmpty()
+					|| anfrage.preise().getFirst() == null || anfrage.preise().getFirst().betrag() == null) {
+				return true;
+			}
+			Currency waehrung = anfrage.preise().getFirst().betrag().waehrung();
+			boolean gueltig = true;
+			for (int i = 0; i < anfrage.einmalkosten().size(); i++) {
+				var eintrag = anfrage.einmalkosten().get(i);
+				if (eintrag != null && eintrag.betrag() != null && eintrag.betrag().waehrung() != null
+						&& !eintrag.betrag().waehrung().equals(waehrung)) {
+					context.disableDefaultConstraintViolation();
+					context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
+							.addPropertyNode("einmalkosten")
+							.addPropertyNode("betrag").inIterable().atIndex(i)
+							.addPropertyNode("waehrung")
+							.addConstraintViolation();
+					gueltig = false;
 				}
 			}
 			return gueltig;

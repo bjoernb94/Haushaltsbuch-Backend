@@ -4,6 +4,7 @@ import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,7 +57,12 @@ public final class Preisliste {
 	public Betrag summe(List<LocalDate> abbuchungen) {
 		return abbuchungen.stream()
 				.map(this::am)
-				.reduce(Betrag.nullIn(preise.getFirst().betrag().waehrung()), Betrag::plus);
+				.reduce(Betrag.nullIn(waehrung()), Betrag::plus);
+	}
+
+	/** Die Währung des Vertrags: die des ersten Preises (alle haben dieselbe; eine eigene am Vertrag kommt mit #30). */
+	public Currency waehrung() {
+		return preise.getFirst().betrag().waehrung();
 	}
 
 	public List<Preis> preise() {

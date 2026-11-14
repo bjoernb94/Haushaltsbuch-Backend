@@ -283,6 +283,9 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
   "abbuchungAb": "2027-01-01",
   "zahlungsweg": "LASTSCHRIFT",
   "anteilProzent": null,
+  "einmalkosten": [
+    { "bezeichnung": "Anschlussgebühr", "betrag": { "wert": 49.00, "waehrung": "EUR" }, "faelligAm": "2023-01-15" }
+  ],
   "kuendbar": true,
   "beginn": "2023-01-01",
   "laufzeitende": "2023-12-31",
@@ -304,6 +307,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
 | `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
+| `einmalkosten` | ja | 0–100 Einträge `{ bezeichnung, betrag, faelligAm }` in beliebiger Reihenfolge, leer `[]`; siehe [Einmalkosten](#einmalkosten) |
 | `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
 | `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
 | `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
@@ -334,6 +338,25 @@ Abbuchungen im Jahr vor seinem `gueltigAb`).
 Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort liefert `preise` sortiert nach
 `gueltigAb`, der Eintrag ohne Datum zuerst.
 
+#### Einmalkosten
+
+Einmalige Kosten wie Anschlussgebühr, Aufnahmegebühr oder Hardware. Sie zählen **nicht** zu den laufenden Kosten
+(`kostenProMonat`, `kostenImJahr`), sondern stehen getrennt in `berechnet.einmalkosten` und in der
+[Übersicht](#vertragsübersicht). `einmalkosten` ist Pflicht, damit ein `PUT` ohne das Feld sie nicht still löscht;
+ohne Einmalkosten schickt die SPA `[]`. Fällig vor `beginn` oder nach dem Vertragsende ist erlaubt (z.&nbsp;B.
+vorab bezahlte Hardware); gleiche Einträge auch (zwei Geräte am selben Tag).
+
+| Regel | Feldfehler (an `einmalkosten[i]…`, `i` = Position in der Anfrage) |
+|---|---|
+| Liste angegeben, höchstens 100 Einträge | `NotNull` bzw. `Size` an `einmalkosten` |
+| `bezeichnung` („Wofür“) angegeben, höchstens 200 Zeichen | `NotBlank` bzw. `Size` an `einmalkosten[i].bezeichnung` |
+| `betrag` größer 0 | `PositiverBetrag` an `einmalkosten[i].betrag` |
+| `betrag` in derselben Währung wie der erste Preis | `GleicheWaehrung` an `einmalkosten[i].betrag.waehrung` |
+| `faelligAm` angegeben | `NotNull` an `einmalkosten[i].faelligAm` |
+
+Dazu `PlausiblesDatum` an `einmalkosten[i].faelligAm`. Die Antwort liefert `einmalkosten` sortiert nach
+`faelligAm`, dann `bezeichnung`.
+
 **`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
 von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
 „Nächste Abbuchung“. Beim Bearbeiten zeigt die SPA dort `berechnet.naechsteAbbuchung` an (nur wenn das
@@ -362,6 +385,7 @@ nicht zurückgeschickt:
   "kostenImJahr": { "wert": 586.80, "waehrung": "EUR" },
   "jahr": 2026,
   "eigenerAnteil": null,
+  "einmalkosten": { "wert": 49.00, "waehrung": "EUR" },
   "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
   "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true }
@@ -382,6 +406,8 @@ nicht zurückgeschickt:
   ungerundeten Werte angewendet und erst dann gerundet ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
   13,99&nbsp;€ monatlich zu 33,3&nbsp;% sind 4,66&nbsp;€ im Monat und 55,90&nbsp;€ im Jahr. `betrag`,
   `naechsteAbbuchung` und `naechstePreisaenderung` bleiben die vollen Beträge, denn so viel wird abgebucht.
+- **`einmalkosten`:** Summe aller [Einmalkosten](#einmalkosten) des Vertrags, unabhängig vom Jahr und mit dem vollen
+  Betrag (ohne Anteil; die Details zeigen sie als „Gesamt“). Ohne Einträge 0 in der Währung der Preise.
 - **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`, mit dem Preis
   dieses Tages (`{ am, betrag }`); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
   `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
@@ -451,7 +477,7 @@ plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem V
 { "version": 2, "anbieter": "Musterversicherung AG", "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec", … }
 ```
 
-Alle Felder werden ersetzt, `preise` als ganze Liste (Konflikte deckt die `version` des Vertrags ab), auch
+Alle Felder werden ersetzt, `preise` und `einmalkosten` als ganze Liste (Konflikte deckt die `version` des Vertrags ab), auch
 `abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
 Zahlweise ab diesem Tag ab. Die SPA schickt deshalb das gespeicherte `abbuchungAb`, solange Datum und
 Zahlweise unverändert sind, und lässt das Datum bei einem Wechsel der Zahlweise bestätigen (siehe
@@ -483,6 +509,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   "laufendeVertraege": 9,
   "kostenProMonat": [ { "wert": 202.08, "waehrung": "EUR" } ],
   "kostenImJahr": [ { "wert": 2398.43, "waehrung": "EUR" } ],
+  "einmalkostenImJahr": [ { "wert": 149.00, "waehrung": "EUR" } ],
   "jahr": 2026,
   "hatAnteile": true,
   "naechsteKuendigungsfristen": [
@@ -504,15 +531,20 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
     abweichen ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
   - `kostenImJahr`: Summe von `berechnet.kostenImJahr` über die laufenden Verträge **und** die im Jahr
     beendeten, die bis dahin etwas gekostet haben; `jahr` wie dort. Sie passt also nicht zwingend zu
-    `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung).
+    `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung). Ohne
+    Einmalkosten.
+  - `einmalkostenImJahr`: Summe der im Kalenderjahr `jahr` fälligen [Einmalkosten](#einmalkosten) über **alle**
+    Verträge, auch beendete (eine Gebühr im März zählt, auch wenn der Vertrag im Juni endet); leer ohne solche
+    Einträge.
 - **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
   Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = heute gültiger
   Preis, auch bei geteilten Verträgen voll); `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
-- **`hatAnteile`:** `true`, wenn ein Vertrag, der in `kostenProMonat` oder `kostenImJahr` eingeht, ein
-  `anteilProzent` unter 100 hat; die SPA zeigt dann „Bei geteilten Verträgen nur dein Anteil“.
-- Ohne laufende und im Jahr beendete Verträge: `laufendeVertraege` 0, leere Listen und `hatAnteile` `false`.
+- **`hatAnteile`:** `true`, wenn ein Vertrag, der in `kostenProMonat`, `kostenImJahr` oder `einmalkostenImJahr`
+  eingeht, ein `anteilProzent` unter 100 hat; die SPA zeigt dann „Bei geteilten Verträgen nur dein Anteil“.
+- Ohne laufende Verträge, im Jahr beendete und Einmalkosten im Jahr: `laufendeVertraege` 0, leere Listen und
+  `hatAnteile` `false`.
 
 ### Vorschau des Kündigungstermins
 
