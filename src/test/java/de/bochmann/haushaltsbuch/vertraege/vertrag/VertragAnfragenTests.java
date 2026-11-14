@@ -37,9 +37,9 @@ class VertragAnfragenTests {
 			assertThat(feld.getGenericType()).isEqualTo(anlegen.getGenericReturnType());
 			assertThat(feld.getAccessor().getAnnotations()).as(feld.getName()).containsExactlyElementsOf(erwartet);
 		}
-		// Preise kommen erst mit #97 in die Vorschau, bis dahin auch ihre Prüfung nicht.
+		// Preise und Einmalkosten kommen erst mit #97 in die Vorschau, bis dahin auch ihre Prüfung nicht.
 		assertThat(VertragVorschauAnfrage.class.getAnnotations()).isEqualTo(Arrays.stream(VertragAnfrage.class.getAnnotations())
-				.filter(a -> !(a instanceof PreisNichtVorBeginn))
+				.filter(a -> !(a instanceof PreisNichtVorBeginn) && !(a instanceof GleicheWaehrung))
 				.toArray());
 	}
 

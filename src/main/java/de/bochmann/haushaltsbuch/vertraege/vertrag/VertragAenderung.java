@@ -28,6 +28,7 @@ import java.util.UUID;
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
+@GleicheWaehrung
 record VertragAenderung(
 		@NotNull Long version,
 		@NotBlank @Size(max = 200) String anbieter,
@@ -40,6 +41,7 @@ record VertragAenderung(
 		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
+		@NotNull @Size(max = 100) List<@NotNull @Valid VertragEinmalkostenAnfrage> einmalkosten,
 		@NotNull Boolean kuendbar,
 		@PlausiblesDatum @Nullable LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,

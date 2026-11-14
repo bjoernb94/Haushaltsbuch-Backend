@@ -956,6 +956,14 @@
             "maxLength" : 200,
             "minLength" : 0
           },
+          "einmalkosten" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragEinmalkostenAnfrage"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1017,7 +1025,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",
@@ -1044,6 +1052,14 @@
             "type" : [ "string", "null" ],
             "maxLength" : 200,
             "minLength" : 0
+          },
+          "einmalkosten" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragEinmalkostenAnfrage"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
           },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
@@ -1102,7 +1118,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "kategorieId", "kuendbar", "preise", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "kategorieId", "kuendbar", "preise", "zahlweise" ]
       },
       "VertragAntwort" : {
         "type" : "object",
@@ -1129,6 +1145,12 @@
           },
           "bezeichnung" : {
             "type" : [ "string", "null" ]
+          },
+          "einmalkosten" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragEinmalkostenAntwort"
+            }
           },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
@@ -1186,7 +1208,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1197,6 +1219,9 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "einmalkosten" : {
+            "$ref" : "#/components/schemas/Betrag"
           },
           "jahr" : {
             "type" : "integer",
@@ -1229,7 +1254,7 @@
             "$ref" : "#/components/schemas/Vertragsstatus"
           }
         },
-        "required" : [ "eigenerAnteil", "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
+        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
       },
       "VertragEigenerAnteil" : {
         "type" : "object",
@@ -1242,6 +1267,40 @@
           }
         },
         "required" : [ "kostenImJahr", "kostenProMonat" ]
+      },
+      "VertragEinmalkostenAnfrage" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "bezeichnung" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "faelligAm" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "betrag", "bezeichnung", "faelligAm" ]
+      },
+      "VertragEinmalkostenAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "bezeichnung" : {
+            "type" : "string"
+          },
+          "faelligAm" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "betrag", "bezeichnung", "faelligAm" ]
       },
       "VertragKategorieAntwort" : {
         "type" : "object",
@@ -1354,6 +1413,12 @@
       "VertragsuebersichtAntwort" : {
         "type" : "object",
         "properties" : {
+          "einmalkostenImJahr" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Betrag"
+            }
+          },
           "hatAnteile" : {
             "type" : "boolean"
           },
@@ -1384,7 +1449,7 @@
             }
           }
         },
-        "required" : [ "hatAnteile", "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+        "required" : [ "einmalkostenImJahr", "hatAnteile", "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
       },
       "Zahlungsweg" : {
         "type" : "string",

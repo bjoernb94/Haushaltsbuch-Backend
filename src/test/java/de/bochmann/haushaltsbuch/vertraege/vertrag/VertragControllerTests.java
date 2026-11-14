@@ -62,7 +62,7 @@ class VertragControllerTests {
 				{"anbieter": "Streamingdienst", "bezeichnung": "", "kategorieId": "%s", "vertragsnummer": null,
 				 "preise": [{"gueltigAb": null, "betrag": {"wert": %s, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
 				 "abbuchungAb": "%s",
-				 "zahlungsweg": "KREDITKARTE", "kuendbar": true, "beginn": %s, "laufzeitende": %s,
+				 "zahlungsweg": "KREDITKARTE", "einmalkosten": [], "kuendbar": true, "beginn": %s, "laufzeitende": %s,
 				 "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": %s, "gekuendigtZum": null,
 				 "notiz": "Familien-Abo"}
 				""".formatted(VertragServiceTests.VERSICHERUNG, betrag, heute.plusDays(9), json(beginn),
@@ -201,7 +201,8 @@ class VertragControllerTests {
 				.andExpect(content().json("""
 						{"laufendeVertraege": 1,
 						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
-						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "jahr": %d, "hatAnteile": false,
+						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "einmalkostenImJahr": [], "jahr": %d,
+						 "hatAnteile": false,
 						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
 						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
 						   "kuendigenBis": "%s", "zum": "%s", "dringend": %s}]}
@@ -219,7 +220,7 @@ class VertragControllerTests {
 		mockMvc.perform(get("/api/vertraege/uebersicht").with(fremder.anmeldung()))
 				.andExpect(status().isOk())
 				.andExpect(content().json("""
-						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "jahr": %d,
+						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "einmalkostenImJahr": [], "jahr": %d,
 						 "hatAnteile": false, "naechsteKuendigungsfristen": []}
 						""".formatted(heute.getYear()), true));
 	}
@@ -265,6 +266,95 @@ class VertragControllerTests {
 					.andExpect(jsonPath("$.felder[0].feld").value("anteilProzent"))
 					.andExpect(jsonPath("$.felder[0].code").value(fall[1]));
 		}
+	}
+
+	/** {@code vertrag} (JSON wie aus {@link #abo}) mit den Einmalkosten {@code eintraege} (JSON-Liste ohne Klammern). */
+	private static String mitEinmalkosten(String vertrag, String eintraege) {
+		return vertrag.replaceFirst("\"einmalkosten\": \\[\\]", "\"einmalkosten\": [" + eintraege + "]");
+	}
+
+	private static String einmalkosten(String bezeichnung, String wert, String waehrung, String faelligAm) {
+		return """
+				{"bezeichnung": %s, "betrag": {"wert": %s, "waehrung": "%s"}, "faelligAm": %s}"""
+				.formatted(bezeichnung == null ? "null" : "\"" + bezeichnung + "\"", wert, waehrung, json(faelligAm));
+	}
+
+	@Test
+	void einmalkostenAmVertragUndInDerUebersicht() throws Exception {
+		String imJahr = LocalDate.of(heute.getYear(), 3, 1).toString();
+		String vorjahr = LocalDate.of(heute.getYear() - 1, 3, 1).toString();
+		String body = mitEinmalkosten(mitAnteil(abo("13.99", null, null, 0), "50"), einmalkosten("Router", "99.99", "EUR",
+				imJahr) + ", " + einmalkosten(" Anschluss ", "49.00", "EUR", vorjahr));
+
+		String angelegt = mockMvc.perform(anlegen(body))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.einmalkosten[0].bezeichnung").value("Anschluss"))
+				.andExpect(jsonPath("$.einmalkosten[0].faelligAm").value(vorjahr))
+				.andExpect(jsonPath("$.einmalkosten[1].bezeichnung").value("Router"))
+				.andExpect(jsonPath("$.einmalkosten[1].betrag.wert").value(99.99))
+				.andExpect(jsonPath("$.berechnet.einmalkosten.wert").value(148.99))
+				// Laufende Kosten ohne Einmalkosten.
+				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenImJahr.wert").value(83.94))
+				.andReturn().getResponse().getContentAsString();
+
+		mockMvc.perform(get("/api/vertraege/{id}", JsonPath.<String>read(angelegt, "$.id")).with(haushalt.anmeldung()))
+				.andExpect(content().json(angelegt, true));
+		// Nur der im Jahr fällige Eintrag, zur Hälfte: 99,99 × 50 % = 49,995 → 50,00.
+		mockMvc.perform(get("/api/vertraege/uebersicht").with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.einmalkostenImJahr[0].wert").value(50.00))
+				.andExpect(jsonPath("$.kostenImJahr[0].wert").value(83.94));
+	}
+
+	@Test
+	void ohneEinmalkostenSummeNull() throws Exception {
+		mockMvc.perform(anlegen(abo("13.99", null, null, 0)))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.einmalkosten", hasSize(0)))
+				.andExpect(jsonPath("$.berechnet.einmalkosten.wert").value(0.00))
+				.andExpect(jsonPath("$.berechnet.einmalkosten.waehrung").value("EUR"));
+	}
+
+	/** Ein {@code PUT} ohne das Feld löscht nicht still alle Einmalkosten, sondern wird abgelehnt. */
+	@Test
+	void einmalkostenPflicht() throws Exception {
+		mockMvc.perform(anlegen(abo("13.99", null, null, 0).replace("\"einmalkosten\": [], ", "")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("einmalkosten"))
+				.andExpect(jsonPath("$.felder[0].code").value("NotNull"));
+	}
+
+	/** Die Fehler hängen an der Zeile in der Reihenfolge der Anfrage. */
+	@Test
+	void prueftEinmalkosten() throws Exception {
+		String eintraege = String.join(", ", einmalkosten(" ", "10.00", "EUR", "2026-01-01"),
+				einmalkosten("Router", "0.00", "EUR", "2026-01-01"), einmalkosten("Router", "10.00", "EUR", null),
+				einmalkosten("Router", "10.00", "USD", "2026-01-01"), einmalkosten("x".repeat(201), "10.00", "EUR",
+						"1899-12-31"));
+
+		mockMvc.perform(anlegen(mitEinmalkosten(abo("13.99", null, null, 0), eintraege)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[0].bezeichnung')].code").value("NotBlank"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[1].betrag')].code").value("PositiverBetrag"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[2].faelligAm')].code").value("NotNull"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[3].betrag.waehrung')].code")
+						.value(containsInAnyOrder("ErlaubteWaehrung", "GleicheWaehrung")))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[4].bezeichnung')].code").value("Size"))
+				.andExpect(jsonPath("$.felder[?(@.feld == 'einmalkosten[4].faelligAm')].code").value("PlausiblesDatum"))
+				.andExpect(jsonPath("$.felder", hasSize(7)));
+	}
+
+	@Test
+	void hoechstens100Einmalkosten() throws Exception {
+		String eintraege = String.join(", ", Collections.nCopies(101, einmalkosten("Router", "1.00", "EUR",
+				"2026-01-01")));
+
+		mockMvc.perform(anlegen(mitEinmalkosten(abo("13.99", null, null, 0), eintraege)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("einmalkosten"))
+				.andExpect(jsonPath("$.felder[0].code").value("Size"));
 	}
 
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */
@@ -586,7 +676,7 @@ class VertragControllerTests {
 		mockMvc.perform(anlegen("{}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder(
-						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "kuendbar")));
+						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "einmalkosten", "kuendbar")));
 	}
 
 	@Test

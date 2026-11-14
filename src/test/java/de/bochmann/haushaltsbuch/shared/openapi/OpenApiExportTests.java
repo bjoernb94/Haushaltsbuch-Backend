@@ -178,7 +178,7 @@ class OpenApiExportTests {
 		String nurPflichtfelder = """
 				{"anbieter": "Streamingdienst", "kategorieId": "%s",
 				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}],
-				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "kuendbar": true%s}
+				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "einmalkosten": [], "kuendbar": true%s}
 				""";
 
 		for (String zusatz : List.of("",

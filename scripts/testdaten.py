@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 from http.cookies import SimpleCookie
 from zoneinfo import ZoneInfo
 
@@ -182,6 +183,7 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "abbuchungAb": fall.abbuchung_ab or heute + timedelta(days=9),
         "zahlungsweg": None,
         "anteilProzent": None,
+        "einmalkosten": [],
         "kuendbar": fall.kuendbar,
         "beginn": None,
         "laufzeitende": None,
@@ -211,6 +213,10 @@ def pruefe_berechnung(fall, antwort):
             fehler.append(f"nächste Abbuchung {naechste}, erwartet war keine")
     elif naechste != fall.erwartet_naechste.isoformat():
         fehler.append(f"nächste Abbuchung {naechste} statt {fall.erwartet_naechste}")
+    einmalkosten = sum((Decimal(str(eintrag["betrag"]["wert"])) for eintrag in fall.felder.get("einmalkosten", [])),
+                       Decimal(0))
+    if Decimal(str(berechnet["einmalkosten"]["wert"])) != einmalkosten:
+        fehler.append(f"einmalkosten {berechnet['einmalkosten']['wert']} statt {einmalkosten}")
     if (berechnet["eigenerAnteil"] is not None) != geteilt(fall):
         fehler.append(f"eigenerAnteil {berechnet['eigenerAnteil']} bei anteilProzent {fall.felder.get('anteilProzent')}")
     if fehler:
@@ -237,9 +243,25 @@ def geteilt(fall):
     return anteil is not None and anteil < 100
 
 
-def pruefe_uebersicht(sitzung, konto):
+def einmalkosten_im_jahr(faelle, jahr):
+    """Wie das Backend: je Vertrag der Anteil ungerundet, erst die Summe gerundet; None ohne Einträge im Jahr."""
+    summe, vorhanden = Decimal(0), False
+    for fall in faelle:
+        anteil = Decimal(str(fall.felder.get("anteilProzent") or 100)) / 100
+        for eintrag in fall.felder.get("einmalkosten", []):
+            if date.fromisoformat(eintrag["faelligAm"]).year == jahr:
+                summe += Decimal(str(eintrag["betrag"]["wert"])) * anteil
+                vorhanden = True
+    return summe.quantize(Decimal("0.01"), ROUND_HALF_UP) if vorhanden else None
+
+
+def pruefe_uebersicht(sitzung, konto, heute):
     status, antwort = sitzung.anfrage("GET", "/api/vertraege/uebersicht")
     erwarte(status, 200, f"{konto.email}: Übersicht", antwort)
+    erwartet = einmalkosten_im_jahr(konto.faelle, heute.year)
+    einmal = [Decimal(str(betrag["wert"])) for betrag in antwort["einmalkostenImJahr"]]
+    if einmal != ([erwartet] if erwartet is not None else []):
+        raise Abbruch(f"{konto.email}: einmalkostenImJahr {einmal} statt {erwartet}")
     # Die Testfälle mit Anteil laufen alle noch.
     hat_anteile = any(geteilt(fall) for fall in konto.faelle)
     if antwort["hatAnteile"] != hat_anteile:
@@ -260,7 +282,7 @@ def einrichten(url, konto, heute):
     else:
         vertraege_loeschen(sitzung, konto)
         zeilen = vertraege_anlegen(sitzung, konto, heute)
-        pruefe_uebersicht(sitzung, konto)
+        pruefe_uebersicht(sitzung, konto, heute)
     status, antwort = sitzung.anfrage("POST", "/api/abmeldung")
     erwarte(status, 204, f"{konto.email}: Abmeldung", antwort)
     return zustand, zeilen
@@ -348,6 +370,17 @@ def faelle_alles(heute):
         Fall("Geteilt – 33,3 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET", zahlweise="VIERTELJAEHRLICH",
              felder={"anteilProzent": 33.3}),
         Fall("Geteilt – 100 %", "KEINE_LAUFZEIT", felder={"anteilProzent": 100}),
+        # Einmalkosten: im Jahr und im Vorjahr; in der Übersicht nur die im Jahr, beim geteilten nur der Anteil.
+        Fall("Einmalkosten – im Jahr und im Vorjahr", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET",
+             felder={"einmalkosten": [
+                 {"bezeichnung": "Anschlussgebühr", "betrag": {"wert": 49.00, "waehrung": "EUR"},
+                  "faelligAm": date(heute.year - 1, 6, 1).isoformat()},
+                 {"bezeichnung": "Router", "betrag": {"wert": 99.99, "waehrung": "EUR"},
+                  "faelligAm": date(heute.year, 6, 1).isoformat()}]}),
+        Fall("Einmalkosten – geteilt 50 %", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             felder={"anteilProzent": 50, "einmalkosten": [
+                 {"bezeichnung": "Aufnahmegebühr", "betrag": {"wert": 10.01, "waehrung": "EUR"},
+                  "faelligAm": date(heute.year, 2, 1).isoformat()}]}),
         # Felder: Höchstlängen wie in VertragAnfrage.
         Fall("Sehr lange Namen – " + "Langer Anbietername " * 9, "KEINE_LAUFZEIT",
              felder={"bezeichnung": "Lange Bezeichnung " * 11, "vertragsnummer": "1234567890" * 10,

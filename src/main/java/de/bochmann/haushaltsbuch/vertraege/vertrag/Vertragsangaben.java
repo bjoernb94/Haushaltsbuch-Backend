@@ -25,6 +25,8 @@ interface Vertragsangaben extends Berechnungsangaben {
 
 	BigDecimal anteilProzent();
 
+	List<VertragEinmalkostenAnfrage> einmalkosten();
+
 	String notiz();
 
 }
