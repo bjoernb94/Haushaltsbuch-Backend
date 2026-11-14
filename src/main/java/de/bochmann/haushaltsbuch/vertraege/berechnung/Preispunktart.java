@@ -3,7 +3,7 @@ package de.bochmann.haushaltsbuch.vertraege.berechnung;
 /** Woher ein {@link Preispunkt} des Preisverlaufs stammt. */
 public enum Preispunktart {
 
-	/** Ein bisheriger Preis der Preisliste, auch der heute gültige. */
+	/** Ein bisheriger Preis der Preisliste, auch der aktuelle. */
 	GEZAHLT,
 
 	/** Ein künftiger Eintrag der Preisliste. */

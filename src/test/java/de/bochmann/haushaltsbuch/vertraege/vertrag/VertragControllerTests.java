@@ -94,6 +94,7 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
 				.andExpect(jsonPath("$.preise[0].gueltigAb").doesNotExist())
 				.andExpect(jsonPath("$.preise[0].betrag.wert").value(13.99))
+				.andExpect(jsonPath("$.preise[0].aktuell").value(true))
 				// Ohne Beginn zwölf Abbuchungen im Jahr, auch die vor dem Anker.
 				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
 				.andExpect(jsonPath("$.berechnet.jahr").value(heute.getYear()))

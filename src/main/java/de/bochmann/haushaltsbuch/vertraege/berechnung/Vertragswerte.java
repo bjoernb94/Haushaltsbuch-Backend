@@ -10,7 +10,8 @@ import java.util.List;
  * {@code null}, wenn eine Angabe dafür fehlt; beim gespeicherten Vertrag ist er es nur, wo auch die API {@code null}
  * kennt (z.&nbsp;B. keine nächste Abbuchung mehr).
  *
- * @param betrag der heute gültige Preis; braucht einen Preis
+ * @param betrag der {@link Vertragsberechnung#aktuellerPreis aktuelle Preis}; braucht einen Preis
+ * @param preise die Preisliste mit dem Eintrag von {@code betrag}; ohne Preis leer
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param kostenImJahr braucht Preis, Zahlweise und {@code abbuchungAb}
  * @param eigenerAnteilProMonat nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenProMonat}
@@ -20,6 +21,7 @@ import java.util.List;
 public record Vertragswerte(
 		Vertragsstatus status,
 		@Nullable Betrag betrag,
+		List<Preiszeile> preise,
 		@Nullable Betrag kostenProMonat,
 		@Nullable Betrag kostenImJahr,
 		boolean kostenImJahrMitPrognose,

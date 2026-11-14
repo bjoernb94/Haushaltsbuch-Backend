@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 /**
  * Berechnete Angaben eines Vertrags zu einem Stichtag ({@code heute}): Status, Abbuchungen, Kosten im Jahr,
@@ -47,6 +48,7 @@ public class Vertragsberechnung {
 		var prognose = grundlage.prognose();
 		var anteil = grundlage.anteil();
 		Betrag betrag = null;
+		List<Preiszeile> preiszeilen = List.of();
 		Betrag kostenProMonat = null;
 		Betrag kostenImJahr = null;
 		boolean mitPrognose = false;
@@ -57,7 +59,8 @@ public class Vertragsberechnung {
 		List<Prognosepreis> prognosepreise = List.of();
 		List<Preispunkt> preisverlauf = List.of();
 		if (preise != null) {
-			betrag = preise.am(heute);
+			betrag = aktuellerPreis(daten, preise);
+			preiszeilen = preiszeilen(daten, preise);
 			naechsteAbbuchung = naechsteAbbuchung(daten, preise, prognose).orElse(null);
 			naechstePreisaenderung = naechstePreisaenderung(daten, preise, prognose).orElse(null);
 			prognosepreise = prognose(daten, preise, prognose);
@@ -76,8 +79,8 @@ public class Vertragsberechnung {
 		var einmalkosten = grundlage.einmalkosten();
 		Currency waehrung = preise != null ? preise.waehrung()
 				: einmalkosten.isEmpty() ? null : einmalkosten.getFirst().betrag().waehrung();
-		return new Vertragswerte(status(daten), betrag, kostenProMonat, kostenImJahr, mitPrognose, anteilProMonat,
-				anteilImJahr, waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
+		return new Vertragswerte(status(daten), betrag, preiszeilen, kostenProMonat, kostenImJahr, mitPrognose,
+				anteilProMonat, anteilImJahr, waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
 				naechstePreisaenderung, prognosepreise, preisverlauf, kuendigung(daten));
 	}
 
@@ -94,6 +97,28 @@ public class Vertragsberechnung {
 			return Vertragsstatus.BEENDET;
 		}
 		return Vertragsstatus.AKTIV;
+	}
+
+	/**
+	 * Der aktuelle Preis: der heute gültige, bei einem beendeten Vertrag der an seinem letzten Tag gültige (ein
+	 * Eintrag nach dem Ende wurde nie gezahlt); beginnt der Vertrag erst in der Zukunft, der erste.
+	 */
+	public Betrag aktuellerPreis(Vertragsdaten vertrag, Preisliste preise) {
+		return preise.am(preisstichtag(vertrag));
+	}
+
+	/** Die Einträge der Preisliste, sortiert; {@code aktuell} ist der von {@link #aktuellerPreis}. */
+	public List<Preiszeile> preiszeilen(Vertragsdaten vertrag, Preisliste preise) {
+		var liste = preise.preise();
+		int aktuell = preise.index(preisstichtag(vertrag));
+		return IntStream.range(0, liste.size())
+				.mapToObj(i -> new Preiszeile(liste.get(i).gueltigAb(), liste.get(i).betrag(), i == aktuell))
+				.toList();
+	}
+
+	/** Der Tag, dessen Preis {@link #aktuellerPreis} ist: heute, bei einem beendeten Vertrag sein letzter Tag. */
+	private LocalDate preisstichtag(Vertragsdaten vertrag) {
+		return ende(vertrag).filter(ende -> ende.isBefore(heute)).orElse(heute);
 	}
 
 	/**
@@ -200,14 +225,14 @@ public class Vertragsberechnung {
 	}
 
 	/**
-	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die Preisliste (bis zum heute gültigen
-	 * {@link Preispunktart#GEZAHLT}, danach {@link Preispunktart#ANGEKUENDIGT}) und die {@link #prognose}. Einträge
-	 * nach dem Vertragsende fallen weg. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst
+	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die Preisliste (bis zum
+	 * {@link #aktuellerPreis aktuellen} {@link Preispunktart#GEZAHLT}, danach {@link Preispunktart#ANGEKUENDIGT}) und
+	 * die {@link #prognose}. Einträge nach dem Vertragsende fallen weg. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst
 	 * 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute, damit die SPA nur zeichnet.
 	 */
 	public List<Preispunkt> preisverlauf(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
 		var liste = preise.preise();
-		int heutiger = preise.index(heute);
+		int aktuell = preise.index(preisstichtag(vertrag));
 		Optional<LocalDate> ende = ende(vertrag);
 		List<Preispunkt> punkte = new ArrayList<>();
 		for (int i = 0; i < liste.size(); i++) {
@@ -220,7 +245,7 @@ public class Vertragsberechnung {
 				continue;
 			}
 			punkte.add(new Preispunkt(ab, liste.get(i).betrag(),
-					i <= heutiger ? Preispunktart.GEZAHLT : Preispunktart.ANGEKUENDIGT));
+					i <= aktuell ? Preispunktart.GEZAHLT : Preispunktart.ANGEKUENDIGT));
 		}
 		prognose(vertrag, preise, prognose)
 				.forEach(preis -> punkte.add(new Preispunkt(preis.ab(), preis.betrag(), Preispunktart.PROGNOSE)));

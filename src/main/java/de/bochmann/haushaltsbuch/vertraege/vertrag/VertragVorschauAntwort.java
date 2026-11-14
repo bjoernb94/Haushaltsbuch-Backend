@@ -15,7 +15,7 @@ import java.util.List;
  * Ergebnis der Vorschau: was Zusammenfassung und Statuszeilen des Formulars zeigen, wie in {@code berechnet} eines
  * gespeicherten Vertrags. Fehlt eine Angabe für einen Wert, ist er {@code null} (die SPA zeigt „Noch offen“).
  *
- * @param betrag der heute gültige Preis; leer ohne vollständige Preiszeile
+ * @param betrag der aktuelle Preis wie am gespeicherten Vertrag; leer ohne vollständige Preiszeile
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param eigenerAnteil nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenProMonat}
  * @param naechsteAbbuchung braucht Zahlweise, {@code abbuchungAb} und Preis; leer auch, wenn keine mehr kommt

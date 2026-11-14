@@ -15,6 +15,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunktart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Prognosepreis;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieSchluessel;
 import org.hibernate.Hibernate;
@@ -31,6 +32,7 @@ import java.util.UUID;
 import static de.bochmann.haushaltsbuch.shared.geld.Betrag.euro;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 @FachmodulTest
 class VertragServiceTests {
@@ -225,8 +227,8 @@ class VertragServiceTests {
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
 				Zahlweise.MONATLICH, heute.plusDays(10), null, null)));
 
-		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::gueltigAb)
-				.containsExactly(null, heute.minusDays(100), heute.plusDays(30));
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::gueltigAb, VertragPreisAntwort::aktuell)
+				.containsExactly(tuple(null, false), tuple(heute.minusDays(100), true), tuple(heute.plusDays(30), false));
 		assertThat(vertrag.betrag()).isEqualTo(euro("11.00"));
 		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("11.00"));
 		assertThat(vertrag.berechnet().naechsteAbbuchung())
@@ -246,7 +248,24 @@ class VertragServiceTests {
 				Zahlweise.MONATLICH, heute.plusMonths(1), null, null)));
 
 		assertThat(vertrag.betrag()).isEqualTo(euro("15.00"));
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::aktuell).containsExactly(true, false);
 		assertThat(vertrag.berechnet().naechstePreisaenderung().ab()).isEqualTo(heute.plusMonths(2));
+	}
+
+	/** Ein Preis nach dem Vertragsende wurde nie gezahlt: Betrag ist der am letzten Tag gültige (#104). */
+	@Test
+	void beendeterVertragHatDenPreisAmLetztenTag() {
+		LocalDate heute = LocalDate.now(clock);
+		var preise = List.of(new VertragPreisAnfrage(null, euro("10.00")),
+				new VertragPreisAnfrage(heute.minusDays(10), euro("12.00")));
+
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
+				Zahlweise.MONATLICH, heute.minusMonths(3), null, heute.minusDays(20))));
+
+		assertThat(vertrag.berechnet().status()).isEqualTo(Vertragsstatus.BEENDET);
+		assertThat(vertrag.betrag()).isEqualTo(euro("10.00"));
+		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("10.00"));
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::aktuell).containsExactly(true, false);
 	}
 
 	/** Dieselben Preise in anderer Reihenfolge sind keine Änderung. */
@@ -265,7 +284,7 @@ class VertragServiceTests {
 
 		assertThat(gleich.version()).isZero();
 		assertThat(weniger.version()).isEqualTo(1);
-		assertThat(weniger.preise()).containsExactly(new VertragPreisAntwort(null, euro("10.00")));
+		assertThat(weniger.preise()).containsExactly(new VertragPreisAntwort(null, euro("10.00"), true));
 		assertThat(weniger.berechnet().naechstePreisaenderung()).isNull();
 	}
 

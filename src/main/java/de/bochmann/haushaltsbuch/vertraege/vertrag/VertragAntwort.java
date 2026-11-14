@@ -22,7 +22,8 @@ import java.util.UUID;
  * Ein Vertrag mit den gespeicherten Angaben (wie in {@link VertragAnfrage}, Kategorie als Objekt) und
  * den berechneten in {@code berechnet}. Die gespeicherten Angaben schickt die SPA beim Ändern
  * unverändert zurück; {@code berechnet} nie. {@code betrag} ist berechnet (der heute gültige Preis aus
- * {@code preise}) und wird beim Ändern ignoriert.
+ * {@code preise}, bei einem beendeten Vertrag der an seinem letzten Tag gültige; der Eintrag hat {@code aktuell})
+ * und wird beim Ändern ignoriert, ebenso {@code aktuell}.
  */
 record VertragAntwort(
 		UUID id,
@@ -53,7 +54,7 @@ record VertragAntwort(
 	/**
 	 * Zum Stichtag berechnet, ändert sich also mit der Zeit.
 	 *
-	 * @param kostenProMonat der heute gültige Betrag auf einen Monat umgerechnet
+	 * @param kostenProMonat {@code betrag} auf einen Monat umgerechnet
 	 * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr}, jede mit ihrem Preis; ab einem Termin
 	 *        der Prognose mit dem prognostizierten
 	 * @param kostenImJahrMitPrognose ob {@code kostenImJahr} einen prognostizierten Preis enthält („inkl. Prognose“)
@@ -89,7 +90,7 @@ record VertragAntwort(
 	record VertragEigenerAnteil(Betrag kostenProMonat, Betrag kostenImJahr) {
 	}
 
-	/** {@code betrag} ist der heute gültige Preis; beginnt der Vertrag erst in der Zukunft, der erste. */
+	/** {@code betrag} siehe {@link Vertragsberechnung#aktuellerPreis}. */
 	static VertragAntwort aus(Vertrag vertrag, Vertragsberechnung berechnung) {
 		// Gespeichert ist alles vollständig, die Werte also gesetzt, wo die API keine null kennt.
 		var werte = berechnung.werte(vertrag.grundlage());
@@ -110,7 +111,7 @@ record VertragAntwort(
 				werte.kuendigung());
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
-				werte.betrag(), vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
+				werte.betrag(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
 				vertrag.getAnteilProzent(),
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
 				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(),

@@ -328,9 +328,12 @@ berechnet (siehe unten).
 #### Preise
 
 Ein Vertrag hat eine Liste von Preisen mit Gültigkeitsdatum, z.&nbsp;B. frühere Preise, angekündigte
-Erhöhungen oder Aktionspreise. Ein Preis gilt von seinem `gueltigAb` bis zum nächsten Eintrag; `betrag` in der
-[Antwort](#antwort) ist der heute gültige. Vor dem ersten Eintrag gilt der erste rückwirkend (z.&nbsp;B. für
-Abbuchungen im Jahr vor seinem `gueltigAb`).
+Erhöhungen oder Aktionspreise. Ein Preis gilt von seinem `gueltigAb` bis zum nächsten Eintrag. Vor dem ersten
+Eintrag gilt der erste rückwirkend (z.&nbsp;B. für Abbuchungen im Jahr vor seinem `gueltigAb`).
+
+`betrag` in der [Antwort](#antwort) ist der **aktuelle Preis**: der heute gültige, bei einem beendeten Vertrag der
+an seinem letzten Tag gültige (ein Eintrag nach dem Vertragsende wurde nie gezahlt); beginnt der Vertrag erst in
+der Zukunft, der erste Eintrag.
 
 | Regel | Feldfehler (an `preise[i]…`, `i` = Position in der Anfrage) |
 |---|---|
@@ -342,7 +345,9 @@ Abbuchungen im Jahr vor seinem `gueltigAb`).
 | alle Beträge in derselben Währung wie der erste (eine Währung am Vertrag kommt mit [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)) | `GleicheWaehrung` an `preise[i].betrag.waehrung` |
 
 Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort liefert `preise` sortiert nach
-`gueltigAb`, der Eintrag ohne Datum zuerst.
+`gueltigAb`, der Eintrag ohne Datum zuerst, jeden Eintrag mit `aktuell`: `true` bei genau dem Eintrag, aus dem
+`betrag` stammt, sonst `false`. Damit trennt die SPA im Formular „Betrag“ von den übrigen Preisen und beschriftet
+die Preisliste („aktuell“), ohne mit dem Datum des Browsers zu vergleichen. `aktuell` wird beim Ändern ignoriert.
 
 #### Einmalkosten
 
@@ -400,13 +405,17 @@ Kündigungstermine hängen daran (siehe Vertragsende unter [Antwort](#antwort)).
 ### Antwort
 
 Die Antwort enthält die gespeicherten Felder wie oben, die Kategorie als Objekt (wie bei den
-Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den heute gültigen Preis (beginnt
-der Vertrag erst in der Zukunft: der erste Eintrag). `betrag` ist berechnet und wird beim Ändern ignoriert.
+Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den aktuellen Preis (siehe
+[Preise](#preise)). `betrag` ist berechnet und wird beim Ändern ignoriert.
 Was das Backend sonst berechnet, steht in `berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern
 nicht zurückgeschickt:
 
 ```json
 "betrag": { "wert": 586.80, "waehrung": "EUR" },
+"preise": [
+  { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" }, "aktuell": false },
+  { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "aktuell": true }
+],
 "berechnet": {
   "status": "AKTIV",
   "kostenProMonat": { "wert": 48.90, "waehrung": "EUR" },
@@ -434,7 +443,7 @@ nicht zurückgeschickt:
 
 - **Status:** `BEENDET`, wenn `gekuendigtZum` vorbei ist oder ein Vertrag mit Verlängerung `KEINE`
   sein Laufzeitende überschritten hat; `GEKUENDIGT`, solange `gekuendigtZum` noch kommt; sonst `AKTIV`.
-- **`kostenProMonat`:** der heute gültige Betrag ÷ Monate der Zahlweise (gerundet nach
+- **`kostenProMonat`:** `betrag` ÷ Monate der Zahlweise (gerundet nach
   [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)); umgerechnet, nicht abgebucht.
 - **`kostenImJahr`:** Summe aller Abbuchungen im Kalenderjahr `jahr` (dem laufenden Jahr laut Backend; die SPA
   beschriftet damit „Kosten <Jahr>“ statt mit der Uhr des Browsers), jede mit dem Preis, der an ihrem Tag gilt.
@@ -470,7 +479,7 @@ nicht zurückgeschickt:
   100&nbsp;€ + 2,5&nbsp;% = 102,50&nbsp;€, + 2,5&nbsp;% = 105,06&nbsp;€. Trägt der Nutzer den echten neuen Preis
   ein, rechnet die Prognose von dort weiter. `betrag` und `kostenProMonat` bleiben der bekannte Preis von heute.
 - **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
-  Preisliste (bis zum heute gültigen `GEZAHLT`, danach `ANGEKUENDIGT`) und die drei aus `prognose` (`PROGNOSE`).
+  Preisliste (bis zum aktuellen `GEZAHLT`, danach `ANGEKUENDIGT`) und die drei aus `prognose` (`PROGNOSE`).
   Einträge nach dem Vertragsende fallen weg. `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
   `beginn`, sonst 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute. Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
@@ -597,7 +606,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
     Verträge, auch beendete (eine Gebühr im März zählt, auch wenn der Vertrag im Juni endet); leer ohne solche
     Einträge.
 - **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
-  Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = heute gültiger
+  Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = aktueller
   Preis, auch bei geteilten Verträgen voll); `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
@@ -642,7 +651,7 @@ speichern → **200** (ohne `Location`):
 
   | Feld | `null`, wenn |
   |---|---|
-  | `betrag` (heute gültiger Preis) | keine vollständige Preiszeile |
+  | `betrag` (aktueller Preis) | keine vollständige Preiszeile |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein `kostenProMonat` oder kein Anteil unter 100&nbsp;% |
   | `naechsteAbbuchung` (`{ am, betrag }`) | keine `zahlweise`, kein `abbuchungAb`, kein Preis, oder es kommt keine mehr |

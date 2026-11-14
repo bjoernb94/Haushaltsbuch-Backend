@@ -1440,6 +1440,9 @@
       "VertragPreisAntwort" : {
         "type" : "object",
         "properties" : {
+          "aktuell" : {
+            "type" : "boolean"
+          },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
           },
@@ -1448,7 +1451,7 @@
             "format" : "date"
           }
         },
-        "required" : [ "betrag", "gueltigAb" ]
+        "required" : [ "aktuell", "betrag", "gueltigAb" ]
       },
       "VertragPreissteigerungAnfrage" : {
         "type" : "object",
