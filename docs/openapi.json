@@ -867,6 +867,10 @@
         "type" : "string",
         "enum" : [ "GEZAHLT", "ANGEKUENDIGT", "PROGNOSE" ]
       },
+      "Preiszeilenart" : {
+        "type" : "string",
+        "enum" : [ "FRUEHER", "AKTUELL", "ANGEKUENDIGT", "NACH_ENDE" ]
+      },
       "Problem" : {
         "type" : "object",
         "properties" : {
@@ -1440,8 +1444,8 @@
       "VertragPreisAntwort" : {
         "type" : "object",
         "properties" : {
-          "aktuell" : {
-            "type" : "boolean"
+          "art" : {
+            "$ref" : "#/components/schemas/Preiszeilenart"
           },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
@@ -1451,7 +1455,7 @@
             "format" : "date"
           }
         },
-        "required" : [ "aktuell", "betrag", "gueltigAb" ]
+        "required" : [ "art", "betrag", "gueltigAb" ]
       },
       "VertragPreissteigerungAnfrage" : {
         "type" : "object",
@@ -1632,6 +1636,12 @@
               "type" : "null"
             } ]
           },
+          "preise" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragPreisAntwort"
+            }
+          },
           "prognose" : {
             "type" : "array",
             "items" : {
@@ -1639,7 +1649,7 @@
             }
           }
         },
-        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "prognose" ]
+        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "preise", "prognose" ]
       },
       "VertragVorschauEigenerAnteil" : {
         "type" : "object",

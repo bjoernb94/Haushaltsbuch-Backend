@@ -107,12 +107,24 @@ public class Vertragsberechnung {
 		return preise.am(preisstichtag(vertrag));
 	}
 
-	/** Die Einträge der Preisliste, sortiert; {@code aktuell} ist der von {@link #aktuellerPreis}. */
+	/**
+	 * Die Einträge der Preisliste, sortiert, mit ihrer Art: {@link Preiszeilenart#AKTUELL} ist der von
+	 * {@link #aktuellerPreis}, davor {@link Preiszeilenart#FRUEHER}, danach {@link Preiszeilenart#ANGEKUENDIGT} oder,
+	 * ab einem Tag nach dem Vertragsende, {@link Preiszeilenart#NACH_ENDE} (am letzten Tag gilt ein Preis noch).
+	 */
 	public List<Preiszeile> preiszeilen(Vertragsdaten vertrag, Preisliste preise) {
 		var liste = preise.preise();
 		int aktuell = preise.index(preisstichtag(vertrag));
+		Optional<LocalDate> ende = ende(vertrag);
 		return IntStream.range(0, liste.size())
-				.mapToObj(i -> new Preiszeile(liste.get(i).gueltigAb(), liste.get(i).betrag(), i == aktuell))
+				.mapToObj(i -> {
+					Preis preis = liste.get(i);
+					Preiszeilenart art = i == aktuell ? Preiszeilenart.AKTUELL
+							: i < aktuell ? Preiszeilenart.FRUEHER
+							: ende.isPresent() && preis.gueltigAb().isAfter(ende.get()) ? Preiszeilenart.NACH_ENDE
+							: Preiszeilenart.ANGEKUENDIGT;
+					return new Preiszeile(preis.gueltigAb(), preis.betrag(), art);
+				})
 				.toList();
 	}
 
@@ -225,27 +237,26 @@ public class Vertragsberechnung {
 	}
 
 	/**
-	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die Preisliste (bis zum
-	 * {@link #aktuellerPreis aktuellen} {@link Preispunktart#GEZAHLT}, danach {@link Preispunktart#ANGEKUENDIGT}) und
-	 * die {@link #prognose}. Einträge nach dem Vertragsende fallen weg. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst
-	 * 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute, damit die SPA nur zeichnet.
+	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die {@link #preiszeilen} ({@link Preiszeilenart#FRUEHER}
+	 * und {@link Preiszeilenart#AKTUELL} als {@link Preispunktart#GEZAHLT}, {@link Preiszeilenart#NACH_ENDE} fallen
+	 * weg) und die {@link #prognose}. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst 12 Monate
+	 * vor dem zweiten Eintrag, sonst 12 Monate vor heute, damit die SPA nur zeichnet.
 	 */
 	public List<Preispunkt> preisverlauf(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
 		var liste = preise.preise();
-		int aktuell = preise.index(preisstichtag(vertrag));
-		Optional<LocalDate> ende = ende(vertrag);
 		List<Preispunkt> punkte = new ArrayList<>();
-		for (int i = 0; i < liste.size(); i++) {
-			LocalDate ab = liste.get(i).gueltigAb();
+		for (Preiszeile zeile : preiszeilen(vertrag, preise)) {
+			LocalDate ab = zeile.gueltigAb();
 			if (ab == null) {
 				ab = vertrag.beginn() != null ? vertrag.beginn()
 						: liste.size() > 1 ? liste.get(1).gueltigAb().minusMonths(12) : heute.minusMonths(12);
 			}
-			else if (ende.isPresent() && ab.isAfter(ende.get())) {
-				continue;
+			switch (zeile.art()) {
+				case FRUEHER, AKTUELL -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.GEZAHLT));
+				case ANGEKUENDIGT -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.ANGEKUENDIGT));
+				case NACH_ENDE -> {
+				}
 			}
-			punkte.add(new Preispunkt(ab, liste.get(i).betrag(),
-					i <= aktuell ? Preispunktart.GEZAHLT : Preispunktart.ANGEKUENDIGT));
 		}
 		prognose(vertrag, preise, prognose)
 				.forEach(preis -> punkte.add(new Preispunkt(preis.ab(), preis.betrag(), Preispunktart.PROGNOSE)));

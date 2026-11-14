@@ -16,8 +16,11 @@ import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.KUEN
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.MONATLICH_KUENDBAR;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.NICHT_KUENDBAR;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose.KEINE;
+import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.AKTUELL;
+import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.ANGEKUENDIGT;
+import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.FRUEHER;
+import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.NACH_ENDE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.tuple;
 
 /** Stichtag ist immer der 01.11.2026; die Beispiele entsprechen den Verträgen im Design. */
 class VertragsberechnungTests {
@@ -81,7 +84,7 @@ class VertragsberechnungTests {
 
 	}
 
-	/** Der aktuelle Preis und sein Eintrag in der Preisliste (#104); heute ist der 01.11.2026. */
+	/** Der aktuelle Preis und die Art der Einträge in der Preisliste (#104, #105); heute ist der 01.11.2026. */
 	@Nested
 	class AktuellerPreis {
 
@@ -89,22 +92,26 @@ class VertragsberechnungTests {
 			return new Preisliste(List.of(preise));
 		}
 
-		/** {@code betrag} und {@code aktuell} kommen aus derselben Bestimmung, auch in {@link Vertragsberechnung#werte}. */
-		private void aktuellIst(Vertragsdaten daten, Preisliste preise, String gueltigAb, String betrag) {
+		/**
+		 * {@code betrag} und der Eintrag {@link Preiszeilenart#AKTUELL} kommen aus derselben Bestimmung, auch in
+		 * {@link Vertragsberechnung#werte}; {@code arten} in der Reihenfolge der sortierten Liste.
+		 */
+		private void aktuellIst(Vertragsdaten daten, Preisliste preise, String gueltigAb, String betrag,
+				Preiszeilenart... arten) {
 			var werte = berechnung.werte(new Berechnungsgrundlage(daten, preise, KEINE, Anteil.GANZ, List.of()));
 
 			assertThat(werte.betrag()).isEqualTo(euro(betrag));
 			assertThat(werte.preise()).isEqualTo(berechnung.preiszeilen(daten, preise));
-			assertThat(werte.preise()).filteredOn(Preiszeile::aktuell).singleElement()
-					.isEqualTo(new Preiszeile(gueltigAb == null ? null : d(gueltigAb), euro(betrag), true));
+			assertThat(werte.preise()).filteredOn(zeile -> zeile.art() == AKTUELL).singleElement()
+					.isEqualTo(new Preiszeile(gueltigAb == null ? null : d(gueltigAb), euro(betrag), AKTUELL));
+			assertThat(werte.preise()).extracting(Preiszeile::art).containsExactly(arten);
 		}
 
 		@Test
 		void preiswechselHeute() {
 			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-11-01"), euro("12.00")));
 
-			aktuellIst(vertrag(), preise, "2026-11-01", "12.00");
-			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::aktuell).containsExactly(false, true);
+			aktuellIst(vertrag(), preise, "2026-11-01", "12.00", FRUEHER, AKTUELL);
 		}
 
 		@Test
@@ -112,9 +119,9 @@ class VertragsberechnungTests {
 			var preise = preise(new Preis(d("2027-01-01"), euro("15.00")), new Preis(null, euro("10.00")),
 					new Preis(d("2026-03-01"), euro("12.00")));
 
-			aktuellIst(vertrag(), preise, "2026-03-01", "12.00");
-			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::gueltigAb, Preiszeile::aktuell)
-					.containsExactly(tuple(null, false), tuple(d("2026-03-01"), true), tuple(d("2027-01-01"), false));
+			aktuellIst(vertrag(), preise, "2026-03-01", "12.00", FRUEHER, AKTUELL, ANGEKUENDIGT);
+			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::gueltigAb)
+					.containsExactly(null, d("2026-03-01"), d("2027-01-01"));
 		}
 
 		@Test
@@ -122,7 +129,7 @@ class VertragsberechnungTests {
 			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", "2027-01-01", null, null, null);
 			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2027-07-01"), euro("11.00")));
 
-			aktuellIst(daten, preise, null, "10.00");
+			aktuellIst(daten, preise, null, "10.00", AKTUELL, ANGEKUENDIGT);
 		}
 
 		/** Ein Eintrag nach dem Ende wurde nie gezahlt; am letzten Tag gilt er schon. */
@@ -131,11 +138,11 @@ class VertragsberechnungTests {
 			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("12.00")),
 					new Preis(d("2026-09-01"), euro("15.00")));
 
-			aktuellIst(gekuendigtZum("2026-06-30"), preise, null, "10.00");
-			aktuellIst(gekuendigtZum("2026-07-01"), preise, "2026-07-01", "12.00");
-			aktuellIst(gekuendigtZum("2026-10-31"), preise, "2026-09-01", "15.00");
+			aktuellIst(gekuendigtZum("2026-06-30"), preise, null, "10.00", AKTUELL, NACH_ENDE, NACH_ENDE);
+			aktuellIst(gekuendigtZum("2026-07-01"), preise, "2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
+			aktuellIst(gekuendigtZum("2026-10-31"), preise, "2026-09-01", "15.00", FRUEHER, FRUEHER, AKTUELL);
 			aktuellIst(mit(Zahlweise.MONATLICH, null, null, "2026-08-31", Verlaengerung.KEINE, null), preise,
-					"2026-07-01", "12.00");
+					"2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 		}
 
 		@Test
@@ -146,13 +153,17 @@ class VertragsberechnungTests {
 					List.of())).kostenProMonat()).isEqualTo(euro("10.00"));
 		}
 
-		/** Ein gekündigter, noch laufender Vertrag hat den heute gültigen Preis. */
+		/**
+		 * Ein gekündigter, noch laufender Vertrag hat den heute gültigen Preis; ein späterer ist angekündigt, wenn er
+		 * spätestens am letzten Tag beginnt, sonst nach dem Ende.
+		 */
 		@Test
 		void gekuendigtDerHeuteGueltige() {
 			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-10-01"), euro("12.00")),
 					new Preis(d("2027-03-01"), euro("15.00")));
 
-			aktuellIst(gekuendigtZum("2026-12-31"), preise, "2026-10-01", "12.00");
+			aktuellIst(gekuendigtZum("2027-03-01"), preise, "2026-10-01", "12.00", FRUEHER, AKTUELL, ANGEKUENDIGT);
+			aktuellIst(gekuendigtZum("2027-02-28"), preise, "2026-10-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 		}
 
 	}

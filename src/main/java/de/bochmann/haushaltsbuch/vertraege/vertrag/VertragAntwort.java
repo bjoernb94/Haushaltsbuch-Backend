@@ -22,8 +22,8 @@ import java.util.UUID;
  * Ein Vertrag mit den gespeicherten Angaben (wie in {@link VertragAnfrage}, Kategorie als Objekt) und
  * den berechneten in {@code berechnet}. Die gespeicherten Angaben schickt die SPA beim Ändern
  * unverändert zurück; {@code berechnet} nie. {@code betrag} ist berechnet (der heute gültige Preis aus
- * {@code preise}, bei einem beendeten Vertrag der an seinem letzten Tag gültige; der Eintrag hat {@code aktuell})
- * und wird beim Ändern ignoriert, ebenso {@code aktuell}.
+ * {@code preise}, bei einem beendeten Vertrag der an seinem letzten Tag gültige; der Eintrag hat {@code art}
+ * {@code AKTUELL}) und wird beim Ändern ignoriert, ebenso {@code art}.
  */
 record VertragAntwort(
 		UUID id,
