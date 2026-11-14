@@ -345,9 +345,18 @@ der Zukunft, der erste Eintrag.
 | alle Beträge in derselben Währung wie der erste (eine Währung am Vertrag kommt mit [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)) | `GleicheWaehrung` an `preise[i].betrag.waehrung` |
 
 Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort liefert `preise` sortiert nach
-`gueltigAb`, der Eintrag ohne Datum zuerst, jeden Eintrag mit `aktuell`: `true` bei genau dem Eintrag, aus dem
-`betrag` stammt, sonst `false`. Damit trennt die SPA im Formular „Betrag“ von den übrigen Preisen und beschriftet
-die Preisliste („aktuell“), ohne mit dem Datum des Browsers zu vergleichen. `aktuell` wird beim Ändern ignoriert.
+`gueltigAb`, der Eintrag ohne Datum zuerst, jeden Eintrag mit `art`:
+
+| `art` | Eintrag |
+|---|---|
+| `FRUEHER` | vor dem aktuellen |
+| `AKTUELL` | genau einer: der, aus dem `betrag` stammt |
+| `ANGEKUENDIGT` | nach dem aktuellen, beginnt spätestens am letzten Vertragstag |
+| `NACH_ENDE` | beginnt nach dem letzten Vertragstag (`gekuendigtZum` bzw. Laufzeitende ohne Verlängerung, das frühere), gilt also nie |
+
+Damit trennt die SPA im Formular „Betrag“ von den übrigen Preisen und beschriftet die Preisliste („aktuell“,
+„angekündigt“, „nach Vertragsende“), ohne mit dem Datum des Browsers zu vergleichen. Bei einem beendeten Vertrag
+ist der zuletzt gezahlte `AKTUELL`. `art` wird beim Ändern ignoriert.
 
 #### Einmalkosten
 
@@ -413,8 +422,8 @@ nicht zurückgeschickt:
 ```json
 "betrag": { "wert": 586.80, "waehrung": "EUR" },
 "preise": [
-  { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" }, "aktuell": false },
-  { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "aktuell": true }
+  { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "FRUEHER" },
+  { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "art": "AKTUELL" }
 ],
 "berechnet": {
   "status": "AKTIV",
@@ -479,8 +488,8 @@ nicht zurückgeschickt:
   100&nbsp;€ + 2,5&nbsp;% = 102,50&nbsp;€, + 2,5&nbsp;% = 105,06&nbsp;€. Trägt der Nutzer den echten neuen Preis
   ein, rechnet die Prognose von dort weiter. `betrag` und `kostenProMonat` bleiben der bekannte Preis von heute.
 - **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
-  Preisliste (bis zum aktuellen `GEZAHLT`, danach `ANGEKUENDIGT`) und die drei aus `prognose` (`PROGNOSE`).
-  Einträge nach dem Vertragsende fallen weg. `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
+  [Preisliste](#preise) (`FRUEHER` und `AKTUELL` als `GEZAHLT`, `ANGEKUENDIGT` als `ANGEKUENDIGT`, `NACH_ENDE`
+  fallen weg) und die drei aus `prognose` (`PROGNOSE`). `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
   `beginn`, sonst 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute. Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
@@ -624,6 +633,7 @@ speichern → **200** (ohne `Location`):
 ```json
 {
   "betrag": { "wert": 13.99, "waehrung": "EUR" },
+  "preise": [{ "gueltigAb": null, "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
   "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
   "eigenerAnteil": { "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
   "naechsteAbbuchung": { "am": "2026-11-23", "betrag": { "wert": 13.99, "waehrung": "EUR" } },
@@ -652,6 +662,7 @@ speichern → **200** (ohne `Location`):
   | Feld | `null`, wenn |
   |---|---|
   | `betrag` (aktueller Preis) | keine vollständige Preiszeile |
+  | `preise` (wie [Preise](#preise) der Antwort; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein `kostenProMonat` oder kein Anteil unter 100&nbsp;% |
   | `naechsteAbbuchung` (`{ am, betrag }`) | keine `zahlweise`, kein `abbuchungAb`, kein Preis, oder es kommt keine mehr |

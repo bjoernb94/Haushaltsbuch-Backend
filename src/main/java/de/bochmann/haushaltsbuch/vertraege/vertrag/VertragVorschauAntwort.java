@@ -16,6 +16,8 @@ import java.util.List;
  * gespeicherten Vertrags. Fehlt eine Angabe für einen Wert, ist er {@code null} (die SPA zeigt „Noch offen“).
  *
  * @param betrag der aktuelle Preis wie am gespeicherten Vertrag; leer ohne vollständige Preiszeile
+ * @param preise die vollständigen Preiszeilen, sortiert und mit {@code art} wie {@code preise} eines gespeicherten
+ *        Vertrags; leer ohne vollständige Preiszeile
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param eigenerAnteil nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenProMonat}
  * @param naechsteAbbuchung braucht Zahlweise, {@code abbuchungAb} und Preis; leer auch, wenn keine mehr kommt
@@ -26,6 +28,7 @@ import java.util.List;
  */
 record VertragVorschauAntwort(
 		@Nullable Betrag betrag,
+		List<VertragPreisAntwort> preise,
 		@Nullable Betrag kostenProMonat,
 		@Nullable VertragVorschauEigenerAnteil eigenerAnteil,
 		@Nullable Abbuchung naechsteAbbuchung,
@@ -39,7 +42,8 @@ record VertragVorschauAntwort(
 	}
 
 	static VertragVorschauAntwort aus(Vertragswerte werte, Berechnungsgrundlage grundlage) {
-		return new VertragVorschauAntwort(werte.betrag(), werte.kostenProMonat(),
+		return new VertragVorschauAntwort(werte.betrag(),
+				werte.preise().stream().map(VertragPreisAntwort::aus).toList(), werte.kostenProMonat(),
 				werte.eigenerAnteilProMonat() != null ? new VertragVorschauEigenerAnteil(werte.eigenerAnteilProMonat())
 						: null,
 				werte.naechsteAbbuchung(), werte.naechstePreisaenderung(), werte.prognose(),

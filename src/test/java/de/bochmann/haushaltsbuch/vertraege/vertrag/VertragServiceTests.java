@@ -12,6 +12,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunkt;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunktart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Prognosepreis;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
@@ -227,8 +228,9 @@ class VertragServiceTests {
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
 				Zahlweise.MONATLICH, heute.plusDays(10), null, null)));
 
-		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::gueltigAb, VertragPreisAntwort::aktuell)
-				.containsExactly(tuple(null, false), tuple(heute.minusDays(100), true), tuple(heute.plusDays(30), false));
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::gueltigAb, VertragPreisAntwort::art)
+				.containsExactly(tuple(null, Preiszeilenart.FRUEHER), tuple(heute.minusDays(100), Preiszeilenart.AKTUELL),
+						tuple(heute.plusDays(30), Preiszeilenart.ANGEKUENDIGT));
 		assertThat(vertrag.betrag()).isEqualTo(euro("11.00"));
 		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("11.00"));
 		assertThat(vertrag.berechnet().naechsteAbbuchung())
@@ -248,7 +250,8 @@ class VertragServiceTests {
 				Zahlweise.MONATLICH, heute.plusMonths(1), null, null)));
 
 		assertThat(vertrag.betrag()).isEqualTo(euro("15.00"));
-		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::aktuell).containsExactly(true, false);
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::art)
+				.containsExactly(Preiszeilenart.AKTUELL, Preiszeilenart.ANGEKUENDIGT);
 		assertThat(vertrag.berechnet().naechstePreisaenderung().ab()).isEqualTo(heute.plusMonths(2));
 	}
 
@@ -265,7 +268,8 @@ class VertragServiceTests {
 		assertThat(vertrag.berechnet().status()).isEqualTo(Vertragsstatus.BEENDET);
 		assertThat(vertrag.betrag()).isEqualTo(euro("10.00"));
 		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("10.00"));
-		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::aktuell).containsExactly(true, false);
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::art)
+				.containsExactly(Preiszeilenart.AKTUELL, Preiszeilenart.NACH_ENDE);
 	}
 
 	/** Dieselben Preise in anderer Reihenfolge sind keine Änderung. */
@@ -284,7 +288,7 @@ class VertragServiceTests {
 
 		assertThat(gleich.version()).isZero();
 		assertThat(weniger.version()).isEqualTo(1);
-		assertThat(weniger.preise()).containsExactly(new VertragPreisAntwort(null, euro("10.00"), true));
+		assertThat(weniger.preise()).containsExactly(new VertragPreisAntwort(null, euro("10.00"), Preiszeilenart.AKTUELL));
 		assertThat(weniger.berechnet().naechstePreisaenderung()).isNull();
 	}
 
@@ -639,7 +643,7 @@ class VertragServiceTests {
 	/** Was die Vorschau für den gespeicherten Vertrag {@code v} zeigen muss. */
 	private static VertragVorschauAntwort wieGespeichert(VertragAntwort v) {
 		var berechnet = v.berechnet();
-		return new VertragVorschauAntwort(v.betrag(), berechnet.kostenProMonat(),
+		return new VertragVorschauAntwort(v.betrag(), v.preise(), berechnet.kostenProMonat(),
 				berechnet.eigenerAnteil() == null ? null
 						: new VertragVorschauAntwort.VertragVorschauEigenerAnteil(berechnet.eigenerAnteil().kostenProMonat()),
 				berechnet.naechsteAbbuchung(), berechnet.naechstePreisaenderung(), berechnet.prognose(),
@@ -685,8 +689,8 @@ class VertragServiceTests {
 		var vorschau = service.vorschau(leer);
 
 		assertThat(vorschau.kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
-		assertThat(vorschau).isEqualTo(new VertragVorschauAntwort(null, null, null, null, null, List.of(), null,
-				vorschau.kuendigung()));
+		assertThat(vorschau).isEqualTo(new VertragVorschauAntwort(null, List.of(), null, null, null, null, List.of(),
+				null, vorschau.kuendigung()));
 	}
 
 	/** Was fehlt, bleibt leer; der Rest wird trotzdem berechnet. */
@@ -728,6 +732,7 @@ class VertragServiceTests {
 				null, einmalkosten, steigerung, null, true, null, null, null, null, null));
 
 		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
+		assertThat(vorschau.preise()).containsExactly(new VertragPreisAntwort(null, euro("10.00"), Preiszeilenart.AKTUELL));
 		assertThat(vorschau.naechstePreisaenderung()).isNull();
 		assertThat(vorschau.prognose()).isEmpty();
 		assertThat(vorschau.einmalkosten()).isEqualTo(euro("49.00"));

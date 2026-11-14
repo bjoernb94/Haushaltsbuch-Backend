@@ -94,7 +94,7 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
 				.andExpect(jsonPath("$.preise[0].gueltigAb").doesNotExist())
 				.andExpect(jsonPath("$.preise[0].betrag.wert").value(13.99))
-				.andExpect(jsonPath("$.preise[0].aktuell").value(true))
+				.andExpect(jsonPath("$.preise[0].art").value("AKTUELL"))
 				// Ohne Beginn zwölf Abbuchungen im Jahr, auch die vor dem Anker.
 				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
 				.andExpect(jsonPath("$.berechnet.jahr").value(heute.getYear()))
@@ -714,7 +714,8 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.prognose", hasSize(0)))
 				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
 				.andReturn().getResponse().getContentAsString();
-		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.kostenProMonat", "$.berechnet.kostenProMonat"},
+		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.preise", "$.preise"},
+				{"$.kostenProMonat", "$.berechnet.kostenProMonat"},
 				{"$.naechsteAbbuchung", "$.berechnet.naechsteAbbuchung"},
 				{"$.naechstePreisaenderung", "$.berechnet.naechstePreisaenderung"},
 				{"$.kuendigung", "$.berechnet.kuendigung"}}) {
@@ -738,6 +739,8 @@ class VertragControllerTests {
 						"""))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.betrag.wert").value(10.00))
+				.andExpect(jsonPath("$.preise", hasSize(1)))
+				.andExpect(jsonPath("$.preise[0].art").value("AKTUELL"))
 				.andExpect(jsonPath("$.kostenProMonat.wert").value(10.00))
 				.andExpect(jsonPath("$.naechsteAbbuchung").doesNotExist())
 				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
