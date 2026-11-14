@@ -17,6 +17,7 @@ import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.MONA
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.NICHT_KUENDBAR;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose.KEINE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /** Stichtag ist immer der 01.11.2026; die Beispiele entsprechen den Verträgen im Design. */
 class VertragsberechnungTests {
@@ -76,6 +77,82 @@ class VertragsberechnungTests {
 		void mitVerlaengerungLaeuftNachDemLaufzeitendeWeiter() {
 			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, null, "2025-10-31", Verlaengerung.MONATLICH, 1)))
 					.isEqualTo(Vertragsstatus.AKTIV);
+		}
+
+	}
+
+	/** Der aktuelle Preis und sein Eintrag in der Preisliste (#104); heute ist der 01.11.2026. */
+	@Nested
+	class AktuellerPreis {
+
+		private static Preisliste preise(Preis... preise) {
+			return new Preisliste(List.of(preise));
+		}
+
+		/** {@code betrag} und {@code aktuell} kommen aus derselben Bestimmung, auch in {@link Vertragsberechnung#werte}. */
+		private void aktuellIst(Vertragsdaten daten, Preisliste preise, String gueltigAb, String betrag) {
+			var werte = berechnung.werte(new Berechnungsgrundlage(daten, preise, KEINE, Anteil.GANZ, List.of()));
+
+			assertThat(werte.betrag()).isEqualTo(euro(betrag));
+			assertThat(werte.preise()).isEqualTo(berechnung.preiszeilen(daten, preise));
+			assertThat(werte.preise()).filteredOn(Preiszeile::aktuell).singleElement()
+					.isEqualTo(new Preiszeile(gueltigAb == null ? null : d(gueltigAb), euro(betrag), true));
+		}
+
+		@Test
+		void preiswechselHeute() {
+			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-11-01"), euro("12.00")));
+
+			aktuellIst(vertrag(), preise, "2026-11-01", "12.00");
+			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::aktuell).containsExactly(false, true);
+		}
+
+		@Test
+		void angekuendigterPreisIstNichtAktuell() {
+			var preise = preise(new Preis(d("2027-01-01"), euro("15.00")), new Preis(null, euro("10.00")),
+					new Preis(d("2026-03-01"), euro("12.00")));
+
+			aktuellIst(vertrag(), preise, "2026-03-01", "12.00");
+			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::gueltigAb, Preiszeile::aktuell)
+					.containsExactly(tuple(null, false), tuple(d("2026-03-01"), true), tuple(d("2027-01-01"), false));
+		}
+
+		@Test
+		void kuenftigerBeginnDerErste() {
+			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", "2027-01-01", null, null, null);
+			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2027-07-01"), euro("11.00")));
+
+			aktuellIst(daten, preise, null, "10.00");
+		}
+
+		/** Ein Eintrag nach dem Ende wurde nie gezahlt; am letzten Tag gilt er schon. */
+		@Test
+		void beendetDerAmLetztenTagGueltige() {
+			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("12.00")),
+					new Preis(d("2026-09-01"), euro("15.00")));
+
+			aktuellIst(gekuendigtZum("2026-06-30"), preise, null, "10.00");
+			aktuellIst(gekuendigtZum("2026-07-01"), preise, "2026-07-01", "12.00");
+			aktuellIst(gekuendigtZum("2026-10-31"), preise, "2026-09-01", "15.00");
+			aktuellIst(mit(Zahlweise.MONATLICH, null, null, "2026-08-31", Verlaengerung.KEINE, null), preise,
+					"2026-07-01", "12.00");
+		}
+
+		@Test
+		void beendetKostenProMonatMitDemAktuellenPreis() {
+			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-09-01"), euro("15.00")));
+
+			assertThat(berechnung.werte(new Berechnungsgrundlage(gekuendigtZum("2026-06-30"), preise, KEINE, Anteil.GANZ,
+					List.of())).kostenProMonat()).isEqualTo(euro("10.00"));
+		}
+
+		/** Ein gekündigter, noch laufender Vertrag hat den heute gültigen Preis. */
+		@Test
+		void gekuendigtDerHeuteGueltige() {
+			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-10-01"), euro("12.00")),
+					new Preis(d("2027-03-01"), euro("15.00")));
+
+			aktuellIst(gekuendigtZum("2026-12-31"), preise, "2026-10-01", "12.00");
 		}
 
 	}
