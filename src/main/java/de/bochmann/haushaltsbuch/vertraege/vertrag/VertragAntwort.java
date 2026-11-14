@@ -12,6 +12,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieAntwort;
 import org.jspecify.annotations.Nullable;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +35,7 @@ record VertragAntwort(
 		Zahlweise zahlweise,
 		LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
+		@Nullable BigDecimal anteilProzent,
 		boolean kuendbar,
 		@Nullable LocalDate beginn,
 		@Nullable LocalDate laufzeitende,
@@ -49,6 +51,8 @@ record VertragAntwort(
 	 * @param kostenProMonat der heute gültige Betrag auf einen Monat umgerechnet
 	 * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr}, jede mit ihrem Preis
 	 * @param jahr das laufende Jahr laut Backend, für die Beschriftung „Kosten &lt;Jahr&gt;“
+	 * @param eigenerAnteil der eigene Anteil an den Kosten; leer ohne Anteil unter 100&nbsp;% (dann sind die vollen
+	 *        Kosten der eigene Anteil)
 	 * @param naechsteAbbuchung die erste Abbuchung ab heute; leer, wenn keine mehr kommt
 	 * @param naechstePreisaenderung der nächste Eintrag nach dem heute gültigen; leer, wenn keiner bekannt ist
 	 */
@@ -57,9 +61,17 @@ record VertragAntwort(
 			Betrag kostenProMonat,
 			Betrag kostenImJahr,
 			int jahr,
+			@Nullable VertragEigenerAnteil eigenerAnteil,
 			@Nullable Abbuchung naechsteAbbuchung,
 			@Nullable Preisaenderung naechstePreisaenderung,
 			Kuendigung kuendigung) {
+	}
+
+	/**
+	 * Der eigene Anteil an {@code kostenProMonat} und {@code kostenImJahr}, aus den ungerundeten Werten gerechnet
+	 * und dann gerundet (ADR 0011).
+	 */
+	record VertragEigenerAnteil(Betrag kostenProMonat, Betrag kostenImJahr) {
 	}
 
 	/** {@code betrag} ist der heute gültige Preis; beginnt der Vertrag erst in der Zukunft, der erste. */
@@ -67,18 +79,25 @@ record VertragAntwort(
 		var daten = vertrag.daten();
 		var preise = vertrag.preisliste();
 		Betrag betrag = preise.am(berechnung.heute());
+		Betrag proJahr = Kosten.proJahr(betrag, vertrag.getZahlweise());
+		Betrag kostenImJahr = berechnung.kostenImJahr(daten, preise);
+		var anteil = vertrag.anteil();
+		var eigenerAnteil = anteil.geteilt()
+				? new VertragEigenerAnteil(Kosten.proMonat(anteil.von(proJahr)), anteil.von(kostenImJahr).gerundet())
+				: null;
 		var berechnet = new VertragBerechnet(
 				berechnung.status(daten),
-				Kosten.proMonat(betrag, vertrag.getZahlweise()),
-				berechnung.kostenImJahr(daten, preise),
+				Kosten.proMonat(proJahr),
+				kostenImJahr,
 				berechnung.heute().getYear(),
+				eigenerAnteil,
 				berechnung.naechsteAbbuchung(daten, preise).orElse(null),
 				berechnung.naechstePreisaenderung(daten, preise).orElse(null),
 				berechnung.kuendigung(daten));
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
 				betrag, vertrag.getPreise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
-				vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
+				vertrag.getAnteilProzent(), vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
 				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(), berechnet);
 	}
 

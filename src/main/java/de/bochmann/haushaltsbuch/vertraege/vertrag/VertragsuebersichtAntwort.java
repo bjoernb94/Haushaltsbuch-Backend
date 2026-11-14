@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
@@ -17,12 +18,16 @@ import java.util.stream.Stream;
 /**
  * Kennzahlen der Verträge für die Startseite und die Seite „Verträge“, zum heutigen Tag berechnet.
  *
+ * Bei geteilten Verträgen zählen die Kosten nur mit dem eigenen Anteil.
+ *
  * @param laufendeVertraege Verträge, die nicht beendet sind (gekündigte zählen bis zum Ende mit)
  * @param kostenProMonat Summe über die laufenden Verträge, je Währung ein Betrag, nach Währungscode sortiert;
  *        leer ohne laufende Verträge
  * @param kostenImJahr Summe der Abbuchungen im Kalenderjahr {@code jahr} je Währung, über die laufenden Verträge und
  *        die im Jahr beendeten (die bis dahin gekostet haben); leer ohne solche Verträge
  * @param jahr das laufende Jahr laut Backend
+ * @param hatAnteile ob ein Vertrag in {@code kostenProMonat} oder {@code kostenImJahr} nur mit einem Anteil unter
+ *        100&nbsp;% zählt, für den Hinweis „Bei geteilten Verträgen nur dein Anteil“
  * @param naechsteKuendigungsfristen die {@value #FRISTEN} nächsten mit {@link Kuendigungsart#KUENDIGEN_BIS},
  *        in der Reihenfolge der Vertragsliste
  */
@@ -31,6 +36,7 @@ record VertragsuebersichtAntwort(
 		List<Betrag> kostenProMonat,
 		List<Betrag> kostenImJahr,
 		int jahr,
+		boolean hatAnteile,
 		List<AnstehendeKuendigung> naechsteKuendigungsfristen) {
 
 	static final int FRISTEN = 5;
@@ -65,21 +71,29 @@ record VertragsuebersichtAntwort(
 		var laufende = vertraege.stream()
 				.filter(vertrag -> vertrag.berechnet().status() != Vertragsstatus.BEENDET)
 				.toList();
-		// Die Jahreswerte der aktuellen Beträge sind exakt; gerundet wird erst beim Monatswert der Summe (ADR 0011).
-		List<Betrag> proJahr = jeWaehrung(laufende.stream()
-				.map(vertrag -> Kosten.proJahr(vertrag.betrag(), vertrag.zahlweise())));
-		// Beendete zählen mit, solange sie im Jahr etwas gekostet haben (Preise sind größer 0).
-		List<Betrag> imJahr = jeWaehrung(vertraege.stream()
+		// Beendete zählen mit, solange sie im Jahr etwas gekostet haben (Preise sind größer 0); enthält die laufenden.
+		var imJahrVertraege = vertraege.stream()
 				.filter(vertrag -> vertrag.berechnet().status() != Vertragsstatus.BEENDET
 						|| vertrag.berechnet().kostenImJahr().wert().signum() != 0)
-				.map(vertrag -> vertrag.berechnet().kostenImJahr()));
+				.toList();
+		// Je Vertrag der ungerundete Anteil am exakten Jahreswert; gerundet wird erst die Summe (ADR 0011), nicht
+		// berechnet.eigenerAnteil.
+		List<Betrag> proJahr = jeWaehrung(laufende.stream()
+				.map(vertrag -> anteil(vertrag).von(Kosten.proJahr(vertrag.betrag(), vertrag.zahlweise()))));
+		List<Betrag> imJahr = jeWaehrung(imJahrVertraege.stream()
+				.map(vertrag -> anteil(vertrag).von(vertrag.berechnet().kostenImJahr())));
+		boolean hatAnteile = imJahrVertraege.stream().anyMatch(vertrag -> anteil(vertrag).geteilt());
 		var fristen = laufende.stream()
 				.filter(vertrag -> vertrag.berechnet().kuendigung().art() == Kuendigungsart.KUENDIGEN_BIS)
 				.limit(FRISTEN)
 				.map(AnstehendeKuendigung::aus)
 				.toList();
-		return new VertragsuebersichtAntwort(laufende.size(), proJahr.stream().map(Kosten::proMonat).toList(), imJahr,
-				jahr, fristen);
+		return new VertragsuebersichtAntwort(laufende.size(), proJahr.stream().map(Kosten::proMonat).toList(),
+				imJahr.stream().map(Betrag::gerundet).toList(), jahr, hatAnteile, fristen);
+	}
+
+	private static Anteil anteil(VertragAntwort vertrag) {
+		return Anteil.aus(vertrag.anteilProzent());
 	}
 
 	/** Summe je Währung, nach Währungscode sortiert. */

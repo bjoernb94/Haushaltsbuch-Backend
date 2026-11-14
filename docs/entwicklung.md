@@ -355,8 +355,10 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
   Bezeichnung; Höchstlängen; optionale Felder alle gefüllt und alle leer.
 - **Nächste Abbuchung:** vorhanden, keine mehr, genau am Vertragsende, Monatsende als Anker (31.01.). Das
   Abrutschen zeigt sich nur, wenn die nächste Abbuchung in einen kürzeren Monat fällt.
+- **Anteil:** geteilte Verträge mit 50&nbsp;% und 33,3&nbsp;% sowie einer mit 100&nbsp;% (zählt wie ohne Anteil).
 
-Für jeden Fall prüft das Skript `art`, `dringend` und die nächste Abbuchung und bricht bei einer Abweichung ab,
+Für jeden Fall prüft das Skript `art`, `dringend`, die nächste Abbuchung und ob es `eigenerAnteil` gibt, in der
+Übersicht `hatAnteile`, und bricht bei einer Abweichung ab,
 ebenso wenn eine Feldvariante fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
 

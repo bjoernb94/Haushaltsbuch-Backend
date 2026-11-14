@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
@@ -20,6 +21,7 @@ import jakarta.persistence.Table;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -71,6 +73,9 @@ class Vertrag extends FachEntity {
 	@Column(name = "zahlungsweg", length = 40)
 	private Zahlungsweg zahlungsweg;
 
+	@Column(name = "anteil_prozent", precision = 4, scale = 1)
+	private BigDecimal anteilProzent;
+
 	@Column(name = "kuendbar", nullable = false)
 	private boolean kuendbar;
 
@@ -119,6 +124,8 @@ class Vertrag extends FachEntity {
 		this.zahlweise = anfrage.zahlweise();
 		this.abbuchungAb = anfrage.abbuchungAb();
 		this.zahlungsweg = anfrage.zahlungsweg();
+		// Mit fester Nachkommastelle wie aus der Datenbank, damit die Antwort beim Anlegen dieselbe ist (50 → 50.0).
+		this.anteilProzent = anfrage.anteilProzent() != null ? anfrage.anteilProzent().setScale(1) : null;
 		this.kuendbar = anfrage.kuendbar();
 		this.beginn = anfrage.beginn();
 		this.laufzeitende = anfrage.laufzeitende();
@@ -176,6 +183,15 @@ class Vertrag extends FachEntity {
 
 	Zahlungsweg getZahlungsweg() {
 		return zahlungsweg;
+	}
+
+	BigDecimal getAnteilProzent() {
+		return anteilProzent;
+	}
+
+	/** Der Anteil für die Berechnung; ohne Angabe 100&nbsp;%. */
+	Anteil anteil() {
+		return Anteil.aus(anteilProzent);
 	}
 
 	boolean isKuendbar() {
