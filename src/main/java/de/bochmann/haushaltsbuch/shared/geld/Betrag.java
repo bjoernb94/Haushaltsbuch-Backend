@@ -79,6 +79,19 @@ public record Betrag(
 		return new Betrag(wert.multiply(faktor).setScale(NACHKOMMASTELLEN, RUNDUNG), waehrung);
 	}
 
+	/**
+	 * Wie {@link #mal}, aber ungerundet: nur für Zwischenergebnisse (ADR 0011), die vor der Ausgabe
+	 * {@link #gerundet} oder {@link #geteilt} werden.
+	 */
+	public Betrag malUngerundet(BigDecimal faktor) {
+		return new Betrag(wert.multiply(faktor), waehrung);
+	}
+
+	/** Ein ungerundetes Zwischenergebnis kaufmännisch auf die Nachkommastellen gerundet. */
+	public Betrag gerundet() {
+		return new Betrag(wert.setScale(NACHKOMMASTELLEN, RUNDUNG), waehrung);
+	}
+
 	/** Z.&nbsp;B. Monatswert aus einem Jahreswert; das Ergebnis wird kaufmännisch gerundet. */
 	public Betrag geteilt(int teiler) {
 		return new Betrag(wert.divide(BigDecimal.valueOf(teiler), NACHKOMMASTELLEN, RUNDUNG), waehrung);

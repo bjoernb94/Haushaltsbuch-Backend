@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,6 +22,8 @@ interface Vertragsangaben extends Berechnungsangaben {
 	List<VertragPreisAnfrage> preise();
 
 	Zahlungsweg zahlungsweg();
+
+	BigDecimal anteilProzent();
 
 	String notiz();
 

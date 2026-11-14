@@ -201,7 +201,7 @@ class VertragControllerTests {
 				.andExpect(content().json("""
 						{"laufendeVertraege": 1,
 						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
-						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "jahr": %d,
+						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "jahr": %d, "hatAnteile": false,
 						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
 						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
 						   "kuendigenBis": "%s", "zum": "%s", "dringend": %s}]}
@@ -220,8 +220,51 @@ class VertragControllerTests {
 				.andExpect(status().isOk())
 				.andExpect(content().json("""
 						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "jahr": %d,
-						 "naechsteKuendigungsfristen": []}
+						 "hatAnteile": false, "naechsteKuendigungsfristen": []}
 						""".formatted(heute.getYear()), true));
+	}
+
+	/** {@code vertrag} (JSON wie aus {@link #abo}) mit eigenem Anteil. */
+	private static String mitAnteil(String vertrag, String prozent) {
+		return vertrag.replaceFirst("\"zahlungsweg\"", "\"anteilProzent\": " + prozent + ", \"zahlungsweg\"");
+	}
+
+	/** 33,3 % von 13,99 € im Monat: 4,66 € (4,65867), im Jahr 55,90 € (55,904). */
+	@Test
+	void geteilterVertragZaehltNurDenAnteil() throws Exception {
+		mockMvc.perform(anlegen(mitAnteil(abo("13.99", null, null, 0), "33.3")))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.anteilProzent").value(33.3))
+				.andExpect(jsonPath("$.betrag.wert").value(13.99))
+				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenProMonat.wert").value(4.66))
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenImJahr.wert").value(55.90))
+				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.betrag.wert").value(13.99));
+
+		mockMvc.perform(get("/api/vertraege/uebersicht").with(haushalt.anmeldung()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.kostenProMonat[0].wert").value(4.66))
+				.andExpect(jsonPath("$.kostenImJahr[0].wert").value(55.90))
+				.andExpect(jsonPath("$.hatAnteile").value(true));
+	}
+
+	@Test
+	void ohneAnteilKeinEigenerAnteil() throws Exception {
+		mockMvc.perform(anlegen(mitAnteil(abo("13.99", null, null, 0), "100")))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.anteilProzent").value(100.0))
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil").doesNotExist());
+	}
+
+	@Test
+	void prueftAnteil() throws Exception {
+		for (var fall : new String[][] {{"0.9", "DecimalMin"}, {"100.1", "DecimalMax"}, {"33.33", "Digits"}}) {
+			mockMvc.perform(anlegen(mitAnteil(abo("13.99", null, null, 0), fall[0])))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+					.andExpect(jsonPath("$.felder[0].feld").value("anteilProzent"))
+					.andExpect(jsonPath("$.felder[0].code").value(fall[1]));
+		}
 	}
 
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */

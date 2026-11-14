@@ -282,6 +282,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
   "zahlweise": "JAEHRLICH",
   "abbuchungAb": "2027-01-01",
   "zahlungsweg": "LASTSCHRIFT",
+  "anteilProzent": null,
   "kuendbar": true,
   "beginn": "2023-01-01",
   "laufzeitende": "2023-12-31",
@@ -302,6 +303,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
 | `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
+| `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
 | `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
 | `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
 | `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
@@ -359,6 +361,7 @@ nicht zurückgeschickt:
   "kostenProMonat": { "wert": 48.90, "waehrung": "EUR" },
   "kostenImJahr": { "wert": 586.80, "waehrung": "EUR" },
   "jahr": 2026,
+  "eigenerAnteil": null,
   "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
   "kuendigung": { "art": "KUENDIGEN_BIS", "kuendigenBis": "2026-11-30", "zum": "2026-12-31", "fristMonate": 1, "dringend": true }
@@ -374,6 +377,11 @@ nicht zurückgeschickt:
   Gezählt wird von `abbuchungAb` aus im Takt der Zahlweise vorwärts **und rückwärts**, also auch schon erfolgte
   Abbuchungen: frühestens ab dem 01.01., nicht vor `beginn` und nicht nach dem Vertragsende (wie bei der nächsten
   Abbuchung). Ohne Abbuchungen im Jahr 0.
+- **`eigenerAnteil`:** `{ kostenProMonat, kostenImJahr }`, der eigene Anteil an diesen beiden Werten bei einem
+  `anteilProzent` unter 100; sonst `null` (dann sind die vollen Kosten der eigene Anteil). Der Anteil wird auf die
+  ungerundeten Werte angewendet und erst dann gerundet ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
+  13,99&nbsp;€ monatlich zu 33,3&nbsp;% sind 4,66&nbsp;€ im Monat und 55,90&nbsp;€ im Jahr. `betrag`,
+  `naechsteAbbuchung` und `naechstePreisaenderung` bleiben die vollen Beträge, denn so viel wird abgebucht.
 - **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`, mit dem Preis
   dieses Tages (`{ am, betrag }`); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
   `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
@@ -406,7 +414,7 @@ nicht zurückgeschickt:
   - `fristMonate` ist die hinterlegte Frist (`null`, wenn keine angegeben ist; gerechnet wird dann mit 0).
 
 Fehler: **400** `VALIDIERUNG` mit den Feldfehlern aus der Tabelle (und den üblichen wie `NotBlank`,
-`Size`, `Max`).
+`Size`, `Max`, `DecimalMin`, `DecimalMax`, `Digits`).
 
 ### Verträge auflisten
 
@@ -476,6 +484,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   "kostenProMonat": [ { "wert": 202.08, "waehrung": "EUR" } ],
   "kostenImJahr": [ { "wert": 2398.43, "waehrung": "EUR" } ],
   "jahr": 2026,
+  "hatAnteile": true,
   "naechsteKuendigungsfristen": [
     { "id": "…", "anbieter": "Musterversicherung AG", "bezeichnung": "Kfz-Versicherung",
       "betrag": { "wert": 586.80, "waehrung": "EUR" }, "zahlweise": "JAEHRLICH",
@@ -486,7 +495,9 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 
 - **Laufend** sind alle Verträge mit `berechnet.status` ungleich `BEENDET`; gekündigte zählen bis zu
   ihrem Ende mit.
-- **Kosten:** je Währung ein Eintrag, nach Währungscode sortiert.
+- **Kosten:** je Währung ein Eintrag, nach Währungscode sortiert. Geteilte Verträge zählen nur mit ihrem
+  `anteilProzent`; der Anteil wird je Vertrag ungerundet angewendet und erst die Summe gerundet, die Summe der
+  `berechnet.eigenerAnteil` aus der Liste kann daher um einige Cent abweichen.
   - `kostenProMonat`: über die laufenden Verträge aus den heute gültigen Beträgen, umgerechnet, nicht
     abgebucht. Summiert werden die exakten Jahreswerte (Betrag × 12 ÷ Monate der Zahlweise), der Monatswert
     ist Summe ÷ 12, erst dann gerundet. Die Summe der `kostenProMonat` aus der Liste kann daher um einige Cent
@@ -496,10 +507,12 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
     `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung).
 - **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
   Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = heute gültiger
-  Preis); `kuendigenBis`,
+  Preis, auch bei geteilten Verträgen voll); `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
-- Ohne laufende und im Jahr beendete Verträge: `laufendeVertraege` 0 und leere Listen.
+- **`hatAnteile`:** `true`, wenn ein Vertrag, der in `kostenProMonat` oder `kostenImJahr` eingeht, ein
+  `anteilProzent` unter 100 hat; die SPA zeigt dann „Bei geteilten Verträgen nur dein Anteil“.
+- Ohne laufende und im Jahr beendete Verträge: `laufendeVertraege` 0, leere Listen und `hatAnteile` `false`.
 
 ### Vorschau des Kündigungstermins
 

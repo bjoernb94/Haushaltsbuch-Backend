@@ -181,6 +181,7 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "zahlweise": fall.zahlweise,
         "abbuchungAb": fall.abbuchung_ab or heute + timedelta(days=9),
         "zahlungsweg": None,
+        "anteilProzent": None,
         "kuendbar": fall.kuendbar,
         "beginn": None,
         "laufzeitende": None,
@@ -210,6 +211,8 @@ def pruefe_berechnung(fall, antwort):
             fehler.append(f"nächste Abbuchung {naechste}, erwartet war keine")
     elif naechste != fall.erwartet_naechste.isoformat():
         fehler.append(f"nächste Abbuchung {naechste} statt {fall.erwartet_naechste}")
+    if (berechnet["eigenerAnteil"] is not None) != geteilt(fall):
+        fehler.append(f"eigenerAnteil {berechnet['eigenerAnteil']} bei anteilProzent {fall.felder.get('anteilProzent')}")
     if fehler:
         raise Abbruch(f"Fall „{fall.anbieter[:60]}“: {', '.join(fehler)}")
     return art, naechste
@@ -228,9 +231,19 @@ def vertraege_anlegen(sitzung, konto, heute):
     return zeilen
 
 
+def geteilt(fall):
+    """Mit Anteil unter 100 %: Dann gibt es berechnet.eigenerAnteil."""
+    anteil = fall.felder.get("anteilProzent")
+    return anteil is not None and anteil < 100
+
+
 def pruefe_uebersicht(sitzung, konto):
     status, antwort = sitzung.anfrage("GET", "/api/vertraege/uebersicht")
     erwarte(status, 200, f"{konto.email}: Übersicht", antwort)
+    # Die Testfälle mit Anteil laufen alle noch.
+    hat_anteile = any(geteilt(fall) for fall in konto.faelle)
+    if antwort["hatAnteile"] != hat_anteile:
+        raise Abbruch(f"{konto.email}: hatAnteile {antwort['hatAnteile']} statt {hat_anteile}")
     fristen = len(antwort["naechsteKuendigungsfristen"])
     if fristen != konto.fristen_in_uebersicht:
         raise Abbruch(f"{konto.email}: {fristen} Fristen in der Übersicht statt {konto.fristen_in_uebersicht}")
@@ -330,6 +343,11 @@ def faelle_alles(heute):
                  {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 7.99, "waehrung": "EUR"}},
                  {"gueltigAb": tage(-100).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
                  {"gueltigAb": tage(30).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
+        # Geteilte Verträge: Übersichten zählen nur den Anteil; 100 % zählt wie ohne Anteil.
+        Fall("Geteilt – 50 %", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS", felder={"anteilProzent": 50}),
+        Fall("Geteilt – 33,3 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET", zahlweise="VIERTELJAEHRLICH",
+             felder={"anteilProzent": 33.3}),
+        Fall("Geteilt – 100 %", "KEINE_LAUFZEIT", felder={"anteilProzent": 100}),
         # Felder: Höchstlängen wie in VertragAnfrage.
         Fall("Sehr lange Namen – " + "Langer Anbietername " * 9, "KEINE_LAUFZEIT",
              felder={"bezeichnung": "Lange Bezeichnung " * 11, "vertragsnummer": "1234567890" * 10,

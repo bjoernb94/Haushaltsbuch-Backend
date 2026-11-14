@@ -4,6 +4,9 @@ import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,6 +15,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -35,6 +39,7 @@ record VertragAenderung(
 		@NotNull Zahlweise zahlweise,
 		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
+		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@NotNull Boolean kuendbar,
 		@PlausiblesDatum @Nullable LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,

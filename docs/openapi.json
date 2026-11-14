@@ -942,6 +942,11 @@
             "maxLength" : 200,
             "minLength" : 0
           },
+          "anteilProzent" : {
+            "type" : [ "number", "null" ],
+            "maximum" : 100,
+            "minimum" : 1
+          },
           "beginn" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1026,6 +1031,11 @@
             "maxLength" : 200,
             "minLength" : 0
           },
+          "anteilProzent" : {
+            "type" : [ "number", "null" ],
+            "maximum" : 100,
+            "minimum" : 1
+          },
           "beginn" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1104,6 +1114,9 @@
           "anbieter" : {
             "type" : "string"
           },
+          "anteilProzent" : {
+            "type" : [ "number", "null" ]
+          },
           "beginn" : {
             "type" : [ "string", "null" ],
             "format" : "date"
@@ -1173,11 +1186,18 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
         "properties" : {
+          "eigenerAnteil" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragEigenerAnteil"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "jahr" : {
             "type" : "integer",
             "format" : "int32"
@@ -1209,7 +1229,19 @@
             "$ref" : "#/components/schemas/Vertragsstatus"
           }
         },
-        "required" : [ "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
+        "required" : [ "eigenerAnteil", "jahr", "kostenImJahr", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "status" ]
+      },
+      "VertragEigenerAnteil" : {
+        "type" : "object",
+        "properties" : {
+          "kostenImJahr" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "kostenProMonat" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "kostenImJahr", "kostenProMonat" ]
       },
       "VertragKategorieAntwort" : {
         "type" : "object",
@@ -1322,6 +1354,9 @@
       "VertragsuebersichtAntwort" : {
         "type" : "object",
         "properties" : {
+          "hatAnteile" : {
+            "type" : "boolean"
+          },
           "jahr" : {
             "type" : "integer",
             "format" : "int32"
@@ -1349,7 +1384,7 @@
             }
           }
         },
-        "required" : [ "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+        "required" : [ "hatAnteile", "jahr", "kostenImJahr", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
       },
       "Zahlungsweg" : {
         "type" : "string",

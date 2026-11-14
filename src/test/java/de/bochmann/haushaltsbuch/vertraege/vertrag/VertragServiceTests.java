@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
@@ -48,7 +49,7 @@ class VertragServiceTests {
 
 	static VertragAnfrage anfrage(UUID kategorieId) {
 		return new VertragAnfrage("Musterversicherung AG", "Kfz-Versicherung", kategorieId, "KFZ-4711", preis("586.80"),
-				Zahlweise.JAEHRLICH, LocalDate.of(2027, 1, 1), Zahlungsweg.LASTSCHRIFT, true, LocalDate.of(2023, 1, 1),
+				Zahlweise.JAEHRLICH, LocalDate.of(2027, 1, 1), Zahlungsweg.LASTSCHRIFT, null, true, LocalDate.of(2023, 1, 1),
 				LocalDate.of(2023, 12, 31), Verlaengerung.ZWOELF_MONATE, 1, null, "Notiz");
 	}
 
@@ -71,7 +72,7 @@ class VertragServiceTests {
 	@Test
 	void leertUnpassendeAngaben() {
 		var rundfunk = new VertragAnfrage("  Beitragsservice  ", " ", VERSICHERUNG, "", preis("55.08"),
-				Zahlweise.VIERTELJAEHRLICH, LocalDate.of(2026, 11, 15), null, false, LocalDate.of(2020, 1, 1), null,
+				Zahlweise.VIERTELJAEHRLICH, LocalDate.of(2026, 11, 15), null, null, false, LocalDate.of(2020, 1, 1), null,
 				Verlaengerung.MONATLICH, 3, null, "  ");
 
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(rundfunk));
@@ -267,8 +268,115 @@ class VertragServiceTests {
 	private static VertragAnfrage mit(VertragAnfrage a, List<VertragPreisAnfrage> preise, Zahlweise zahlweise,
 			LocalDate abbuchungAb, LocalDate beginn, LocalDate gekuendigtZum) {
 		return new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(), preise, zahlweise,
-				abbuchungAb, a.zahlungsweg(), a.kuendbar(), beginn, a.laufzeitende(), a.verlaengerung(),
+				abbuchungAb, a.zahlungsweg(), a.anteilProzent(), a.kuendbar(), beginn, a.laufzeitende(), a.verlaengerung(),
 				a.kuendigungsfristMonate(), gekuendigtZum, a.notiz());
+	}
+
+	/** {@code a} mit eigenem Anteil in Prozent. */
+	private static VertragAnfrage mitAnteil(VertragAnfrage a, String prozent) {
+		return new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(), a.preise(),
+				a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), prozent != null ? new BigDecimal(prozent) : null,
+				a.kuendbar(), a.beginn(), a.laufzeitende(), a.verlaengerung(), a.kuendigungsfristMonate(),
+				a.gekuendigtZum(), a.notiz());
+	}
+
+	/** Monatlich {@code wert} ohne Beginn mit Anker im laufenden Jahr: zwölf Abbuchungen, unabhängig vom Testtag. */
+	private VertragAnfrage monatlichImJahr(String wert) {
+		return mit(anfrage(VERSICHERUNG), preis(wert), Zahlweise.MONATLICH, LocalDate.of(LocalDate.now(clock).getYear(),
+				6, 1), null, null);
+	}
+
+	@Test
+	void eigenerAnteilMit50Und33Komma3Prozent() {
+		var haelfte = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(monatlichImJahr("10.00"), "50")));
+		var drittel = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(monatlichImJahr("10.00"), "33.3")));
+
+		assertThat(haelfte.anteilProzent()).isEqualTo(new BigDecimal("50.0"));
+		assertThat(haelfte.berechnet().eigenerAnteil())
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.00"), euro("60.00")));
+		// 120 € × 33,3 % = 39,96 € im Jahr, ÷ 12 = 3,33 € im Monat.
+		assertThat(drittel.berechnet().eigenerAnteil())
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("3.33"), euro("39.96")));
+		// Abgebucht wird weiter der volle Betrag.
+		assertThat(drittel.betrag()).isEqualTo(euro("10.00"));
+		assertThat(drittel.berechnet().kostenProMonat()).isEqualTo(euro("10.00"));
+		assertThat(drittel.berechnet().kostenImJahr()).isEqualTo(euro("120.00"));
+		assertThat(drittel.berechnet().naechsteAbbuchung().betrag()).isEqualTo(euro("10.00"));
+		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(drittel.id()))).isEqualTo(drittel);
+	}
+
+	@Test
+	void ohneAnteilUnter100KeinEigenerAnteil() {
+		var ohne = HaushaltKontext.fuer(haushalt, () -> service.anlegen(monatlichImJahr("10.00")));
+		var ganz = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(monatlichImJahr("10.00"), "100")));
+
+		assertThat(ohne.anteilProzent()).isNull();
+		assertThat(ohne.berechnet().eigenerAnteil()).isNull();
+		assertThat(ganz.anteilProzent()).isEqualTo(new BigDecimal("100.0"));
+		assertThat(ganz.berechnet().eigenerAnteil()).isNull();
+		assertThat(HaushaltKontext.fuer(haushalt, service::uebersicht).hatAnteile()).isFalse();
+	}
+
+	@Test
+	void anteilAendernUndGleichenAnteilBehaeltVersion() {
+		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(anfrage(VERSICHERUNG), "50")));
+
+		// 50 und 50.0 sind derselbe Anteil.
+		var gleich = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(),
+				aenderung(0, mitAnteil(anfrage(VERSICHERUNG), "50.0"))));
+		var geaendert = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(),
+				aenderung(0, mitAnteil(anfrage(VERSICHERUNG), "33.3"))));
+		var entfernt = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(),
+				aenderung(1, anfrage(VERSICHERUNG))));
+
+		assertThat(gleich.version()).isZero();
+		assertThat(geaendert.version()).isEqualTo(1);
+		assertThat(geaendert.anteilProzent()).isEqualTo(new BigDecimal("33.3"));
+		assertThat(entfernt.anteilProzent()).isNull();
+		assertThat(entfernt.berechnet().eigenerAnteil()).isNull();
+	}
+
+	/**
+	 * Die Übersicht wendet den Anteil je Vertrag ungerundet an und rundet erst die Summe (ADR 0011). Zweimal jährlich
+	 * 10,01 € zu 50 %: im Jahr 5,005 + 5,005 = 10,01 € (einzeln gerundet 10,02 €), im Monat 10,01 ÷ 12 = 0,83 €
+	 * (einzeln gerundet 0,42 + 0,42 = 0,84 €). Dazu ein Vertrag ohne Anteil, der voll zählt.
+	 */
+	@Test
+	void uebersichtZaehltNurDenAnteilUndRundetDieSumme() {
+		int jahr = LocalDate.now(clock).getYear();
+		var geteilt = mitAnteil(mit(anfrage(VERSICHERUNG), preis("10.01"), Zahlweise.JAEHRLICH, LocalDate.of(jahr, 1, 1),
+				null, null), "50");
+		HaushaltKontext.fuer(haushalt, () -> {
+			var erster = service.anlegen(geteilt);
+			service.anlegen(geteilt);
+			assertThat(erster.berechnet().eigenerAnteil())
+					.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("0.42"), euro("5.01")));
+			return null;
+		});
+
+		var nurGeteilte = HaushaltKontext.fuer(haushalt, service::uebersicht);
+		HaushaltKontext.fuer(haushalt, () -> service.anlegen(monatlichImJahr("12.00")));
+		var mitVollem = HaushaltKontext.fuer(haushalt, service::uebersicht);
+
+		assertThat(nurGeteilte.kostenImJahr()).containsExactly(euro("10.01"));
+		assertThat(nurGeteilte.kostenProMonat()).containsExactly(euro("0.83"));
+		assertThat(nurGeteilte.hatAnteile()).isTrue();
+		// 10,01 + 144,00 im Jahr; im Monat 154,01 ÷ 12 = 12,834 → 12,83.
+		assertThat(mitVollem.kostenImJahr()).containsExactly(euro("154.01"));
+		assertThat(mitVollem.kostenProMonat()).containsExactly(euro("12.83"));
+	}
+
+	/** Ein beendeter geteilter Vertrag, der im Jahr nichts mehr gekostet hat, zählt nicht und setzt kein Kennzeichen. */
+	@Test
+	void uebersichtOhneAnteilVonVorjahrBeendetem() {
+		LocalDate januar = LocalDate.of(LocalDate.now(clock).getYear(), 1, 1);
+		HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(mit(anfrage(VERSICHERUNG), preis("10.00"),
+				Zahlweise.MONATLICH, januar.minusMonths(1), null, januar.minusDays(1)), "50")));
+
+		var uebersicht = HaushaltKontext.fuer(haushalt, service::uebersicht);
+
+		assertThat(uebersicht.kostenImJahr()).isEmpty();
+		assertThat(uebersicht.hatAnteile()).isFalse();
 	}
 
 	@Test
@@ -303,7 +411,8 @@ class VertragServiceTests {
 	@Test
 	void uebersichtOhneVertraegeLeer() {
 		assertThat(HaushaltKontext.fuer(haushalt, service::uebersicht))
-				.isEqualTo(new VertragsuebersichtAntwort(0, List.of(), List.of(), LocalDate.now(clock).getYear(), List.of()));
+				.isEqualTo(new VertragsuebersichtAntwort(0, List.of(), List.of(), LocalDate.now(clock).getYear(), false,
+						List.of()));
 	}
 
 	/** Die Werte von {@code a}, die die Vorschau braucht. */
@@ -317,11 +426,11 @@ class VertragServiceTests {
 		var a = anfrage(VERSICHERUNG);
 		LocalDate heute = LocalDate.now(clock);
 		var gekuendigt = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), true, a.beginn(), a.laufzeitende(),
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), true, a.beginn(), a.laufzeitende(),
 				a.verlaengerung(), a.kuendigungsfristMonate(), heute.plusDays(30), a.notiz());
 		// Nicht kündbar mit Verlängerung und Frist: beides wird verworfen, auch die Frist in der Kündigung.
 		var nichtKuendbar = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), false, a.beginn(), a.laufzeitende(),
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), false, a.beginn(), a.laufzeitende(),
 				a.verlaengerung(), 3, null, a.notiz());
 
 		for (var anfrage : List.of(a, gekuendigt, nichtKuendbar)) {
@@ -342,7 +451,7 @@ class VertragServiceTests {
 	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */
 	static VertragAenderung aenderung(long version, VertragAnfrage a) {
 		return new VertragAenderung(version, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.kuendbar(), a.beginn(), a.laufzeitende(),
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), a.kuendbar(), a.beginn(), a.laufzeitende(),
 				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
 	}
 
@@ -350,7 +459,7 @@ class VertragServiceTests {
 	private static VertragAnfrage monatlich() {
 		var a = anfrage(VERSICHERUNG);
 		return new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(), preis("50.00"),
-				Zahlweise.MONATLICH, LocalDate.of(2026, 12, 1), a.zahlungsweg(), a.kuendbar(), a.beginn(), a.laufzeitende(),
+				Zahlweise.MONATLICH, LocalDate.of(2026, 12, 1), a.zahlungsweg(), a.anteilProzent(), a.kuendbar(), a.beginn(), a.laufzeitende(),
 				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
 	}
 
@@ -396,7 +505,7 @@ class VertragServiceTests {
 		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage(VERSICHERUNG)));
 		var a = anfrage(VERSICHERUNG);
 		var nichtKuendbar = new VertragAenderung(0L, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), false, a.beginn(), a.laufzeitende(),
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), false, a.beginn(), a.laufzeitende(),
 				a.verlaengerung(), a.kuendigungsfristMonate(), null, null);
 
 		var geaendert = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(), nichtKuendbar));
@@ -447,7 +556,7 @@ class VertragServiceTests {
 	private void anlegen(String anbieter, String bezeichnung, Zahlweise zahlweise, boolean kuendbar,
 			LocalDate laufzeitende, Verlaengerung verlaengerung, Integer frist, LocalDate gekuendigtZum) {
 		service.anlegen(new VertragAnfrage(anbieter, bezeichnung, VERSICHERUNG, null, preis("10.00"), zahlweise,
-				LocalDate.now(clock).plusDays(10), null, kuendbar, null, laufzeitende, verlaengerung, frist, gekuendigtZum,
+				LocalDate.now(clock).plusDays(10), null, null, kuendbar, null, laufzeitende, verlaengerung, frist, gekuendigtZum,
 				null));
 	}
 

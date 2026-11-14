@@ -4,6 +4,9 @@ import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,6 +15,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -23,6 +27,8 @@ import java.util.UUID;
  * @param bezeichnung leer, wenn der Anbieter als Name genügt
  * @param preise Preise mit Gültigkeitsdatum in beliebiger Reihenfolge; der heute gültige ist der Betrag des Vertrags
  * @param abbuchungAb ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“
+ * @param anteilProzent eigener Anteil an einem geteilten Vertrag (1–100, eine Nachkommastelle); leer = 100&nbsp;%.
+ *        Übersichten zählen nur diesen Anteil der Kosten, Beträge und Abbuchungen bleiben die vollen
  * @param kuendbar {@code false} z.&nbsp;B. für den Rundfunkbeitrag; dann werden {@code verlaengerung} und
  *        {@code kuendigungsfristMonate} nicht gespeichert, {@code beginn} und {@code laufzeitende} bleiben (#67)
  * @param gekuendigtZum gesetzt, wenn gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag
@@ -39,6 +45,7 @@ record VertragAnfrage(
 		@NotNull Zahlweise zahlweise,
 		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
+		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@NotNull Boolean kuendbar,
 		@PlausiblesDatum @Nullable LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,

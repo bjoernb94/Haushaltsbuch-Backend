@@ -41,6 +41,16 @@ class BetragTests {
 	}
 
 	@Test
+	void rechnetUngerundetUndRundetAmEnde() {
+		var haelfte = Betrag.euro("10.01").malUngerundet(new BigDecimal("0.5"));
+
+		assertThat(haelfte.wert()).isEqualTo(new BigDecimal("5.005"));
+		assertThat(haelfte.plus(haelfte).gerundet()).isEqualTo(Betrag.euro("10.01"));
+		assertThat(haelfte.gerundet()).isEqualTo(Betrag.euro("5.01"));
+		assertThat(Betrag.euro("-5.005").gerundet()).isEqualTo(Betrag.euro("-5.01"));
+	}
+
+	@Test
 	void teiltKaufmaennischGerundet() {
 		assertThat(Betrag.euro("40.00").geteilt(12)).isEqualTo(Betrag.euro("3.33"));
 		assertThat(Betrag.euro("220.32").geteilt(12)).isEqualTo(Betrag.euro("18.36"));
