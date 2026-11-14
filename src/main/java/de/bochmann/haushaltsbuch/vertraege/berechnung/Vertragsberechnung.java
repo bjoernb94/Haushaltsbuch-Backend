@@ -52,6 +52,7 @@ public class Vertragsberechnung {
 		Betrag kostenProMonat = null;
 		Betrag kostenImJahr = null;
 		boolean mitPrognose = false;
+		Betrag anteilBetrag = null;
 		Betrag anteilProMonat = null;
 		Betrag anteilImJahr = null;
 		Abbuchung naechsteAbbuchung = null;
@@ -61,6 +62,7 @@ public class Vertragsberechnung {
 		if (preise != null) {
 			betrag = aktuellerPreis(daten, preise);
 			preiszeilen = preiszeilen(daten, preise);
+			anteilBetrag = anteil.geteilt() ? anteil.von(betrag).gerundet() : null;
 			naechsteAbbuchung = naechsteAbbuchung(daten, preise, prognose).orElse(null);
 			naechstePreisaenderung = naechstePreisaenderung(daten, preise, prognose).orElse(null);
 			prognosepreise = prognose(daten, preise, prognose);
@@ -80,7 +82,8 @@ public class Vertragsberechnung {
 		Currency waehrung = preise != null ? preise.waehrung()
 				: einmalkosten.isEmpty() ? null : einmalkosten.getFirst().betrag().waehrung();
 		return new Vertragswerte(status(daten), betrag, preiszeilen, kostenProMonat, kostenImJahr, mitPrognose,
-				anteilProMonat, anteilImJahr, waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
+				anteilBetrag, anteilProMonat, anteilImJahr,
+				waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
 				naechstePreisaenderung, prognosepreise, preisverlauf, kuendigung(daten));
 	}
 

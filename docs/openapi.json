@@ -1361,6 +1361,9 @@
       "VertragEigenerAnteil" : {
         "type" : "object",
         "properties" : {
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
           "kostenImJahr" : {
             "$ref" : "#/components/schemas/Betrag"
           },
@@ -1368,7 +1371,7 @@
             "$ref" : "#/components/schemas/Betrag"
           }
         },
-        "required" : [ "kostenImJahr", "kostenProMonat" ]
+        "required" : [ "betrag", "kostenImJahr", "kostenProMonat" ]
       },
       "VertragEinmalkostenAnfrage" : {
         "type" : "object",
@@ -1654,11 +1657,18 @@
       "VertragVorschauEigenerAnteil" : {
         "type" : "object",
         "properties" : {
-          "kostenProMonat" : {
+          "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
+          },
+          "kostenProMonat" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
-        "required" : [ "kostenProMonat" ]
+        "required" : [ "betrag", "kostenProMonat" ]
       },
       "VertragVorschauEinmalkosten" : {
         "type" : "object",
