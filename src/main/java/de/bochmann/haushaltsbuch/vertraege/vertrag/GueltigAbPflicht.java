@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * Nur ein Preis darf ohne {@code gueltigAb} sein (er gilt ab Vertragsbeginn); jeder weitere ohne Datum ist ein
- * Verstoß an {@code preise[i].gueltigAb}.
+ * Verstoß an {@code preise[i].gueltigAb}. Unvollständige Zeilen (ohne Betrag) zählen nicht.
  */
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
@@ -26,17 +26,17 @@ import java.util.List;
 
 	Class<? extends Payload>[] payload() default {};
 
-	class Pruefung implements ConstraintValidator<GueltigAbPflicht, List<VertragPreisAnfrage>> {
+	class Pruefung implements ConstraintValidator<GueltigAbPflicht, List<? extends Preisangabe>> {
 
 		@Override
-		public boolean isValid(List<VertragPreisAnfrage> preise, ConstraintValidatorContext context) {
+		public boolean isValid(List<? extends Preisangabe> preise, ConstraintValidatorContext context) {
 			if (preise == null) {
 				return true;
 			}
 			boolean gueltig = true;
 			boolean ohneDatum = false;
 			for (int i = 0; i < preise.size(); i++) {
-				if (preise.get(i) == null || preise.get(i).gueltigAb() != null) {
+				if (preise.get(i) == null || !preise.get(i).vollstaendig() || preise.get(i).gueltigAb() != null) {
 					continue;
 				}
 				if (ohneDatum) {

@@ -51,7 +51,7 @@ class VertragController {
 		return ResponseEntity.created(location).body(vertrag);
 	}
 
-	/** Kündigungstermin für das Formular, ohne zu speichern; daher 200 statt 201. */
+	/** Berechnete Werte für das Formular (Zusammenfassung), ohne zu speichern; daher 200 statt 201. */
 	@PostMapping("/vorschau")
 	VertragVorschauAntwort vertragVorschauBerechnen(@Valid @RequestBody VertragVorschauAnfrage anfrage) {
 		return service.vorschau(anfrage);

@@ -605,35 +605,128 @@ class VertragServiceTests {
 
 	/** Die Werte von {@code a}, die die Vorschau braucht. */
 	private static VertragVorschauAnfrage vorschau(VertragAnfrage a) {
-		return new VertragVorschauAnfrage(a.zahlweise(), a.abbuchungAb(), a.kuendbar(), a.beginn(), a.laufzeitende(),
-				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum());
+		var steigerung = a.preissteigerung();
+		return new VertragVorschauAnfrage(
+				a.preise().stream().map(p -> new VertragVorschauPreis(p.gueltigAb(), p.betrag())).toList(),
+				a.zahlweise(), a.abbuchungAb(), a.anteilProzent(),
+				a.einmalkosten().stream()
+						.map(e -> new VertragVorschauEinmalkosten(e.bezeichnung(), e.betrag(), e.faelligAm())).toList(),
+				steigerung == null ? null : new VertragVorschauPreissteigerung(steigerung.art(), steigerung.prozent(),
+						steigerung.betrag(), steigerung.rhythmus(), steigerung.naechsteAm()),
+				a.preisgarantieBis(), a.kuendbar(), a.beginn(), a.laufzeitende(), a.verlaengerung(),
+				a.kuendigungsfristMonate(), a.gekuendigtZum());
 	}
 
+	/** Was die Vorschau für den gespeicherten Vertrag {@code v} zeigen muss. */
+	private static VertragVorschauAntwort wieGespeichert(VertragAntwort v) {
+		var berechnet = v.berechnet();
+		return new VertragVorschauAntwort(v.betrag(), berechnet.kostenProMonat(),
+				berechnet.eigenerAnteil() == null ? null
+						: new VertragVorschauAntwort.VertragVorschauEigenerAnteil(berechnet.eigenerAnteil().kostenProMonat()),
+				berechnet.naechsteAbbuchung(), berechnet.naechstePreisaenderung(), berechnet.prognose(),
+				v.einmalkosten().isEmpty() ? null : berechnet.einmalkosten(), berechnet.kuendigung());
+	}
+
+	/** Dieselbe Berechnung: Für vollständige Angaben zeigt die Vorschau, was der gespeicherte Vertrag berechnet. */
 	@Test
 	void vorschauWieGespeicherterVertrag() {
 		var a = anfrage(VERSICHERUNG);
 		LocalDate heute = LocalDate.now(clock);
 		var gekuendigt = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(), a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), true, a.beginn(), a.laufzeitende(),
-				a.verlaengerung(), a.kuendigungsfristMonate(), heute.plusDays(30), a.notiz());
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(),
+				a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), true, a.beginn(),
+				a.laufzeitende(), a.verlaengerung(), a.kuendigungsfristMonate(), heute.plusDays(30), a.notiz());
 		// Nicht kündbar mit Verlängerung und Frist: beides wird verworfen, auch die Frist in der Kündigung.
 		var nichtKuendbar = new VertragAnfrage(a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
-				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(), a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), false, a.beginn(), a.laufzeitende(),
-				a.verlaengerung(), 3, null, a.notiz());
+				a.preise(), a.zahlweise(), a.abbuchungAb(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(),
+				a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), false, a.beginn(),
+				a.laufzeitende(), a.verlaengerung(), 3, null, a.notiz());
+		// Alles zusammen: mehrere Preise, Anteil, Einmalkosten, Preissteigerung mit Garantie.
+		var preise = List.of(new VertragPreisAnfrage(null, euro("10.00")),
+				new VertragPreisAnfrage(heute.plusDays(40), euro("11.00")));
+		var voll = mitSteigerung(mitEinmalkosten(mitAnteil(mit(anfrage(VERSICHERUNG), preise, Zahlweise.MONATLICH,
+						heute.plusDays(3), null, null), "33.3"), einmal("Router", "99.99", heute)),
+				new VertragPreissteigerungAnfrage(Steigerungsart.PROZENT, new BigDecimal("2.5"), null,
+						Erhoehungsrhythmus.JAEHRLICH, heute.plusMonths(2)), heute.plusMonths(3), true);
 
-		for (var anfrage : List.of(a, gekuendigt, nichtKuendbar)) {
+		for (var anfrage : List.of(a, gekuendigt, nichtKuendbar, voll, steigtAbHeute())) {
 			var gespeichert = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage));
 
-			assertThat(service.vorschau(vorschau(anfrage)).kuendigung()).isEqualTo(gespeichert.berechnet().kuendigung());
+			assertThat(service.vorschau(vorschau(anfrage))).isEqualTo(wieGespeichert(gespeichert));
 		}
 		assertThat(service.vorschau(vorschau(nichtKuendbar)).kuendigung().fristMonate()).isNull();
+		assertThat(service.vorschau(vorschau(voll)).prognose()).hasSize(3);
+		assertThat(service.vorschau(vorschau(voll)).eigenerAnteil()).isNotNull();
 	}
 
 	@Test
 	void vorschauMitFehlendenWerten() {
-		var leer = new VertragVorschauAnfrage(null, null, true, null, null, null, null, null);
+		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, null, true, null, null, null, null, null);
 
-		assertThat(service.vorschau(leer).kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
+		var vorschau = service.vorschau(leer);
+
+		assertThat(vorschau.kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
+		assertThat(vorschau).isEqualTo(new VertragVorschauAntwort(null, null, null, null, null, List.of(), null,
+				vorschau.kuendigung()));
+	}
+
+	/** Was fehlt, bleibt leer; der Rest wird trotzdem berechnet. */
+	@Test
+	void vorschauMitTeilweisenAngaben() {
+		var preis = List.of(new VertragVorschauPreis(null, euro("10.00")));
+		var ohneAnker = new VertragVorschauAnfrage(preis, Zahlweise.MONATLICH, null, new BigDecimal("50"), null, null,
+				null, true, null, null, null, null, null);
+		var ohneZahlweise = new VertragVorschauAnfrage(preis, null, LocalDate.now(clock), new BigDecimal("50"), null,
+				null, null, true, null, null, null, null, null);
+
+		var ohneAnkerVorschau = service.vorschau(ohneAnker);
+		var ohneZahlweiseVorschau = service.vorschau(ohneZahlweise);
+
+		assertThat(ohneAnkerVorschau.betrag()).isEqualTo(euro("10.00"));
+		assertThat(ohneAnkerVorschau.kostenProMonat()).isEqualTo(euro("10.00"));
+		assertThat(ohneAnkerVorschau.eigenerAnteil())
+				.isEqualTo(new VertragVorschauAntwort.VertragVorschauEigenerAnteil(euro("5.00")));
+		assertThat(ohneAnkerVorschau.naechsteAbbuchung()).isNull();
+		assertThat(ohneZahlweiseVorschau.betrag()).isEqualTo(euro("10.00"));
+		assertThat(ohneZahlweiseVorschau.kostenProMonat()).isNull();
+		assertThat(ohneZahlweiseVorschau.eigenerAnteil()).isNull();
+		assertThat(ohneZahlweiseVorschau.naechsteAbbuchung()).isNull();
+	}
+
+	/** Unvollständige Zeilen ignoriert die Vorschau, statt sie abzulehnen. */
+	@Test
+	void vorschauIgnoriertUnvollstaendigeZeilen() {
+		LocalDate heute = LocalDate.now(clock);
+		var preise = List.of(new VertragVorschauPreis(null, euro("10.00")), new VertragVorschauPreis(heute.plusDays(5), null));
+		var einmalkosten = List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), null),
+				new VertragVorschauEinmalkosten(" ", euro("5.00"), heute),
+				new VertragVorschauEinmalkosten("Anschluss", euro("49.00"), heute));
+		// Prozent ohne Prozentsatz; der Betrag gehört zur anderen Art und zählt nicht.
+		var steigerung = new VertragVorschauPreissteigerung(Steigerungsart.PROZENT, null, euro("1.00"),
+				Erhoehungsrhythmus.JAEHRLICH, heute);
+
+		var vorschau = service.vorschau(new VertragVorschauAnfrage(preise, Zahlweise.MONATLICH, heute.plusDays(10),
+				null, einmalkosten, steigerung, null, true, null, null, null, null, null));
+
+		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
+		assertThat(vorschau.naechstePreisaenderung()).isNull();
+		assertThat(vorschau.prognose()).isEmpty();
+		assertThat(vorschau.einmalkosten()).isEqualTo(euro("49.00"));
+	}
+
+	/** Ohne Preis summieren die Einmalkosten in ihrer eigenen Währung; ohne vollständige Zeile bleiben sie leer. */
+	@Test
+	void vorschauEinmalkostenOhnePreis() {
+		var nurEinmalkosten = new VertragVorschauAnfrage(null, null, null, null,
+				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, true,
+				null, null, null, null, null);
+		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"))), null,
+				null, null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, true, null, null,
+				null, null, null);
+
+		assertThat(service.vorschau(nurEinmalkosten).einmalkosten()).isEqualTo(euro("99.99"));
+		assertThat(service.vorschau(nurEinmalkosten).betrag()).isNull();
+		assertThat(service.vorschau(nichtsVollstaendig).einmalkosten()).isNull();
 	}
 
 	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */

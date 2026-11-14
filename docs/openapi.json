@@ -1511,9 +1511,22 @@
             "type" : [ "string", "null" ],
             "format" : "date"
           },
+          "anteilProzent" : {
+            "type" : [ "number", "null" ],
+            "maximum" : 100,
+            "minimum" : 1
+          },
           "beginn" : {
             "type" : [ "string", "null" ],
             "format" : "date"
+          },
+          "einmalkosten" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/VertragVorschauEinmalkosten"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
           },
           "gekuendigtZum" : {
             "type" : [ "string", "null" ],
@@ -1531,6 +1544,25 @@
           "laufzeitende" : {
             "type" : [ "string", "null" ],
             "format" : "date"
+          },
+          "preise" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/VertragVorschauPreis"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
+          },
+          "preisgarantieBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "preissteigerung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragVorschauPreissteigerung"
+            }, {
+              "type" : "null"
+            } ]
           },
           "verlaengerung" : {
             "oneOf" : [ {
@@ -1552,11 +1584,140 @@
       "VertragVorschauAntwort" : {
         "type" : "object",
         "properties" : {
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "eigenerAnteil" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/VertragVorschauEigenerAnteil"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "einmalkosten" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "kostenProMonat" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "kuendigung" : {
             "$ref" : "#/components/schemas/Kuendigung"
+          },
+          "naechsteAbbuchung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Abbuchung"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "naechstePreisaenderung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Preisaenderung"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "prognose" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Prognosepreis"
+            }
           }
         },
-        "required" : [ "kuendigung" ]
+        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "prognose" ]
+      },
+      "VertragVorschauEigenerAnteil" : {
+        "type" : "object",
+        "properties" : {
+          "kostenProMonat" : {
+            "$ref" : "#/components/schemas/Betrag"
+          }
+        },
+        "required" : [ "kostenProMonat" ]
+      },
+      "VertragVorschauEinmalkosten" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "bezeichnung" : {
+            "type" : [ "string", "null" ],
+            "maxLength" : 200,
+            "minLength" : 0
+          },
+          "faelligAm" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          }
+        }
+      },
+      "VertragVorschauPreis" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "gueltigAb" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          }
+        }
+      },
+      "VertragVorschauPreissteigerung" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Steigerungsart"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "naechsteAm" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "prozent" : {
+            "type" : [ "number", "null" ],
+            "exclusiveMinimum" : 0,
+            "maximum" : 100
+          },
+          "rhythmus" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Erhoehungsrhythmus"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        }
       },
       "Vertragsstatus" : {
         "type" : "string",

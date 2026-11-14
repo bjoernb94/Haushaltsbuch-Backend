@@ -19,7 +19,7 @@ import java.time.LocalDate;
 record VertragEinmalkostenAnfrage(
 		@NotBlank @Size(max = 200) String bezeichnung,
 		@NotNull @Valid @PositiverBetrag Betrag betrag,
-		@NotNull @PlausiblesDatum LocalDate faelligAm) {
+		@NotNull @PlausiblesDatum LocalDate faelligAm) implements Einmalkostenangabe {
 
 	VertragEinmalkosten einmalkosten() {
 		return new VertragEinmalkosten(bezeichnung.strip(), betrag, faelligAm);

@@ -30,7 +30,7 @@ record VertragPreissteigerungAnfrage(
 		@Nullable BigDecimal prozent,
 		@Valid @PositiverBetrag @Nullable Betrag betrag,
 		@NotNull Erhoehungsrhythmus rhythmus,
-		@NotNull @PlausiblesDatum LocalDate naechsteAm) {
+		@NotNull @PlausiblesDatum LocalDate naechsteAm) implements Steigerungsangabe {
 
 	/** Mit fester Nachkommastelle wie aus der Datenbank (2.5 → 2.50), damit die Antwort beim Anlegen dieselbe ist. */
 	VertragPreissteigerung preissteigerung() {
