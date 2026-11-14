@@ -19,7 +19,7 @@ import java.util.List;
  * @param preise die vollständigen Preiszeilen, sortiert und mit {@code art} wie {@code preise} eines gespeicherten
  *        Vertrags; leer ohne vollständige Preiszeile
  * @param kostenProMonat braucht Preis und Zahlweise
- * @param eigenerAnteil nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenProMonat}
+ * @param eigenerAnteil nur bei einem Anteil unter 100&nbsp;% und mit Preis
  * @param naechsteAbbuchung braucht Zahlweise, {@code abbuchungAb} und Preis; leer auch, wenn keine mehr kommt
  * @param naechstePreisaenderung angekündigt oder Prognose; leer, wenn keine bekannt ist
  * @param prognose die nächsten drei Preise; leer ohne oder mit unvollständiger Preissteigerung
@@ -37,14 +37,19 @@ record VertragVorschauAntwort(
 		@Nullable Betrag einmalkosten,
 		Kuendigung kuendigung) {
 
-	/** Der eigene Anteil an {@code kostenProMonat}; den Anteil am Jahr zeigt das Formular nicht. */
-	record VertragVorschauEigenerAnteil(Betrag kostenProMonat) {
+	/**
+	 * Der eigene Anteil an {@code betrag} und {@code kostenProMonat}; den Anteil am Jahr zeigt das Formular nicht.
+	 *
+	 * @param kostenProMonat braucht zusätzlich die Zahlweise
+	 */
+	record VertragVorschauEigenerAnteil(Betrag betrag, @Nullable Betrag kostenProMonat) {
 	}
 
 	static VertragVorschauAntwort aus(Vertragswerte werte, Berechnungsgrundlage grundlage) {
 		return new VertragVorschauAntwort(werte.betrag(),
 				werte.preise().stream().map(VertragPreisAntwort::aus).toList(), werte.kostenProMonat(),
-				werte.eigenerAnteilProMonat() != null ? new VertragVorschauEigenerAnteil(werte.eigenerAnteilProMonat())
+				werte.eigenerAnteilBetrag() != null
+						? new VertragVorschauEigenerAnteil(werte.eigenerAnteilBetrag(), werte.eigenerAnteilProMonat())
 						: null,
 				werte.naechsteAbbuchung(), werte.naechstePreisaenderung(), werte.prognose(),
 				grundlage.einmalkosten().isEmpty() ? null : werte.einmalkosten(), werte.kuendigung());

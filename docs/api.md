@@ -462,10 +462,13 @@ nicht zurückgeschickt:
   prognostizierten Preis; dafür zählen alle Termine im Jahr, nicht nur die drei aus `prognose`.
 - **`kostenImJahrMitPrognose`:** `true`, wenn eine Abbuchung in `kostenImJahr` mit einem prognostizierten Preis
   rechnet; die SPA zeigt dann „inkl. Prognose“.
-- **`eigenerAnteil`:** `{ kostenProMonat, kostenImJahr }`, der eigene Anteil an diesen beiden Werten bei einem
-  `anteilProzent` unter 100; sonst `null` (dann sind die vollen Kosten der eigene Anteil). Der Anteil wird auf die
-  ungerundeten Werte angewendet und erst dann gerundet ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
-  13,99&nbsp;€ monatlich zu 33,3&nbsp;% sind 4,66&nbsp;€ im Monat und 55,90&nbsp;€ im Jahr. `betrag`,
+- **`eigenerAnteil`:** `{ betrag, kostenProMonat, kostenImJahr }`, der eigene Anteil an `betrag` (je Abbuchung,
+  für „Dein Anteil: 50&nbsp;% von 586,80&nbsp;€ = 293,40&nbsp;€ jährlich“), `kostenProMonat` und `kostenImJahr` bei
+  einem `anteilProzent` unter 100; sonst `null` (dann sind die vollen Kosten der eigene Anteil). Der Anteil wird
+  jeweils auf den ungerundeten Wert angewendet und erst dann gerundet
+  ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)): 13,99&nbsp;€ monatlich zu 33,3&nbsp;% sind
+  4,66&nbsp;€ je Abbuchung und im Monat und 55,90&nbsp;€ im Jahr. Weil jeder Wert für sich gerundet wird, ergibt
+  `eigenerAnteil.betrag` umgerechnet nicht zwingend cent-genau `eigenerAnteil.kostenProMonat`. `betrag`,
   `naechsteAbbuchung` und `naechstePreisaenderung` bleiben die vollen Beträge, denn so viel wird abgebucht.
 - **`einmalkosten`:** Summe aller [Einmalkosten](#einmalkosten) des Vertrags, unabhängig vom Jahr und mit dem vollen
   Betrag (ohne Anteil; die Details zeigen sie als „Gesamt“). Ohne Einträge 0 in der Währung der Preise.
@@ -635,7 +638,7 @@ speichern → **200** (ohne `Location`):
   "betrag": { "wert": 13.99, "waehrung": "EUR" },
   "preise": [{ "gueltigAb": null, "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
   "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
-  "eigenerAnteil": { "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
+  "eigenerAnteil": { "betrag": { "wert": 7.00, "waehrung": "EUR" }, "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
   "naechsteAbbuchung": { "am": "2026-11-23", "betrag": { "wert": 13.99, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
   "prognose": [],
@@ -664,7 +667,8 @@ speichern → **200** (ohne `Location`):
   | `betrag` (aktueller Preis) | keine vollständige Preiszeile |
   | `preise` (wie [Preise](#preise) der Antwort; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
-  | `eigenerAnteil` (`{ kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein `kostenProMonat` oder kein Anteil unter 100&nbsp;% |
+  | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
+  | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |
   | `naechsteAbbuchung` (`{ am, betrag }`) | keine `zahlweise`, kein `abbuchungAb`, kein Preis, oder es kommt keine mehr |
   | `naechstePreisaenderung` | kein Preis oder keine Änderung bekannt |
   | `prognose` | nie; leere Liste ohne oder mit unvollständiger Preissteigerung |

@@ -321,16 +321,35 @@ class VertragServiceTests {
 
 		assertThat(haelfte.anteilProzent()).isEqualTo(new BigDecimal("50.0"));
 		assertThat(haelfte.berechnet().eigenerAnteil())
-				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.00"), euro("60.00")));
-		// 120 € × 33,3 % = 39,96 € im Jahr, ÷ 12 = 3,33 € im Monat.
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.00"), euro("5.00"), euro("60.00")));
+		// 10 € × 33,3 % = 3,33 € je Abbuchung; 120 € × 33,3 % = 39,96 € im Jahr, ÷ 12 = 3,33 € im Monat.
 		assertThat(drittel.berechnet().eigenerAnteil())
-				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("3.33"), euro("39.96")));
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("3.33"), euro("3.33"), euro("39.96")));
 		// Abgebucht wird weiter der volle Betrag.
 		assertThat(drittel.betrag()).isEqualTo(euro("10.00"));
 		assertThat(drittel.berechnet().kostenProMonat()).isEqualTo(euro("10.00"));
 		assertThat(drittel.berechnet().kostenImJahr()).isEqualTo(euro("120.00"));
 		assertThat(drittel.berechnet().naechsteAbbuchung().betrag()).isEqualTo(euro("10.00"));
 		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(drittel.id()))).isEqualTo(drittel);
+	}
+
+	/**
+	 * Jährlich 586,80 € (Artboard „Dein Anteil“): 50 % = 293,40 € je Abbuchung; 33,3 % = 195,40 € (195,4044), im
+	 * Monat 16,28 € (16,2837), jeder Wert aus dem ungerundeten gerundet (ADR 0011).
+	 */
+	@Test
+	void eigenerAnteilAmBetragJaehrlich() {
+		var jaehrlich = mit(anfrage(VERSICHERUNG), preis("586.80"), Zahlweise.JAEHRLICH,
+				LocalDate.of(LocalDate.now(clock).getYear(), 6, 1), null, null);
+
+		var haelfte = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(jaehrlich, "50")));
+		var drittel = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mitAnteil(jaehrlich, "33.3")));
+
+		assertThat(haelfte.berechnet().eigenerAnteil())
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("293.40"), euro("24.45"), euro("293.40")));
+		assertThat(drittel.berechnet().eigenerAnteil())
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("195.40"), euro("16.28"), euro("195.40")));
+		assertThat(drittel.betrag()).isEqualTo(euro("586.80"));
 	}
 
 	@Test
@@ -378,7 +397,7 @@ class VertragServiceTests {
 			var erster = service.anlegen(geteilt);
 			service.anlegen(geteilt);
 			assertThat(erster.berechnet().eigenerAnteil())
-					.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("0.42"), euro("5.01")));
+					.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.01"), euro("0.42"), euro("5.01")));
 			return null;
 		});
 
@@ -437,7 +456,7 @@ class VertragServiceTests {
 		// Laufende Kosten und eigener Anteil ohne Einmalkosten.
 		assertThat(vertrag.berechnet().kostenImJahr()).isEqualTo(euro("120.00"));
 		assertThat(vertrag.berechnet().eigenerAnteil())
-				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.00"), euro("60.00")));
+				.isEqualTo(new VertragAntwort.VertragEigenerAnteil(euro("5.00"), euro("5.00"), euro("60.00")));
 		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(vertrag.id()))).isEqualTo(vertrag);
 	}
 
@@ -645,7 +664,8 @@ class VertragServiceTests {
 		var berechnet = v.berechnet();
 		return new VertragVorschauAntwort(v.betrag(), v.preise(), berechnet.kostenProMonat(),
 				berechnet.eigenerAnteil() == null ? null
-						: new VertragVorschauAntwort.VertragVorschauEigenerAnteil(berechnet.eigenerAnteil().kostenProMonat()),
+						: new VertragVorschauAntwort.VertragVorschauEigenerAnteil(berechnet.eigenerAnteil().betrag(),
+								berechnet.eigenerAnteil().kostenProMonat()),
 				berechnet.naechsteAbbuchung(), berechnet.naechstePreisaenderung(), berechnet.prognose(),
 				v.einmalkosten().isEmpty() ? null : berechnet.einmalkosten(), berechnet.kuendigung());
 	}
@@ -708,11 +728,13 @@ class VertragServiceTests {
 		assertThat(ohneAnkerVorschau.betrag()).isEqualTo(euro("10.00"));
 		assertThat(ohneAnkerVorschau.kostenProMonat()).isEqualTo(euro("10.00"));
 		assertThat(ohneAnkerVorschau.eigenerAnteil())
-				.isEqualTo(new VertragVorschauAntwort.VertragVorschauEigenerAnteil(euro("5.00")));
+				.isEqualTo(new VertragVorschauAntwort.VertragVorschauEigenerAnteil(euro("5.00"), euro("5.00")));
 		assertThat(ohneAnkerVorschau.naechsteAbbuchung()).isNull();
 		assertThat(ohneZahlweiseVorschau.betrag()).isEqualTo(euro("10.00"));
 		assertThat(ohneZahlweiseVorschau.kostenProMonat()).isNull();
-		assertThat(ohneZahlweiseVorschau.eigenerAnteil()).isNull();
+		// Der Anteil am Betrag braucht nur Preis und Anteil, der pro Monat zusätzlich die Zahlweise.
+		assertThat(ohneZahlweiseVorschau.eigenerAnteil())
+				.isEqualTo(new VertragVorschauAntwort.VertragVorschauEigenerAnteil(euro("5.00"), null));
 		assertThat(ohneZahlweiseVorschau.naechsteAbbuchung()).isNull();
 	}
 

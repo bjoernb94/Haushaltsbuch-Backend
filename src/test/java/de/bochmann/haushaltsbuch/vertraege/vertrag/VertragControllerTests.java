@@ -234,7 +234,7 @@ class VertragControllerTests {
 		return vertrag.replaceFirst("\"zahlungsweg\"", "\"anteilProzent\": " + prozent + ", \"zahlungsweg\"");
 	}
 
-	/** 33,3 % von 13,99 € im Monat: 4,66 € (4,65867), im Jahr 55,90 € (55,904). */
+	/** 33,3 % von 13,99 € im Monat: 4,66 € (4,65867) je Abbuchung und pro Monat, im Jahr 55,90 € (55,904). */
 	@Test
 	void geteilterVertragZaehltNurDenAnteil() throws Exception {
 		mockMvc.perform(anlegen(mitAnteil(abo("13.99", null, null, 0), "33.3")))
@@ -242,6 +242,7 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.anteilProzent").value(33.3))
 				.andExpect(jsonPath("$.betrag.wert").value(13.99))
 				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil.betrag.wert").value(4.66))
 				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenProMonat.wert").value(4.66))
 				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenImJahr.wert").value(55.90))
 				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.betrag.wert").value(13.99));
@@ -710,6 +711,7 @@ class VertragControllerTests {
 		String vorschau = mockMvc.perform(vorschau(vertrag))
 				.andExpect(status().isOk())
 				.andExpect(header().doesNotExist("Location"))
+				.andExpect(jsonPath("$.eigenerAnteil.betrag.wert").value(7.00))
 				.andExpect(jsonPath("$.eigenerAnteil.kostenProMonat.wert").value(7.00))
 				.andExpect(jsonPath("$.prognose", hasSize(0)))
 				.andExpect(jsonPath("$.einmalkosten").doesNotExist())

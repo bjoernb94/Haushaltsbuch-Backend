@@ -14,6 +14,7 @@ import java.util.List;
  * @param preise die Preisliste mit dem Eintrag von {@code betrag}; ohne Preis leer
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param kostenImJahr braucht Preis, Zahlweise und {@code abbuchungAb}
+ * @param eigenerAnteilBetrag Anteil an {@code betrag}; nur bei einem Anteil unter 100&nbsp;% und mit Preis
  * @param eigenerAnteilProMonat nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenProMonat}
  * @param eigenerAnteilImJahr nur bei einem Anteil unter 100&nbsp;% und mit {@code kostenImJahr}
  * @param einmalkosten Summe aller Einmalkosten; ohne Einträge 0 in der Währung der Preise, ohne beides leer
@@ -25,6 +26,7 @@ public record Vertragswerte(
 		@Nullable Betrag kostenProMonat,
 		@Nullable Betrag kostenImJahr,
 		boolean kostenImJahrMitPrognose,
+		@Nullable Betrag eigenerAnteilBetrag,
 		@Nullable Betrag eigenerAnteilProMonat,
 		@Nullable Betrag eigenerAnteilImJahr,
 		@Nullable Betrag einmalkosten,

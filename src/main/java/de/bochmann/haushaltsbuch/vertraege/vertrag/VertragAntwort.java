@@ -84,10 +84,10 @@ record VertragAntwort(
 	}
 
 	/**
-	 * Der eigene Anteil an {@code kostenProMonat} und {@code kostenImJahr}, aus den ungerundeten Werten gerechnet
-	 * und dann gerundet (ADR 0011).
+	 * Der eigene Anteil an {@code betrag} (je Abbuchung), {@code kostenProMonat} und {@code kostenImJahr}, jeder aus
+	 * dem ungerundeten Wert gerechnet und dann gerundet (ADR 0011).
 	 */
-	record VertragEigenerAnteil(Betrag kostenProMonat, Betrag kostenImJahr) {
+	record VertragEigenerAnteil(Betrag betrag, Betrag kostenProMonat, Betrag kostenImJahr) {
 	}
 
 	/** {@code betrag} siehe {@link Vertragsberechnung#aktuellerPreis}. */
@@ -100,8 +100,9 @@ record VertragAntwort(
 				werte.kostenImJahr(),
 				werte.kostenImJahrMitPrognose(),
 				berechnung.heute().getYear(),
-				werte.eigenerAnteilProMonat() != null
-						? new VertragEigenerAnteil(werte.eigenerAnteilProMonat(), werte.eigenerAnteilImJahr())
+				werte.eigenerAnteilBetrag() != null
+						? new VertragEigenerAnteil(werte.eigenerAnteilBetrag(), werte.eigenerAnteilProMonat(),
+								werte.eigenerAnteilImJahr())
 						: null,
 				werte.einmalkosten(),
 				werte.naechsteAbbuchung(),
