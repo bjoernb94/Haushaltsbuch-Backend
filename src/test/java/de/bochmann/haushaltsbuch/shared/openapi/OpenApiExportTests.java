@@ -178,12 +178,12 @@ class OpenApiExportTests {
 		String nurPflichtfelder = """
 				{"anbieter": "Streamingdienst", "kategorieId": "%s",
 				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}],
-				 "zahlweise": "MONATLICH", "abbuchungAb": "%s", "einmalkosten": [], "erinnerungSonderkuendigung": true,
+				 "zahlweise": "MONATLICH", "beginn": "%s", "einmalkosten": [], "erinnerungSonderkuendigung": true,
 				 "kuendbar": true%s}
 				""";
 
 		for (String zusatz : List.of("",
-				// Beendet: keine nächste Abbuchung.
+				// Beendet, mit Vertragsende.
 				", \"gekuendigtZum\": \"%s\"".formatted(heute.minusDays(1)),
 				// Mit Kündigungsfrist, erscheint auch in der Übersicht.
 				", \"laufzeitende\": \"%s\", \"verlaengerung\": \"ZWOELF_MONATE\"".formatted(heute.plusMonths(6)),
@@ -192,7 +192,7 @@ class OpenApiExportTests {
 						.formatted(heute.plusMonths(2), heute.plusMonths(1)))) {
 			String antwort = mockMvc.perform(post("/api/vertraege").with(csrf()).with(haushalt.anmeldung())
 							.contentType(MediaType.APPLICATION_JSON)
-							.content(nurPflichtfelder.formatted(KATEGORIE, heute.plusDays(9), zusatz)))
+							.content(nurPflichtfelder.formatted(KATEGORIE, heute.minusYears(1), zusatz)))
 					.andExpect(status().isCreated())
 					.andReturn().getResponse().getContentAsString();
 			pruefeNull(JsonPath.read(antwort, "$"), Map.of("$ref", "#/components/schemas/VertragAntwort"), schemas(api),

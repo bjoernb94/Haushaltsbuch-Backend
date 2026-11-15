@@ -15,8 +15,8 @@ import java.util.stream.IntStream;
  * Preisänderung und Kündigung. Ohne Spring und ohne Uhr, damit Tests jeden Tag festlegen können; die Aufrufer geben
  * {@code LocalDate.now(clock)} mit.
  * <p>
- * Weitergezählt wird immer vom gespeicherten Datum aus ({@code abbuchungAb}, Laufzeitende), nicht Schritt für Schritt, damit Monatsenden
- * nicht abrutschen (31.01. → 28.02. → 31.03., nicht 28.03.).
+ * Weitergezählt wird immer vom gespeicherten Datum aus ({@code beginn}, Laufzeitende), nicht Schritt für Schritt,
+ * damit Monatsenden nicht abrutschen (31.01. → 28.02. → 31.03., nicht 28.03.).
  */
 public class Vertragsberechnung {
 
@@ -55,7 +55,6 @@ public class Vertragsberechnung {
 		Betrag anteilBetrag = null;
 		Betrag anteilProMonat = null;
 		Betrag anteilImJahr = null;
-		Abbuchung naechsteAbbuchung = null;
 		Preisaenderung naechstePreisaenderung = null;
 		List<Prognosepreis> prognosepreise = List.of();
 		List<Preispunkt> preisverlauf = List.of();
@@ -63,15 +62,14 @@ public class Vertragsberechnung {
 			betrag = aktuellerPreis(daten, preise);
 			preiszeilen = preiszeilen(daten, preise);
 			anteilBetrag = anteil.geteilt() ? anteil.von(betrag).gerundet() : null;
-			naechsteAbbuchung = naechsteAbbuchung(daten, preise, prognose).orElse(null);
 			naechstePreisaenderung = naechstePreisaenderung(daten, preise, prognose).orElse(null);
 			prognosepreise = prognose(daten, preise, prognose);
-			preisverlauf = preisverlauf(daten, preise, prognose);
+			preisverlauf = daten.beginn() != null ? preisverlauf(daten, preise, prognose) : List.of();
 			if (daten.zahlweise() != null) {
 				Betrag proJahr = Kosten.proJahr(betrag, daten.zahlweise());
 				kostenProMonat = Kosten.proMonat(proJahr);
 				anteilProMonat = anteil.geteilt() ? Kosten.proMonat(anteil.von(proJahr)) : null;
-				if (daten.abbuchungAb() != null) {
+				if (daten.beginn() != null) {
 					kostenImJahr = kostenImJahr(daten, preise, prognose);
 					mitPrognose = kostenImJahrMitPrognose(daten, preise, prognose);
 					anteilImJahr = anteil.geteilt() ? anteil.von(kostenImJahr).gerundet() : null;
@@ -83,16 +81,25 @@ public class Vertragsberechnung {
 				: einmalkosten.isEmpty() ? null : einmalkosten.getFirst().betrag().waehrung();
 		return new Vertragswerte(status(daten), betrag, preiszeilen, kostenProMonat, kostenImJahr, mitPrognose,
 				anteilBetrag, anteilProMonat, anteilImJahr,
-				waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, naechsteAbbuchung,
+				waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, ende(daten).orElse(null),
 				naechstePreisaenderung, prognosepreise, preisverlauf, kuendigung(daten));
 	}
 
 	/**
-	 * {@link Vertragsstatus#BEENDET}, wenn das Kündigungsdatum vorbei ist oder ein Vertrag ohne
-	 * Verlängerung sein Laufzeitende überschritten hat; {@link Vertragsstatus#GEKUENDIGT}, solange
-	 * das Kündigungsdatum noch kommt; sonst {@link Vertragsstatus#AKTIV}.
+	 * {@link Vertragsstatus#STORNIERT}, wenn das Kündigungsdatum vor dem Beginn liegt (der Vertrag läuft nie);
+	 * {@link Vertragsstatus#NICHT_BEGONNEN}, solange der Beginn noch kommt, auch wenn schon gekündigt;
+	 * {@link Vertragsstatus#BEENDET}, wenn das Kündigungsdatum vorbei ist oder ein Vertrag ohne Verlängerung sein
+	 * Laufzeitende überschritten hat; {@link Vertragsstatus#GEKUENDIGT}, solange das Kündigungsdatum noch kommt;
+	 * sonst {@link Vertragsstatus#AKTIV}.
 	 */
 	public Vertragsstatus status(Vertragsdaten vertrag) {
+		if (vertrag.beginn() != null && vertrag.gekuendigtZum() != null
+				&& vertrag.gekuendigtZum().isBefore(vertrag.beginn())) {
+			return Vertragsstatus.STORNIERT;
+		}
+		if (vertrag.beginn() != null && vertrag.beginn().isAfter(heute)) {
+			return Vertragsstatus.NICHT_BEGONNEN;
+		}
 		if (vertrag.gekuendigtZum() != null) {
 			return vertrag.gekuendigtZum().isBefore(heute) ? Vertragsstatus.BEENDET : Vertragsstatus.GEKUENDIGT;
 		}
@@ -137,59 +144,24 @@ public class Vertragsberechnung {
 	}
 
 	/**
-	 * Die erste Abbuchung ab heute (und nicht vor {@code abbuchungAb}) im Takt der Zahlweise; leer, wenn
-	 * der Vertrag beendet ist, vorher endet (Kündigungsdatum oder Laufzeitende ohne Verlängerung, das
-	 * frühere von beiden; eine Abbuchung genau an diesem Tag zählt noch) oder Angaben fehlen.
-	 */
-	public Optional<LocalDate> naechsteAbbuchung(Vertragsdaten vertrag) {
-		if (vertrag.zahlweise() == null || vertrag.abbuchungAb() == null
-				|| status(vertrag) == Vertragsstatus.BEENDET) {
-			return Optional.empty();
-		}
-		int schritt = vertrag.zahlweise().monate();
-		LocalDate anker = vertrag.abbuchungAb();
-		long k = ersterSchritt(anker, schritt);
-		while (anker.plusMonths(k * schritt).isBefore(heute)) {
-			k++;
-		}
-		LocalDate abbuchung = anker.plusMonths(k * schritt);
-		Optional<LocalDate> ende = ende(vertrag);
-		if (ende.isPresent() && abbuchung.isAfter(ende.get())) {
-			return Optional.empty();
-		}
-		return Optional.of(abbuchung);
-	}
-
-	/**
-	 * Wie {@link #naechsteAbbuchung(Vertragsdaten)}, mit dem an diesem Tag gültigen Preis; ab einem Termin der
-	 * Prognose mit dem prognostizierten.
-	 */
-	public Optional<Abbuchung> naechsteAbbuchung(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
-		return naechsteAbbuchung(vertrag).map(am -> new Abbuchung(am, mitPrognose(vertrag, preise, prognose, am).am(am)));
-	}
-
-	/**
-	 * Alle Abbuchungen im laufenden Kalenderjahr, auch die schon erfolgten: von {@code abbuchungAb} aus im Takt der
-	 * Zahlweise vorwärts und rückwärts ({@code abbuchungAb} ist nur der Anker), nicht vor {@code beginn} und nicht
-	 * nach dem Vertragsende (eine Abbuchung genau an diesem Tag zählt noch). Leer, wenn Angaben fehlen.
+	 * Alle Abbuchungen im laufenden Kalenderjahr, auch die schon erfolgten und die eines noch nicht begonnenen
+	 * Vertrags: ab {@code beginn} im Takt der Zahlweise, nicht nach dem Vertragsende (eine Abbuchung genau an diesem
+	 * Tag zählt noch; ein stornierter Vertrag hat keine). Leer, wenn Angaben fehlen.
 	 */
 	public List<LocalDate> abbuchungenImJahr(Vertragsdaten vertrag) {
-		if (vertrag.zahlweise() == null || vertrag.abbuchungAb() == null) {
+		if (vertrag.zahlweise() == null || vertrag.beginn() == null) {
 			return List.of();
 		}
 		LocalDate von = LocalDate.of(heute.getYear(), 1, 1);
-		if (vertrag.beginn() != null && vertrag.beginn().isAfter(von)) {
-			von = vertrag.beginn();
-		}
 		LocalDate bis = LocalDate.of(heute.getYear(), 12, 31);
 		Optional<LocalDate> ende = ende(vertrag);
 		if (ende.isPresent() && ende.get().isBefore(bis)) {
 			bis = ende.get();
 		}
 		int schritt = vertrag.zahlweise().monate();
-		LocalDate anker = vertrag.abbuchungAb();
-		// Geschätzt und dann vorgezählt; negativ, wenn der Anker nach dem Jahresbeginn liegt.
-		long k = ChronoUnit.MONTHS.between(anker, von) / schritt - 1;
+		LocalDate anker = vertrag.beginn();
+		// Geschätzt und dann vorgezählt; nie vor dem Beginn.
+		long k = Math.max(0, ChronoUnit.MONTHS.between(anker, von) / schritt - 1);
 		while (anker.plusMonths(k * schritt).isBefore(von)) {
 			k++;
 		}
@@ -218,12 +190,12 @@ public class Vertragsberechnung {
 
 	/**
 	 * Die nächste angekündigte Änderung (siehe {@link Preisliste#naechsteAenderung}), sonst der erste Preis der
-	 * Prognose; leer bei einem beendeten Vertrag. Die Prognose beginnt erst nach dem letzten Eintrag, ein
+	 * Prognose; leer bei einem beendeten oder stornierten Vertrag. Die Prognose beginnt erst nach dem letzten Eintrag, ein
 	 * angekündigter Preis kommt also immer zuerst.
 	 */
 	public Optional<Preisaenderung> naechstePreisaenderung(Vertragsdaten vertrag, Preisliste preise,
 			Preisprognose prognose) {
-		if (status(vertrag) == Vertragsstatus.BEENDET) {
+		if (vorbei(vertrag)) {
 			return Optional.empty();
 		}
 		return preise.naechsteAenderung(heute, ende(vertrag))
@@ -242,18 +214,13 @@ public class Vertragsberechnung {
 	/**
 	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die {@link #preiszeilen} ({@link Preiszeilenart#FRUEHER}
 	 * und {@link Preiszeilenart#AKTUELL} als {@link Preispunktart#GEZAHLT}, {@link Preiszeilenart#NACH_ENDE} fallen
-	 * weg) und die {@link #prognose}. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, sonst 12 Monate
-	 * vor dem zweiten Eintrag, sonst 12 Monate vor heute, damit die SPA nur zeichnet.
+	 * weg) und die {@link #prognose}. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, damit die SPA
+	 * nur zeichnet. Braucht {@code beginn}.
 	 */
 	public List<Preispunkt> preisverlauf(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
-		var liste = preise.preise();
 		List<Preispunkt> punkte = new ArrayList<>();
 		for (Preiszeile zeile : preiszeilen(vertrag, preise)) {
-			LocalDate ab = zeile.gueltigAb();
-			if (ab == null) {
-				ab = vertrag.beginn() != null ? vertrag.beginn()
-						: liste.size() > 1 ? liste.get(1).gueltigAb().minusMonths(12) : heute.minusMonths(12);
-			}
+			LocalDate ab = zeile.gueltigAb() != null ? zeile.gueltigAb() : vertrag.beginn();
 			switch (zeile.art()) {
 				case FRUEHER, AKTUELL -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.GEZAHLT));
 				case ANGEKUENDIGT -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.ANGEKUENDIGT));
@@ -279,12 +246,18 @@ public class Vertragsberechnung {
 	 * Letzter Tag des Vertrags: {@code gekuendigtZum} oder das Laufzeitende, wenn er damit endet (kündbar, ohne
 	 * Verlängerung), bei beiden das frühere; leer, wenn er nicht endet.
 	 */
-	private static Optional<LocalDate> ende(Vertragsdaten vertrag) {
+	static Optional<LocalDate> ende(Vertragsdaten vertrag) {
 		LocalDate ende = vertrag.gekuendigtZum();
 		if (endetMitLaufzeitende(vertrag) && (ende == null || vertrag.laufzeitende().isBefore(ende))) {
 			ende = vertrag.laufzeitende();
 		}
 		return Optional.ofNullable(ende);
+	}
+
+	/** Beendet oder storniert: Es kommt nichts mehr. */
+	private boolean vorbei(Vertragsdaten vertrag) {
+		var status = status(vertrag);
+		return status == Vertragsstatus.BEENDET || status == Vertragsstatus.STORNIERT;
 	}
 
 	/** Art und Termine der Kündigung; die Regeln stehen in {@code docs/api.md}, Abschnitt Verträge. */
@@ -294,8 +267,17 @@ public class Vertragsberechnung {
 			case BEENDET -> {
 				return Kuendigung.ohneDaten(Kuendigungsart.BEENDET, frist);
 			}
+			case STORNIERT -> {
+				return Kuendigung.ohneDaten(Kuendigungsart.STORNIERT, frist);
+			}
 			case GEKUENDIGT -> {
 				return new Kuendigung(Kuendigungsart.GEKUENDIGT, null, vertrag.gekuendigtZum(), frist, false);
+			}
+			case NICHT_BEGONNEN -> {
+				// Schon gekündigt (zum Beginn oder später), sonst wie ein laufender Vertrag.
+				if (vertrag.gekuendigtZum() != null) {
+					return new Kuendigung(Kuendigungsart.GEKUENDIGT, null, vertrag.gekuendigtZum(), frist, false);
+				}
 			}
 			case AKTIV -> {
 			}
@@ -320,10 +302,10 @@ public class Vertragsberechnung {
 		LocalDate ende = erstesEnde;
 		if (schritt > 0) {
 			long k = ersterSchritt(erstesEnde, schritt);
-			while (kuendigenBis(plusMonate(erstesEnde, k * schritt), fristMonate).isBefore(heute)) {
+			while (kuendigenBis(verlaengertesEnde(vertrag, k, schritt), fristMonate).isBefore(heute)) {
 				k++;
 			}
-			ende = plusMonate(erstesEnde, k * schritt);
+			ende = verlaengertesEnde(vertrag, k, schritt);
 		}
 		LocalDate kuendigenBis = kuendigenBis(ende, fristMonate);
 
@@ -341,23 +323,36 @@ public class Vertragsberechnung {
 	}
 
 	/**
-	 * Das erste Vertragsende, ab dem verlängert wird: das Laufzeitende; ohne Laufzeitende bei
-	 * Verlängerung um das Zahlungsintervall oder monatlich der Tag vor der Abbuchung, bei zwölf Monaten
-	 * ein Jahr nach Beginn. Ohne Verlängerung zählt nur das Laufzeitende selbst.
+	 * Das erste Vertragsende, ab dem verlängert wird: das Laufzeitende; ohne Laufzeitende eine Verlängerung nach dem
+	 * Beginn (Zahlungsintervall, ein Monat oder zwölf Monate, siehe {@link #endeNach}). Ohne Verlängerung zählt nur das
+	 * Laufzeitende selbst.
 	 */
 	private static LocalDate erstesEnde(Vertragsdaten vertrag) {
 		if (vertrag.laufzeitende() != null) {
 			return vertrag.laufzeitende();
 		}
-		if (vertrag.verlaengerung() == null) {
-			return null;
-		}
-		return switch (vertrag.verlaengerung()) {
-			case ZAHLUNGSINTERVALL, MONATLICH -> vertrag.abbuchungAb() != null
-					? vertrag.abbuchungAb().minusDays(1) : null;
-			case ZWOELF_MONATE -> vertrag.beginn() != null ? vertrag.beginn().plusYears(1).minusDays(1) : null;
-			case KEINE -> null;
-		};
+		int schritt = verlaengerungMonate(vertrag);
+		return vertrag.beginn() != null && schritt > 0 ? endeNach(vertrag.beginn(), schritt) : null;
+	}
+
+	/**
+	 * Das Vertragsende nach {@code k} weiteren Verlängerungen um {@code schritt} Monate: vom Laufzeitende aus (ein
+	 * Monatsende bleibt eins, siehe {@link #plusMonate}), ohne Laufzeitende vom Beginn aus, nicht vom vorigen Ende.
+	 */
+	private static LocalDate verlaengertesEnde(Vertragsdaten vertrag, long k, int schritt) {
+		return vertrag.laufzeitende() != null ? plusMonate(vertrag.laufzeitende(), k * schritt)
+				: endeNach(vertrag.beginn(), (k + 1) * schritt);
+	}
+
+	/**
+	 * Letzter Tag einer Laufzeit von {@code monate} Monaten ab {@code beginn}: der Tag vor dem Beginn-Tag im
+	 * jeweiligen Monat; gibt es den Beginn-Tag dort nicht, der Monatsletzte (§ 188 Abs. 3 BGB). Beginn 15.03. → 14.04.,
+	 * Beginn 31.01. → 28.02., 30.03., 30.04.
+	 */
+	static LocalDate endeNach(LocalDate beginn, long monate) {
+		LocalDate tag = beginn.plusMonths(monate);
+		// Kürzer als der Beginn-Tag: plusMonths hat auf den Monatsletzten gekürzt, der ist dann das Ende.
+		return tag.getDayOfMonth() < beginn.getDayOfMonth() ? tag : tag.minusDays(1);
 	}
 
 	/** Um wie viele Monate sich der Vertrag jeweils verlängert; 0 ohne (bekannte) Verlängerung. */

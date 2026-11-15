@@ -1,7 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Abbuchung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
@@ -20,7 +19,6 @@ import java.util.List;
  *        Vertrags; leer ohne vollständige Preiszeile
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param eigenerAnteil nur bei einem Anteil unter 100&nbsp;% und mit Preis
- * @param naechsteAbbuchung braucht Zahlweise, {@code abbuchungAb} und Preis; leer auch, wenn keine mehr kommt
  * @param naechstePreisaenderung angekündigt oder Prognose; leer, wenn keine bekannt ist
  * @param prognose die nächsten drei Preise; leer ohne oder mit unvollständiger Preissteigerung
  * @param einmalkosten Summe der vollständigen Einmalkosten; leer ohne solche
@@ -31,7 +29,6 @@ record VertragVorschauAntwort(
 		List<VertragPreisAntwort> preise,
 		@Nullable Betrag kostenProMonat,
 		@Nullable VertragVorschauEigenerAnteil eigenerAnteil,
-		@Nullable Abbuchung naechsteAbbuchung,
 		@Nullable Preisaenderung naechstePreisaenderung,
 		List<Prognosepreis> prognose,
 		@Nullable Betrag einmalkosten,
@@ -51,7 +48,7 @@ record VertragVorschauAntwort(
 				werte.eigenerAnteilBetrag() != null
 						? new VertragVorschauEigenerAnteil(werte.eigenerAnteilBetrag(), werte.eigenerAnteilProMonat())
 						: null,
-				werte.naechsteAbbuchung(), werte.naechstePreisaenderung(), werte.prognose(),
+				werte.naechstePreisaenderung(), werte.prognose(),
 				grundlage.einmalkosten().isEmpty() ? null : werte.einmalkosten(), werte.kuendigung());
 	}
 

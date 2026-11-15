@@ -21,6 +21,9 @@ public enum Kuendigungsart {
 	/** Bereits gekündigt zum {@code zum}. */
 	GEKUENDIGT,
 
-	BEENDET
+	BEENDET,
+
+	/** Vor dem Beginn gekündigt, läuft nie. */
+	STORNIERT
 
 }

@@ -20,7 +20,7 @@ public record Kuendigung(Kuendigungsart art, @Nullable LocalDate kuendigenBis, @
 	/**
 	 * Reihenfolge der Vertragsliste, die dringendste zuerst: {@code KUENDIGEN_BIS} und {@code ENDET}
 	 * gemeinsam nach Datum, dann {@code MONATLICH_KUENDBAR}, {@code KEINE_LAUFZEIT}, {@code NICHT_KUENDBAR},
-	 * {@code GEKUENDIGT} und {@code BEENDET}; innerhalb nach Datum, soweit es eins gibt. Gleich dringende
+	 * {@code GEKUENDIGT} und {@code BEENDET} (mit {@code STORNIERT}); innerhalb nach Datum, soweit es eins gibt. Gleich dringende
 	 * sortieren die Aufrufer weiter.
 	 */
 	public static final Comparator<Kuendigung> NACH_DRINGLICHKEIT = Comparator.comparingInt(Kuendigung::rang)
@@ -37,7 +37,7 @@ public record Kuendigung(Kuendigungsart art, @Nullable LocalDate kuendigenBis, @
 			case KEINE_LAUFZEIT -> 2;
 			case NICHT_KUENDBAR -> 3;
 			case GEKUENDIGT -> 4;
-			case BEENDET -> 5;
+			case BEENDET, STORNIERT -> 5;
 		};
 	}
 

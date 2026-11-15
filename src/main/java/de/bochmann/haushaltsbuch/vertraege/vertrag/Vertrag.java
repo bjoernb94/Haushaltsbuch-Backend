@@ -34,7 +34,7 @@ import java.util.List;
 
 /**
  * Vertrag eines Haushalts, z.&nbsp;B. ein Abo oder eine Versicherung. Gespeichert werden nur die
- * Angaben des Nutzers, auch die Preise mit Gültigkeitsdatum; aktueller Betrag, Status, Kosten, nächste Abbuchung
+ * Angaben des Nutzers, auch die Preise mit Gültigkeitsdatum; aktueller Betrag, Status, Kosten, Vertragsende
  * und Kündigung berechnet {@link de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung} beim Lesen.
  * <p>
  * Angaben, die nicht zum Vertrag passen, leert {@link #setzen}: Ein nicht kündbarer Vertrag hat weder
@@ -82,9 +82,6 @@ class Vertrag extends FachEntity {
 	@Column(name = "zahlweise", nullable = false, length = 40)
 	private Zahlweise zahlweise;
 
-	@Column(name = "abbuchung_ab", nullable = false)
-	private LocalDate abbuchungAb;
-
 	@Enumerated(EnumType.STRING)
 	@Column(name = "zahlungsweg", length = 40)
 	private Zahlungsweg zahlungsweg;
@@ -106,7 +103,8 @@ class Vertrag extends FachEntity {
 	@Column(name = "kuendbar", nullable = false)
 	private boolean kuendbar;
 
-	@Column(name = "beginn")
+	/** Anker des Zahlungsrhythmus. */
+	@Column(name = "beginn", nullable = false)
 	private LocalDate beginn;
 
 	@Column(name = "laufzeitende")
@@ -158,7 +156,6 @@ class Vertrag extends FachEntity {
 		this.preisgarantieBis = anfrage.preisgarantieBis();
 		this.erinnerungSonderkuendigung = anfrage.erinnerungSonderkuendigung();
 		this.zahlweise = anfrage.zahlweise();
-		this.abbuchungAb = anfrage.abbuchungAb();
 		this.zahlungsweg = anfrage.zahlungsweg();
 		// Mit fester Nachkommastelle wie aus der Datenbank, damit die Antwort beim Anlegen dieselbe ist (50 → 50.0).
 		this.anteilProzent = anfrage.anteilProzent() != null ? anfrage.anteilProzent().setScale(1) : null;
@@ -186,7 +183,7 @@ class Vertrag extends FachEntity {
 
 	/** Die Angaben für die Berechnung. */
 	Vertragsdaten daten() {
-		return new Vertragsdaten(zahlweise, abbuchungAb, kuendbar, beginn, laufzeitende, verlaengerung,
+		return new Vertragsdaten(zahlweise, kuendbar, beginn, laufzeitende, verlaengerung,
 				kuendigungsfristMonate, gekuendigtZum);
 	}
 
@@ -241,10 +238,6 @@ class Vertrag extends FachEntity {
 
 	Zahlweise getZahlweise() {
 		return zahlweise;
-	}
-
-	LocalDate getAbbuchungAb() {
-		return abbuchungAb;
 	}
 
 	Zahlungsweg getZahlungsweg() {

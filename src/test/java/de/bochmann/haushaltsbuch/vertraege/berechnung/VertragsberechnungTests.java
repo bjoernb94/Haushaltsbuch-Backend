@@ -15,6 +15,7 @@ import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.KEIN
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.KUENDIGEN_BIS;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.MONATLICH_KUENDBAR;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.NICHT_KUENDBAR;
+import static de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart.STORNIERT;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose.KEINE;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.AKTUELL;
 import static de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart.ANGEKUENDIGT;
@@ -33,20 +34,24 @@ class VertragsberechnungTests {
 		return LocalDate.parse(iso);
 	}
 
-	/** Monatlich, kündbar, sonst leer; die Tests setzen nur, was sie brauchen. */
+	/** Monatlich ab 15.11.2025 (Abbuchung am 15.), kündbar, sonst leer; die Tests setzen nur, was sie brauchen. */
 	private static Vertragsdaten vertrag() {
-		return new Vertragsdaten(Zahlweise.MONATLICH, d("2026-11-15"), true, null, null, null, null, null);
+		return mit(Zahlweise.MONATLICH, "2025-11-15", null, null, null);
 	}
 
-	private static Vertragsdaten mit(Zahlweise zahlweise, String abbuchungAb, String beginn, String laufzeitende,
+	private static Vertragsdaten mit(Zahlweise zahlweise, String beginn, String laufzeitende,
 			Verlaengerung verlaengerung, Integer frist) {
-		return new Vertragsdaten(zahlweise, abbuchungAb == null ? null : d(abbuchungAb), true,
-				beginn == null ? null : d(beginn), laufzeitende == null ? null : d(laufzeitende), verlaengerung, frist,
-				null);
+		return new Vertragsdaten(zahlweise, true, beginn == null ? null : d(beginn),
+				laufzeitende == null ? null : d(laufzeitende), verlaengerung, frist, null);
 	}
 
+	/** Wie {@link #vertrag()}, gekündigt zum {@code datum}. */
 	private static Vertragsdaten gekuendigtZum(String datum) {
-		return new Vertragsdaten(Zahlweise.MONATLICH, d("2026-11-15"), true, null, null, null, 1, d(datum));
+		return gekuendigt("2025-11-15", datum);
+	}
+
+	private static Vertragsdaten gekuendigt(String beginn, String gekuendigtZum) {
+		return new Vertragsdaten(Zahlweise.MONATLICH, true, d(beginn), null, null, 1, d(gekuendigtZum));
 	}
 
 	@Nested
@@ -70,16 +75,60 @@ class VertragsberechnungTests {
 
 		@Test
 		void ohneVerlaengerungBeendetNachDemLaufzeitende() {
-			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, null, "2026-10-31", Verlaengerung.KEINE, null)))
+			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, "2026-10-31", Verlaengerung.KEINE, null)))
 					.isEqualTo(Vertragsstatus.BEENDET);
-			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, null, "2026-11-01", Verlaengerung.KEINE, null)))
+			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, "2026-11-01", Verlaengerung.KEINE, null)))
 					.isEqualTo(Vertragsstatus.AKTIV);
+		}
+
+		/** Bis zum Beginn noch nicht begonnen, auch wenn schon gekündigt; am Beginn läuft er. */
+		@Test
+		void nochNichtBegonnenBisZumBeginn() {
+			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, "2026-11-02", null, null, null)))
+					.isEqualTo(Vertragsstatus.NICHT_BEGONNEN);
+			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, "2026-11-01", null, null, null)))
+					.isEqualTo(Vertragsstatus.AKTIV);
+			assertThat(berechnung.status(gekuendigt("2026-12-01", "2027-03-31"))).isEqualTo(Vertragsstatus.NICHT_BEGONNEN);
+			// Zum Beginn gekündigt: läuft genau einen Tag.
+			assertThat(berechnung.status(gekuendigt("2026-11-01", "2026-11-01"))).isEqualTo(Vertragsstatus.GEKUENDIGT);
+		}
+
+		/** Gekündigt zu einem Tag vor dem Beginn: läuft nie, vor wie nach dem Beginn. */
+		@Test
+		void storniertVorDemBeginn() {
+			assertThat(berechnung.status(gekuendigt("2026-12-01", "2026-11-30"))).isEqualTo(Vertragsstatus.STORNIERT);
+			assertThat(berechnung.status(gekuendigt("2026-06-01", "2026-05-31"))).isEqualTo(Vertragsstatus.STORNIERT);
 		}
 
 		@Test
 		void mitVerlaengerungLaeuftNachDemLaufzeitendeWeiter() {
-			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, null, "2025-10-31", Verlaengerung.MONATLICH, 1)))
+			assertThat(berechnung.status(mit(Zahlweise.MONATLICH, null, "2025-10-31", Verlaengerung.MONATLICH, 1)))
 					.isEqualTo(Vertragsstatus.AKTIV);
+		}
+
+	}
+
+	/** Letzter Vertragstag in {@link Vertragsberechnung#werte}: Kündigung oder Laufzeitende ohne Verlängerung. */
+	@Nested
+	class Vertragsende {
+
+		private LocalDate vertragsende(Vertragsdaten daten) {
+			return berechnung.werte(new Berechnungsgrundlage(daten, null, KEINE, Anteil.GANZ, List.of())).vertragsende();
+		}
+
+		@Test
+		void kuendigungOderLaufzeitendeOhneVerlaengerung() {
+			assertThat(vertragsende(gekuendigtZum("2026-10-31"))).isEqualTo(d("2026-10-31"));
+			assertThat(vertragsende(mit(Zahlweise.MONATLICH, "2025-11-15", "2027-03-31", Verlaengerung.KEINE, null)))
+					.isEqualTo(d("2027-03-31"));
+			assertThat(vertragsende(gekuendigt("2026-12-01", "2026-11-30"))).isEqualTo(d("2026-11-30"));
+		}
+
+		@Test
+		void offenesEndeLeer() {
+			assertThat(vertragsende(vertrag())).isNull();
+			assertThat(vertragsende(mit(Zahlweise.MONATLICH, "2025-11-15", "2027-03-31", Verlaengerung.MONATLICH, 1)))
+					.isNull();
 		}
 
 	}
@@ -126,7 +175,7 @@ class VertragsberechnungTests {
 
 		@Test
 		void kuenftigerBeginnDerErste() {
-			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", "2027-01-01", null, null, null);
+			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", null, null, null);
 			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2027-07-01"), euro("11.00")));
 
 			aktuellIst(daten, preise, null, "10.00", AKTUELL, ANGEKUENDIGT);
@@ -141,7 +190,7 @@ class VertragsberechnungTests {
 			aktuellIst(gekuendigtZum("2026-06-30"), preise, null, "10.00", AKTUELL, NACH_ENDE, NACH_ENDE);
 			aktuellIst(gekuendigtZum("2026-07-01"), preise, "2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 			aktuellIst(gekuendigtZum("2026-10-31"), preise, "2026-09-01", "15.00", FRUEHER, FRUEHER, AKTUELL);
-			aktuellIst(mit(Zahlweise.MONATLICH, null, null, "2026-08-31", Verlaengerung.KEINE, null), preise,
+			aktuellIst(mit(Zahlweise.MONATLICH, null, "2026-08-31", Verlaengerung.KEINE, null), preise,
 					"2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 		}
 
@@ -169,133 +218,59 @@ class VertragsberechnungTests {
 	}
 
 	@Nested
-	class NaechsteAbbuchung {
-
-		@Test
-		void kuenftigesDatumBleibt() {
-			assertThat(berechnung.naechsteAbbuchung(vertrag())).contains(d("2026-11-15"));
-		}
-
-		@Test
-		void heuteZaehltNochAlsNaechste() {
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-11-01", null, null, null, null)))
-					.contains(HEUTE);
-		}
-
-		@Test
-		void zaehltImTaktDerZahlweiseWeiter() {
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.VIERTELJAEHRLICH, "2026-10-01", null, null, null, null)))
-					.contains(d("2027-01-01"));
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.JAEHRLICH, "2020-07-01", null, null, null, null)))
-					.contains(d("2027-07-01"));
-		}
-
-		@Test
-		void zaehltVomGespeichertenDatumOhneAbrutschen() {
-			// 31.01. + 10 Monate = 30.11.; Schritt für Schritt wäre über den Februar der 28. daraus geworden.
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-01-31", null, null, null, null)))
-					.contains(d("2026-11-30"));
-		}
-
-		@Test
-		void keineNachDemKuendigungsdatum() {
-			var gekuendigt = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, null, null, 1,
-					d("2026-11-15"));
-			assertThat(berechnung.naechsteAbbuchung(gekuendigt)).isEmpty();
-
-			var nochEineAbbuchung = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-10"), true, null, null, null, 1,
-					d("2026-11-15"));
-			assertThat(berechnung.naechsteAbbuchung(nochEineAbbuchung)).contains(d("2026-11-10"));
-		}
-
-		@Test
-		void keineNachDemLaufzeitendeOhneVerlaengerung() {
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-30",
-					Verlaengerung.KEINE, null))).contains(d("2026-11-20"));
-			// Eine Abbuchung genau am letzten Tag bleibt.
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-20",
-					Verlaengerung.KEINE, null))).contains(d("2026-11-20"));
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15",
-					Verlaengerung.KEINE, null))).isEmpty();
-		}
-
-		@Test
-		void laufzeitendeZaehltNurBeiVertraegenDieDamitEnden() {
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15", null, null)))
-					.contains(d("2026-11-20"));
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, "2026-10-20", null, "2026-11-15",
-					Verlaengerung.MONATLICH, null))).contains(d("2026-11-20"));
-			var nichtKuendbar = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), false, null, d("2026-11-15"),
-					Verlaengerung.KEINE, null, null);
-			assertThat(berechnung.naechsteAbbuchung(nichtKuendbar)).contains(d("2026-11-20"));
-		}
-
-		@Test
-		void beiKuendigungsdatumUndLaufzeitendeZaehltDasFruehere() {
-			var kuendigungZuerst = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-12-15"),
-					Verlaengerung.KEINE, null, d("2026-11-15"));
-			assertThat(berechnung.naechsteAbbuchung(kuendigungZuerst)).isEmpty();
-
-			// Unstimmige Eingabe: kuendigung nennt weiter gekuendigtZum, abgebucht wird trotzdem nicht nach dem Laufzeitende.
-			var laufzeitendeZuerst = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-11-15"),
-					Verlaengerung.KEINE, null, d("2026-12-15"));
-			assertThat(berechnung.naechsteAbbuchung(laufzeitendeZuerst)).isEmpty();
-			assertThat(berechnung.kuendigung(laufzeitendeZuerst).art()).isEqualTo(Kuendigungsart.GEKUENDIGT);
-			assertThat(berechnung.kuendigung(laufzeitendeZuerst).zum()).isEqualTo(d("2026-12-15"));
-
-			var beideDanach = new Vertragsdaten(Zahlweise.MONATLICH, d("2026-10-20"), true, null, d("2026-11-30"),
-					Verlaengerung.KEINE, null, d("2026-11-25"));
-			assertThat(berechnung.naechsteAbbuchung(beideDanach)).contains(d("2026-11-20"));
-		}
-
-		@Test
-		void keineBeiBeendetenVertraegenOderFehlendenAngaben() {
-			assertThat(berechnung.naechsteAbbuchung(gekuendigtZum("2026-10-31"))).isEmpty();
-			assertThat(berechnung.naechsteAbbuchung(mit(null, "2026-11-15", null, null, null, null))).isEmpty();
-			assertThat(berechnung.naechsteAbbuchung(mit(Zahlweise.MONATLICH, null, null, null, null, null))).isEmpty();
-		}
-
-	}
-
-	@Nested
 	class AbbuchungenImJahr {
 
-		/** Der Anker liegt meist in der Zukunft („Nächste Abbuchung“); gezählt wird auch rückwärts bis Januar. */
+		/** Ab einem Beginn vor dem Jahr alle Abbuchungen des Jahres im Takt ab Beginn. */
 		@Test
-		void ankerInDerZukunftZaehltRueckwaertsBisJanuar() {
+		void beginnImVorjahrZwoelfImJahr() {
 			assertThat(berechnung.abbuchungenImJahr(vertrag())).hasSize(12)
 					.startsWith(d("2026-01-15"))
 					.endsWith(d("2026-12-15"));
 		}
 
 		@Test
-		void nichtVorDemBeginn() {
-			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-11-15", "2026-04-20", null, null, null)))
-					.containsExactly(d("2026-05-15"), d("2026-06-15"), d("2026-07-15"), d("2026-08-15"), d("2026-09-15"),
-							d("2026-10-15"), d("2026-11-15"), d("2026-12-15"));
+		void abDemBeginn() {
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-04-20", null, null, null)))
+					.containsExactly(d("2026-04-20"), d("2026-05-20"), d("2026-06-20"), d("2026-07-20"), d("2026-08-20"),
+							d("2026-09-20"), d("2026-10-20"), d("2026-11-20"), d("2026-12-20"));
+		}
+
+		/** Ein Vertrag ab 01.12. ist noch nicht begonnen, seine Abbuchung im Dezember zählt trotzdem. */
+		@Test
+		void nochNichtBegonnenZaehltImJahr() {
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-12-01", null, null, null)))
+					.containsExactly(d("2026-12-01"));
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2027-01-01", null, null, null))).isEmpty();
 		}
 
 		@Test
 		void nurBisZumEnde() {
 			assertThat(berechnung.abbuchungenImJahr(gekuendigtZum("2026-03-15")))
 					.containsExactly(d("2026-01-15"), d("2026-02-15"), d("2026-03-15"));
-			var endet = mit(Zahlweise.VIERTELJAEHRLICH, "2026-02-01", null, "2026-06-30", Verlaengerung.KEINE, null);
+			var endet = mit(Zahlweise.VIERTELJAEHRLICH, "2025-11-01", "2026-06-30", Verlaengerung.KEINE, null);
 			assertThat(berechnung.abbuchungenImJahr(endet)).containsExactly(d("2026-02-01"), d("2026-05-01"));
+		}
+
+		/** Vor dem Beginn gekündigt: keine Abbuchung; zum Beginn gekündigt: die eine am Beginn. */
+		@Test
+		void storniertKeine() {
+			assertThat(berechnung.abbuchungenImJahr(gekuendigt("2026-12-01", "2026-11-30"))).isEmpty();
+			assertThat(berechnung.abbuchungenImJahr(gekuendigt("2026-12-01", "2026-12-01"))).containsExactly(d("2026-12-01"));
 		}
 
 		@Test
 		void jaehrlichEineAbbuchung() {
-			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2020-07-01", null, null, null, null)))
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2020-07-01", null, null, null)))
 					.containsExactly(d("2026-07-01"));
-			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2028-03-01", null, null, null, null)))
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.JAEHRLICH, "2025-03-01", null, null, null)))
 					.containsExactly(d("2026-03-01"));
 		}
 
-		/** Wie bei der nächsten Abbuchung vom Anker aus gezählt, auch rückwärts: 31.01. → 28.02. → 31.03. */
+		/** Vom Beginn aus gezählt, nicht Schritt für Schritt: 31.01. → 28.02. → 31.03. */
 		@Test
 		void monatsendeRutschtNichtAb() {
-			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-12-31", null, null, null, null)))
-					.contains(d("2026-02-28"), d("2026-03-31"), d("2026-04-30"));
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, "2026-01-31", null, null, null)))
+					.startsWith(d("2026-01-31"), d("2026-02-28"), d("2026-03-31"), d("2026-04-30"));
 		}
 
 		@Test
@@ -305,8 +280,8 @@ class VertragsberechnungTests {
 
 		@Test
 		void ohneAngabenKeine() {
-			assertThat(berechnung.abbuchungenImJahr(mit(null, "2026-11-15", null, null, null, null))).isEmpty();
-			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, null, null, null, null, null))).isEmpty();
+			assertThat(berechnung.abbuchungenImJahr(mit(null, "2025-11-15", null, null, null))).isEmpty();
+			assertThat(berechnung.abbuchungenImJahr(mit(Zahlweise.MONATLICH, null, null, null, null))).isEmpty();
 		}
 
 		@Test
@@ -314,18 +289,11 @@ class VertragsberechnungTests {
 			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("20.00"))));
 
 			// Januar bis Juni zu 10 €, Juli bis Dezember zu 20 €.
-			assertThat(berechnung.kostenImJahr(mit(Zahlweise.MONATLICH, "2026-11-01", null, null, null, null), preise, KEINE))
+			assertThat(berechnung.kostenImJahr(mit(Zahlweise.MONATLICH, "2025-12-01", null, null, null), preise, KEINE))
 					.isEqualTo(euro("180.00"));
 			// Jährlich im Oktober: nur der neue Preis.
-			assertThat(berechnung.kostenImJahr(mit(Zahlweise.JAEHRLICH, "2026-10-01", null, null, null, null), preise, KEINE))
+			assertThat(berechnung.kostenImJahr(mit(Zahlweise.JAEHRLICH, "2025-10-01", null, null, null), preise, KEINE))
 					.isEqualTo(euro("20.00"));
-		}
-
-		@Test
-		void naechsteAbbuchungMitPreisDesTages() {
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2026-11-15"), euro("12.00"))));
-
-			assertThat(berechnung.naechsteAbbuchung(vertrag(), preise, KEINE)).contains(new Abbuchung(d("2026-11-15"), euro("12.00")));
 		}
 
 		@Test
@@ -335,6 +303,7 @@ class VertragsberechnungTests {
 			assertThat(berechnung.naechstePreisaenderung(vertrag(), preise, KEINE)).isPresent();
 			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-12-31"), preise, KEINE)).isEmpty();
 			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-10-31"), preise, KEINE)).isEmpty();
+			assertThat(berechnung.naechstePreisaenderung(gekuendigt("2027-02-01", "2027-01-31"), preise, KEINE)).isEmpty();
 		}
 
 	}
@@ -438,7 +407,7 @@ class VertragsberechnungTests {
 		/** Monatlich am 15.: Januar bis November zu 10 €, Dezember zur Prognose 11 €. */
 		@Test
 		void kostenImJahrZaehltDiePrognose() {
-			var daten = mit(Zahlweise.MONATLICH, "2026-11-15", null, null, null, null);
+			var daten = mit(Zahlweise.MONATLICH, "2025-12-15", null, null, null);
 			var prognose = betrag("1.00", Erhoehungsrhythmus.VIERTELJAEHRLICH, "2026-12-01");
 
 			assertThat(berechnung.kostenImJahr(daten, preis("10.00"), prognose)).isEqualTo(euro("121.00"));
@@ -453,7 +422,7 @@ class VertragsberechnungTests {
 		@Test
 		void kostenImJahrMitAllenTerminenImJahr() {
 			var januar = new Vertragsberechnung(d("2026-01-01"));
-			var daten = mit(Zahlweise.MONATLICH, "2026-01-15", null, null, null, null);
+			var daten = mit(Zahlweise.MONATLICH, "2025-12-15", null, null, null);
 			var prognose = betrag("1.00", Erhoehungsrhythmus.VIERTELJAEHRLICH, "2026-01-01");
 
 			// Je drei Abbuchungen zu 11, 12, 13 und 14 €.
@@ -462,16 +431,8 @@ class VertragsberechnungTests {
 		}
 
 		@Test
-		void naechsteAbbuchungMitPrognosepreis() {
-			var prognose = betrag("2.00", Erhoehungsrhythmus.VIERTELJAEHRLICH, "2026-11-10");
-
-			assertThat(berechnung.naechsteAbbuchung(vertrag(), preis("10.00"), prognose))
-					.contains(new Abbuchung(d("2026-11-15"), euro("12.00")));
-		}
-
-		@Test
 		void preisverlaufMitAllenArten() {
-			var daten = mit(Zahlweise.MONATLICH, "2026-11-15", "2024-01-01", null, null, null);
+			var daten = mit(Zahlweise.MONATLICH, "2024-01-01", null, null, null);
 			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2025-06-01"), euro("11.00")),
 					new Preis(d("2027-01-01"), euro("12.00"))));
 			var prognose = prozent("10", Erhoehungsrhythmus.JAEHRLICH, "2027-06-01", null);
@@ -485,15 +446,13 @@ class VertragsberechnungTests {
 					new Preispunkt(d("2029-06-01"), euro("15.97"), Preispunktart.PROGNOSE));
 		}
 
-		/** Ohne Beginn 12 Monate vor dem zweiten Eintrag, sonst vor heute; nach dem Vertragsende nichts. */
+		/** Der Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag; nach dem Vertragsende nichts. */
 		@Test
 		void preisverlaufStartdatumUndVertragsende() {
 			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2027-06-01"), euro("11.00"))));
 
 			assertThat(berechnung.preisverlauf(vertrag(), preise, KEINE)).extracting(Preispunkt::ab)
-					.containsExactly(d("2026-06-01"), d("2027-06-01"));
-			assertThat(berechnung.preisverlauf(vertrag(), preis("10.00"), KEINE)).extracting(Preispunkt::ab)
-					.containsExactly(d("2025-11-01"));
+					.containsExactly(d("2025-11-15"), d("2027-06-01"));
 			assertThat(berechnung.preisverlauf(gekuendigtZum("2027-05-31"), preise, KEINE)).extracting(Preispunkt::art)
 					.containsExactly(Preispunktart.GEZAHLT);
 		}
@@ -505,7 +464,7 @@ class VertragsberechnungTests {
 
 		@Test
 		void kfzVersicherungMitZwoelfMonatenVerlaengerung() {
-			var kfz = mit(Zahlweise.JAEHRLICH, "2027-01-01", "2023-01-01", "2023-12-31", Verlaengerung.ZWOELF_MONATE, 1);
+			var kfz = mit(Zahlweise.JAEHRLICH, "2023-01-01", "2023-12-31", Verlaengerung.ZWOELF_MONATE, 1);
 			assertThat(berechnung.kuendigung(kfz)).isEqualTo(
 					new Kuendigung(KUENDIGEN_BIS, d("2026-11-30"), d("2026-12-31"), 1, true));
 		}
@@ -513,7 +472,7 @@ class VertragsberechnungTests {
 		@Test
 		void verlaengertWeiterWennDieFristVerpasstIst() {
 			// Ende 30.09.2026 mit 3 Monaten Frist wäre bis 30.06.2026 zu kündigen gewesen.
-			var haftpflicht = mit(Zahlweise.VIERTELJAEHRLICH, "2026-10-01", "2020-10-01", "2021-09-30",
+			var haftpflicht = mit(Zahlweise.VIERTELJAEHRLICH, "2020-10-01", "2021-09-30",
 					Verlaengerung.ZWOELF_MONATE, 3);
 			var kuendigung = berechnung.kuendigung(haftpflicht);
 			assertThat(kuendigung.art()).isEqualTo(KUENDIGEN_BIS);
@@ -525,7 +484,7 @@ class VertragsberechnungTests {
 		@Test
 		void monatsendeBleibtMonatsende() {
 			// 30.06. minus 3 Monate ist der 31.03., nicht der 30.03.
-			var hausrat = mit(Zahlweise.JAEHRLICH, "2027-07-01", "2021-07-01", "2022-06-30", Verlaengerung.ZWOELF_MONATE, 3);
+			var hausrat = mit(Zahlweise.JAEHRLICH, "2021-07-01", "2022-06-30", Verlaengerung.ZWOELF_MONATE, 3);
 			var kuendigung = berechnung.kuendigung(hausrat);
 			assertThat(kuendigung.zum()).isEqualTo(d("2027-06-30"));
 			assertThat(kuendigung.kuendigenBis()).isEqualTo(d("2027-03-31"));
@@ -533,65 +492,65 @@ class VertragsberechnungTests {
 
 		@Test
 		void vorDemLaufzeitendeKuendigenBisAuchBeiMonatlicherVerlaengerung() {
-			var mobilfunk = mit(Zahlweise.MONATLICH, "2026-11-15", "2025-03-15", "2027-03-14", Verlaengerung.MONATLICH, 1);
+			var mobilfunk = mit(Zahlweise.MONATLICH, "2025-03-15", "2027-03-14", Verlaengerung.MONATLICH, 1);
 			assertThat(berechnung.kuendigung(mobilfunk)).isEqualTo(
 					new Kuendigung(KUENDIGEN_BIS, d("2027-02-14"), d("2027-03-14"), 1, false));
 		}
 
 		@Test
 		void nachDemLaufzeitendeMonatlichKuendbar() {
-			var mobilfunk = mit(Zahlweise.MONATLICH, "2026-11-15", "2024-03-15", "2026-03-14", Verlaengerung.MONATLICH, 1);
+			var mobilfunk = mit(Zahlweise.MONATLICH, "2024-03-15", "2026-03-14", Verlaengerung.MONATLICH, 1);
 			assertThat(berechnung.kuendigung(mobilfunk)).isEqualTo(
 					new Kuendigung(MONATLICH_KUENDBAR, d("2026-11-14"), d("2026-12-14"), 1, false));
 		}
 
 		@Test
 		void ohneLaufzeitendeZumEndeDesZahlungsintervalls() {
-			// Ende = Tag vor der Abbuchung (31.10.), monatlich weitergezählt mit Monatsende, 3 Monate Frist.
-			var fitness = mit(Zahlweise.MONATLICH, "2026-11-01", "2025-05-01", null, Verlaengerung.ZAHLUNGSINTERVALL, 3);
+			// Beginn am 1.: Ende ist jeweils der Monatsletzte (31.10., 30.11., …), 3 Monate Frist.
+			var fitness = mit(Zahlweise.MONATLICH, "2025-05-01", null, Verlaengerung.ZAHLUNGSINTERVALL, 3);
 			assertThat(berechnung.kuendigung(fitness)).isEqualTo(
 					new Kuendigung(MONATLICH_KUENDBAR, d("2026-11-30"), d("2027-02-28"), 3, false));
 
-			var streaming = mit(Zahlweise.MONATLICH, "2026-11-10", "2024-09-10", null, Verlaengerung.ZAHLUNGSINTERVALL, 0);
+			var streaming = mit(Zahlweise.MONATLICH, "2024-09-10", null, Verlaengerung.ZAHLUNGSINTERVALL, 0);
 			assertThat(berechnung.kuendigung(streaming)).isEqualTo(
 					new Kuendigung(MONATLICH_KUENDBAR, d("2026-11-09"), d("2026-11-09"), 0, false));
 		}
 
 		@Test
 		void jaehrlichesZahlungsintervallIstNichtMonatlichKuendbar() {
-			var jahresAbo = mit(Zahlweise.JAEHRLICH, "2027-03-01", null, null, Verlaengerung.ZAHLUNGSINTERVALL, 1);
+			var jahresAbo = mit(Zahlweise.JAEHRLICH, "2025-03-01", null, Verlaengerung.ZAHLUNGSINTERVALL, 1);
 			assertThat(berechnung.kuendigung(jahresAbo)).isEqualTo(
 					new Kuendigung(KUENDIGEN_BIS, d("2027-01-31"), d("2027-02-28"), 1, false));
 		}
 
 		@Test
 		void zwoelfMonateOhneLaufzeitendeAbBeginn() {
-			var vertrag = mit(Zahlweise.JAEHRLICH, null, "2024-05-15", null, Verlaengerung.ZWOELF_MONATE, 3);
+			var vertrag = mit(Zahlweise.JAEHRLICH, "2024-05-15", null, Verlaengerung.ZWOELF_MONATE, 3);
 			var kuendigung = berechnung.kuendigung(vertrag);
 			assertThat(kuendigung.art()).isEqualTo(KUENDIGEN_BIS);
 			assertThat(kuendigung.zum()).isEqualTo(d("2027-05-14"));
 			assertThat(kuendigung.kuendigenBis()).isEqualTo(d("2027-02-14"));
 
-			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, null, null, Verlaengerung.ZWOELF_MONATE, 3))
+			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, null, Verlaengerung.ZWOELF_MONATE, 3))
 					.art()).isEqualTo(KEINE_LAUFZEIT);
 		}
 
 		@Test
 		void ohneVerlaengerungsangabeNurDasLaufzeitende() {
-			var vertrag = mit(Zahlweise.MONATLICH, null, null, "2027-06-30", null, 3);
+			var vertrag = mit(Zahlweise.MONATLICH, null, "2027-06-30", null, 3);
 			assertThat(berechnung.kuendigung(vertrag)).isEqualTo(
 					new Kuendigung(KUENDIGEN_BIS, d("2027-03-31"), d("2027-06-30"), 3, false));
 
 			// Frist schon verpasst: wie es danach weitergeht, ist unbekannt.
-			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, "2026-11-15", null, 1)).art())
+			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, "2026-11-15", null, 1)).art())
 					.isEqualTo(KEINE_LAUFZEIT);
-			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, null, null, 1)).art())
+			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, null, 1)).art())
 					.isEqualTo(KEINE_LAUFZEIT);
 		}
 
 		@Test
 		void ohneFristGiltDasEnde() {
-			var vertrag = mit(Zahlweise.JAEHRLICH, null, null, "2026-12-31", Verlaengerung.ZWOELF_MONATE, null);
+			var vertrag = mit(Zahlweise.JAEHRLICH, null, "2026-12-31", Verlaengerung.ZWOELF_MONATE, null);
 			var kuendigung = berechnung.kuendigung(vertrag);
 			assertThat(kuendigung.kuendigenBis()).isEqualTo(d("2026-12-31"));
 			assertThat(kuendigung.fristMonate()).isNull();
@@ -600,32 +559,31 @@ class VertragsberechnungTests {
 		@Test
 		void dringendAbFuenfundvierzigTagen() {
 			// 01.11. + 45 Tage = 16.12.
-			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, null, "2026-12-16", Verlaengerung.ZWOELF_MONATE, 0))
+			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, "2026-12-16", Verlaengerung.ZWOELF_MONATE, 0))
 					.dringend()).isTrue();
-			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, null, "2026-12-17", Verlaengerung.ZWOELF_MONATE, 0))
+			assertThat(berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, "2026-12-17", Verlaengerung.ZWOELF_MONATE, 0))
 					.dringend()).isFalse();
 		}
 
 		@Test
 		void heuteIstNochRechtzeitig() {
-			var kuendigung = berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, null, "2026-12-01", Verlaengerung.ZWOELF_MONATE, 1));
+			var kuendigung = berechnung.kuendigung(mit(Zahlweise.JAEHRLICH, null, "2026-12-01", Verlaengerung.ZWOELF_MONATE, 1));
 			assertThat(kuendigung.kuendigenBis()).isEqualTo(HEUTE);
 			assertThat(kuendigung.zum()).isEqualTo(d("2026-12-01"));
 		}
 
 		@Test
 		void endetOhneVerlaengerung() {
-			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, "2027-03-31", Verlaengerung.KEINE, 1)))
+			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, "2027-03-31", Verlaengerung.KEINE, 1)))
 					.isEqualTo(new Kuendigung(ENDET, null, d("2027-03-31"),
 							1, false));
-			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, null, Verlaengerung.KEINE, 1)).art())
+			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, Verlaengerung.KEINE, 1)).art())
 					.isEqualTo(KEINE_LAUFZEIT);
 		}
 
 		@Test
 		void nichtKuendbar() {
-			var rundfunk = new Vertragsdaten(Zahlweise.VIERTELJAEHRLICH, d("2026-11-15"), false, null, null, null, null,
-					null);
+			var rundfunk = new Vertragsdaten(Zahlweise.VIERTELJAEHRLICH, false, d("2025-11-15"), null, null, null, null);
 			assertThat(berechnung.kuendigung(rundfunk).art()).isEqualTo(NICHT_KUENDBAR);
 		}
 
@@ -635,8 +593,36 @@ class VertragsberechnungTests {
 					new Kuendigung(GEKUENDIGT, null, d("2026-12-31"), 1,
 							false));
 			assertThat(berechnung.kuendigung(gekuendigtZum("2026-10-31")).art()).isEqualTo(BEENDET);
-			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, null, "2026-10-31", Verlaengerung.KEINE, 1))
+			assertThat(berechnung.kuendigung(mit(Zahlweise.MONATLICH, null, "2026-10-31", Verlaengerung.KEINE, 1))
 					.art()).isEqualTo(BEENDET);
+		}
+
+		/** Ohne Laufzeitende zählen alle Enden vom Beginn aus (§ 188 BGB): 31.01. monatlich → 30.10., nicht 31.10. */
+		@Test
+		void ohneLaufzeitendeVomBeginnAusGezaehlt() {
+			var vertrag = mit(Zahlweise.MONATLICH, "2026-01-31", null, Verlaengerung.MONATLICH, 0);
+
+			assertThat(new Vertragsberechnung(d("2026-10-15")).kuendigung(vertrag))
+					.isEqualTo(new Kuendigung(MONATLICH_KUENDBAR, d("2026-10-30"), d("2026-10-30"), 0, false));
+			assertThat(berechnung.kuendigung(vertrag).zum()).isEqualTo(d("2026-11-30"));
+		}
+
+		/** Ein noch nicht begonnener Vertrag ist schon kündbar; gekündigt bleibt er gekündigt. */
+		@Test
+		void nochNichtBegonnen() {
+			var kfz = mit(Zahlweise.JAEHRLICH, "2026-12-01", null, Verlaengerung.ZWOELF_MONATE, 1);
+
+			assertThat(berechnung.kuendigung(kfz))
+					.isEqualTo(new Kuendigung(KUENDIGEN_BIS, d("2027-10-31"), d("2027-11-30"), 1, false));
+			assertThat(berechnung.kuendigung(gekuendigt("2026-12-01", "2027-05-31")))
+					.isEqualTo(new Kuendigung(GEKUENDIGT, null, d("2027-05-31"), 1, false));
+		}
+
+		@Test
+		void storniert() {
+			assertThat(berechnung.kuendigung(gekuendigt("2026-12-01", "2026-11-30")))
+					.isEqualTo(new Kuendigung(STORNIERT, null, null, 1, false));
+			assertThat(berechnung.kuendigung(gekuendigt("2026-06-01", "2026-05-31")).art()).isEqualTo(STORNIERT);
 		}
 
 	}
@@ -651,6 +637,19 @@ class VertragsberechnungTests {
 			assertThat(Vertragsberechnung.kuendigenBis(d("2027-02-28"), 3)).isEqualTo(d("2026-11-30"));
 			assertThat(Vertragsberechnung.kuendigenBis(d("2026-12-15"), 1)).isEqualTo(d("2026-11-15"));
 			assertThat(Vertragsberechnung.kuendigenBis(d("2026-12-15"), 0)).isEqualTo(d("2026-12-15"));
+		}
+
+		/** Tag vor dem Beginn-Tag, sonst der Monatsletzte (§ 188 Abs. 3 BGB). */
+		@Test
+		void endeNachVomBeginnAus() {
+			assertThat(Vertragsberechnung.endeNach(d("2026-03-15"), 1)).isEqualTo(d("2026-04-14"));
+			assertThat(Vertragsberechnung.endeNach(d("2026-01-31"), 1)).isEqualTo(d("2026-02-28"));
+			assertThat(Vertragsberechnung.endeNach(d("2026-01-31"), 2)).isEqualTo(d("2026-03-30"));
+			assertThat(Vertragsberechnung.endeNach(d("2026-01-31"), 3)).isEqualTo(d("2026-04-30"));
+			assertThat(Vertragsberechnung.endeNach(d("2026-03-01"), 1)).isEqualTo(d("2026-03-31"));
+			assertThat(Vertragsberechnung.endeNach(d("2026-01-30"), 1)).isEqualTo(d("2026-02-28"));
+			assertThat(Vertragsberechnung.endeNach(d("2028-01-29"), 1)).isEqualTo(d("2028-02-28"));
+			assertThat(Vertragsberechnung.endeNach(d("2024-02-29"), 12)).isEqualTo(d("2025-02-28"));
 		}
 
 		@Test

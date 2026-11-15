@@ -12,7 +12,7 @@ import java.time.LocalDate;
  *
  * @param prozent nur bei {@link Steigerungsart#PROZENT}
  * @param betrag nur bei {@link Steigerungsart#BETRAG}
- * @param naechsteAm Anker im Rhythmus wie {@code abbuchungAb}; darf in der Vergangenheit liegen
+ * @param naechsteAm Anker im Rhythmus wie {@code beginn} für die Abbuchungen; darf in der Vergangenheit liegen
  */
 public record Preissteigerung(
 		Steigerungsart art,
