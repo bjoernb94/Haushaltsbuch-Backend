@@ -280,7 +280,6 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
     { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } }
   ],
   "zahlweise": "JAEHRLICH",
-  "abbuchungAb": "2027-01-01",
   "zahlungsweg": "LASTSCHRIFT",
   "anteilProzent": null,
   "einmalkosten": [
@@ -307,7 +306,6 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `vertragsnummer` | nein | höchstens 100 Zeichen |
 | `preise` | ja | 1–100 Einträge `{ gueltigAb, betrag }` in beliebiger Reihenfolge, siehe [Preise](#preise) |
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
-| `abbuchungAb` | ja | ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“ (siehe unten) |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
 | `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
 | `einmalkosten` | ja | 0–100 Einträge `{ bezeichnung, betrag, faelligAm }` in beliebiger Reihenfolge, leer `[]`; siehe [Einmalkosten](#einmalkosten) |
@@ -315,10 +313,11 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `preisgarantieBis` | nein | bis einschließlich dieses Tages rechnet die Prognose keine Erhöhung ein; auch ohne `preissteigerung` erlaubt (dann nur gespeichert) |
 | `erinnerungSonderkuendigung` | ja | „Vor jeder Preiserhöhung daran erinnern“, im Formular standardmäßig `true`. Wird vorerst nur gespeichert, die Erinnerung selbst kommt mit den zentralen Meldungen ([Frontend #49](https://github.com/bjoernb94/Haushaltsbuch-Frontend/issues/49)) |
 | `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
-| `beginn`, `laufzeitende` | nein | `laufzeitende` nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
+| `beginn` | ja | Vertragsbeginn und **Anker des Zahlungsrhythmus**: ab diesem Tag wird im Takt der Zahlweise abgebucht (wann der Anbieter genau abbucht, erfasst der Nutzer nicht); liegt er nach heute, ist der Vertrag `NICHT_BEGONNEN` |
+| `laufzeitende` | nein | nicht vor `beginn` (Feldfehler `LaufzeitendeNachBeginn` an `laufzeitende`) |
 | `verlaengerung` | nein | nach dem Laufzeitende: `ZAHLUNGSINTERVALL`, `MONATLICH`, `ZWOELF_MONATE`, `KEINE` |
 | `kuendigungsfristMonate` | nein | 0–24 |
-| `gekuendigtZum` | nein | gesetzt = gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag |
+| `gekuendigtZum` | nein | gesetzt = gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag, eines vor `beginn` einen stornierten (wird nicht abgelehnt, weil trotzdem Einmalkosten anfallen können) |
 | `notiz` | nein | höchstens 1000 Zeichen |
 
 Alle Datumsfelder zwischen `1900-01-01` und `2199-12-31` (Feldfehler `PlausiblesDatum`, siehe
@@ -388,7 +387,7 @@ rechnet das Backend eine **Prognose** (siehe [Antwort](#antwort)), gespeichert w
 | `prozent` | bei `PROZENT` | größer 0, höchstens 100, höchstens zwei Nachkommastellen (z.&nbsp;B. `2.75`); die Antwort liefert zwei (`2.50`) |
 | `betrag` | bei `BETRAG` | größer 0, in derselben Währung wie der erste Preis |
 | `rhythmus` | ja | `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH`, `ZWEIJAEHRLICH`, `DREIJAEHRLICH` |
-| `naechsteAm` | ja | Datum der nächsten Erhöhung; Anker im Rhythmus wie `abbuchungAb`, darf in der Vergangenheit liegen |
+| `naechsteAm` | ja | Datum der nächsten Erhöhung; Anker im Rhythmus wie `beginn` für die Abbuchungen, darf in der Vergangenheit liegen |
 
 | Regel | Feldfehler (an `preissteigerung.…`) |
 |---|---|
@@ -398,18 +397,6 @@ rechnet das Backend eine **Prognose** (siehe [Antwort](#antwort)), gespeichert w
 | `betrag` größer 0, Währung wie der erste Preis | `PositiverBetrag` an `betrag`, `GleicheWaehrung` an `betrag.waehrung` |
 
 Dazu `PlausiblesDatum` an `naechsteAm` und an `preisgarantieBis`.
-
-**`abbuchungAb`** ist ein Ankerpunkt im Zahlungsrhythmus, kein Wert, der veraltet: Das Backend zählt
-von dort im Takt der Zahlweise weiter (`berechnet.naechsteAbbuchung`). Das Formular nennt das Feld
-„Nächste Abbuchung“. Beim Bearbeiten zeigt die SPA dort `berechnet.naechsteAbbuchung` an (nur wenn das
-`null` ist, `abbuchungAb`); ändert sich die Zahlweise, muss der Nutzer das Datum im neuen Rhythmus
-bestätigen, denn daraus kann das Backend den neuen Rhythmus nicht ableiten.
-
-**Geschickt** wird aber das gespeicherte `abbuchungAb`, solange Datum und Zahlweise den geladenen Werten
-entsprechen; erst wenn sich eines davon ändert, gilt das Formularfeld als neuer Anker. Andernfalls würde
-schon das Ändern der Notiz den Anker verschieben und ein Monatsende ginge verloren: Aus `abbuchungAb` 31.01. wird bei monatlicher Zahlung
-die nächste Abbuchung 30.11.; mit diesem Datum als Anker folgt der 30.12. statt des 31.12. Auch die
-Kündigungstermine hängen daran (siehe Vertragsende unter [Antwort](#antwort)).
 
 ### Antwort
 
@@ -433,7 +420,7 @@ nicht zurückgeschickt:
   "jahr": 2026,
   "eigenerAnteil": null,
   "einmalkosten": { "wert": 49.00, "waehrung": "EUR" },
-  "naechsteAbbuchung": { "am": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" } },
+  "vertragsende": null,
   "naechstePreisaenderung": { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" }, "art": "PROGNOSE" },
   "prognose": [
     { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" } },
@@ -450,15 +437,27 @@ nicht zurückgeschickt:
 }
 ```
 
-- **Status:** `BEENDET`, wenn `gekuendigtZum` vorbei ist oder ein Vertrag mit Verlängerung `KEINE`
-  sein Laufzeitende überschritten hat; `GEKUENDIGT`, solange `gekuendigtZum` noch kommt; sonst `AKTIV`.
+- **Status**, die erste passende Zeile:
+
+  | Bedingung | `status` |
+  |---|---|
+  | `gekuendigtZum` vor `beginn` (läuft nie; gekündigt zum Beginn läuft er einen Tag) | `STORNIERT` |
+  | `beginn` nach heute, auch wenn schon gekündigt | `NICHT_BEGONNEN` |
+  | `gekuendigtZum` vorbei, oder kündbar mit Verlängerung `KEINE` und Laufzeitende vorbei | `BEENDET` |
+  | `gekuendigtZum` kommt noch | `GEKUENDIGT` |
+  | sonst | `AKTIV` |
+- **`vertragsende`:** der letzte Vertragstag: `gekuendigtZum` oder das Laufzeitende eines kündbaren Vertrags mit
+  Verlängerung `KEINE`, bei beiden Daten das frühere; `null` bei offenem Ende (auch bei einem Laufzeitende mit
+  Verlängerung). Die SPA zeigt damit „Beginn – Ende“ bei beendeten Verträgen. Abbuchungen, Prognose und Preise nach
+  diesem Tag zählen nicht.
 - **`kostenProMonat`:** `betrag` ÷ Monate der Zahlweise (gerundet nach
   [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)); umgerechnet, nicht abgebucht.
 - **`kostenImJahr`:** Summe aller Abbuchungen im Kalenderjahr `jahr` (dem laufenden Jahr laut Backend; die SPA
   beschriftet damit „Kosten <Jahr>“ statt mit der Uhr des Browsers), jede mit dem Preis, der an ihrem Tag gilt.
-  Gezählt wird von `abbuchungAb` aus im Takt der Zahlweise vorwärts **und rückwärts**, also auch schon erfolgte
-  Abbuchungen: frühestens ab dem 01.01., nicht vor `beginn` und nicht nach dem Vertragsende (wie bei der nächsten
-  Abbuchung). Ohne Abbuchungen im Jahr 0. Ab einem Termin der [Prognose](#prognose) rechnet eine Abbuchung mit dem
+  Abgebucht wird ab `beginn` im Takt der Zahlweise (1, 3, 6 oder 12 Monate), immer vom Beginn aus gezählt (Beginn
+  31.01. monatlich: 28.02., 31.03.), auch schon erfolgte Abbuchungen und die eines noch nicht begonnenen Vertrags,
+  nicht nach `vertragsende` (eine Abbuchung genau an diesem Tag zählt noch; ein stornierter Vertrag hat keine).
+  Ohne Abbuchungen im Jahr 0. Ab einem Termin der [Prognose](#prognose) rechnet eine Abbuchung mit dem
   prognostizierten Preis; dafür zählen alle Termine im Jahr, nicht nur die drei aus `prognose`.
 - **`kostenImJahrMitPrognose`:** `true`, wenn eine Abbuchung in `kostenImJahr` mit einem prognostizierten Preis
   rechnet; die SPA zeigt dann „inkl. Prognose“.
@@ -468,22 +467,17 @@ nicht zurückgeschickt:
   jeweils auf den ungerundeten Wert angewendet und erst dann gerundet
   ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)): 13,99&nbsp;€ monatlich zu 33,3&nbsp;% sind
   4,66&nbsp;€ je Abbuchung und im Monat und 55,90&nbsp;€ im Jahr. Weil jeder Wert für sich gerundet wird, ergibt
-  `eigenerAnteil.betrag` umgerechnet nicht zwingend cent-genau `eigenerAnteil.kostenProMonat`. `betrag`,
-  `naechsteAbbuchung` und `naechstePreisaenderung` bleiben die vollen Beträge, denn so viel wird abgebucht.
+  `eigenerAnteil.betrag` umgerechnet nicht zwingend cent-genau `eigenerAnteil.kostenProMonat`. `betrag` und
+  `naechstePreisaenderung` bleiben die vollen Beträge, denn so viel wird abgebucht.
 - **`einmalkosten`:** Summe aller [Einmalkosten](#einmalkosten) des Vertrags, unabhängig vom Jahr und mit dem vollen
   Betrag (ohne Anteil; die Details zeigen sie als „Gesamt“). Ohne Einträge 0 in der Währung der Preise.
-- **Nächste Abbuchung:** die erste ab heute im Takt der Zahlweise, gezählt ab `abbuchungAb`, mit dem Preis
-  dieses Tages (`{ am, betrag }`, ab einem Termin der Prognose der prognostizierte); `null`, wenn der Vertrag beendet ist oder vorher endet. Als Ende zählen `gekuendigtZum` und das
-  `laufzeitende` eines kündbaren Vertrags mit Verlängerung `KEINE`, bei beiden Daten das frühere; eine
-  Abbuchung genau an diesem Tag wird noch genannt. Ein Laufzeitende ohne Angabe zur Verlängerung zählt nicht
-  als Ende.
 - **`naechstePreisaenderung`:** `{ ab, betrag, art }`, der Eintrag der Preisliste nach dem heute gültigen, `art`
   `ANGEKUENDIGT`. Beginnt der Vertrag erst in der Zukunft, ist der erste Eintrag keine Änderung (er ist schon
   `betrag`). Sonst der erste Preis der [Prognose](#prognose) mit `art` `PROGNOSE`; ein angekündigter Eintrag kommt
-  immer zuerst, weil die Prognose erst danach beginnt. `null`, wenn keine bekannt ist, der Vertrag beendet ist oder
-  der Eintrag nach dem Vertragsende liegt.
+  immer zuerst, weil die Prognose erst danach beginnt. `null`, wenn keine bekannt ist, der Vertrag beendet oder
+  storniert ist oder der Eintrag nach dem Vertragsende liegt.
 - <a id="prognose"></a>**`prognose`:** die nächsten drei Preise `{ ab, betrag }` aus der
-  [Preissteigerung](#preissteigerung); leer ohne Regel oder bei einem beendeten Vertrag. Sie setzt beim letzten
+  [Preissteigerung](#preissteigerung); leer ohne Regel oder bei einem beendeten oder stornierten Vertrag. Sie setzt beim letzten
   Eintrag der Preisliste an und zählt von `naechsteAm` aus im Rhythmus vorwärts. Übersprungen werden Termine bis
   einschließlich des `gueltigAb` des letzten Eintrags, bis einschließlich `preisgarantieBis`, vor heute und nach dem
   Vertragsende; übersprungene Termine erhöhen nichts. Jeder Schritt wird kaufmännisch auf Cent gerundet, der
@@ -493,23 +487,28 @@ nicht zurückgeschickt:
 - **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
   [Preisliste](#preise) (`FRUEHER` und `AKTUELL` als `GEZAHLT`, `ANGEKUENDIGT` als `ANGEKUENDIGT`, `NACH_ENDE`
   fallen weg) und die drei aus `prognose` (`PROGNOSE`). `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
-  `beginn`, sonst 12 Monate vor dem zweiten Eintrag, sonst 12 Monate vor heute. Die SPA zeichnet nur.
+  `beginn`. Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
   |---|---|---|
   | Status `BEENDET` | `BEENDET` | keine |
-  | Status `GEKUENDIGT` | `GEKUENDIGT` | `zum` = `gekuendigtZum` |
+  | Status `STORNIERT` | `STORNIERT` | keine |
+  | Status `GEKUENDIGT`, oder `NICHT_BEGONNEN` und schon gekündigt | `GEKUENDIGT` | `zum` = `gekuendigtZum` |
   | nicht kündbar | `NICHT_KUENDBAR` | keine |
   | Verlängerung `KEINE` mit Laufzeitende | `ENDET` | `zum` = Laufzeitende |
   | kein Vertragsende bestimmbar | `KEINE_LAUFZEIT` | keine |
   | Laufzeitende vorbei oder leer, Verlängerung um einen Monat (`MONATLICH` oder `ZAHLUNGSINTERVALL` bei monatlicher Zahlweise) | `MONATLICH_KUENDBAR` | `kuendigenBis`, `zum`; nie `dringend` |
   | sonst | `KUENDIGEN_BIS` | `kuendigenBis`, `zum`; `dringend` bei höchstens 45 Tagen bis `kuendigenBis` |
 
-  - **Vertragsende:** das Laufzeitende, so oft um die Verlängerung (Zahlungsintervall, 1 oder 12 Monate)
-    verlängert, bis `kuendigenBis` nicht in der Vergangenheit liegt. Ohne Laufzeitende: bei
-    `ZAHLUNGSINTERVALL` und `MONATLICH` der Tag vor `abbuchungAb`, bei `ZWOELF_MONATE` ein Jahr
-    nach `beginn`; ohne `verlaengerung` gilt nur das Laufzeitende selbst.
+  Ein noch nicht begonnener Vertrag wird wie ein laufender berechnet (er lässt sich schon kündigen).
+  - **Vertragsende** (für `zum`): mit Laufzeitende dieses, so oft um die Verlängerung (Zahlungsintervall, 1 oder
+    12 Monate) verlängert, bis `kuendigenBis` nicht in der Vergangenheit liegt; gezählt vom Laufzeitende aus, ein
+    Monatsende bleibt eins. Ohne Laufzeitende endet die erste Laufzeit eine Verlängerung nach `beginn`
+    (`ZAHLUNGSINTERVALL` ein Zahlungsintervall, `MONATLICH` ein Monat, `ZWOELF_MONATE` zwölf Monate), jede weitere
+    entsprechend später, immer **vom Beginn aus** gezählt: Ende ist der Tag vor dem Beginn-Tag im jeweiligen Monat;
+    gibt es den Tag dort nicht, der Monatsletzte (§ 188 Abs. 3 BGB). Beginn 15.03. monatlich → 14.04., 14.05.;
+    Beginn 31.01. → 28.02., 30.03., 30.04. Ohne `verlaengerung` gilt nur das Laufzeitende selbst.
   - **`kuendigenBis`** = Vertragsende minus Frist. Endet der Vertrag am Monatsende, ist auch
     `kuendigenBis` ein Monatsende (30.11. mit einem Monat Frist → 31.10.).
   - **`KEINE_LAUFZEIT`** gibt es auch bei einem Laufzeitende ohne Angabe zur Verlängerung, sobald
@@ -555,12 +554,8 @@ plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem V
 { "version": 2, "anbieter": "Musterversicherung AG", "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec", … }
 ```
 
-Alle Felder werden ersetzt, `preise` und `einmalkosten` als ganze Liste (Konflikte deckt die `version` des Vertrags ab), auch
-`abbuchungAb`: Das Backend bucht danach im Takt der (ggf. neuen)
-Zahlweise ab diesem Tag ab. Die SPA schickt deshalb das gespeicherte `abbuchungAb`, solange Datum und
-Zahlweise unverändert sind, und lässt das Datum bei einem Wechsel der Zahlweise bestätigen (siehe
-[`abbuchungAb`](#vertrag-anlegen) beim Anlegen). Bei `kuendbar: false` gilt dasselbe Leeren wie beim
-Anlegen.
+Alle Felder werden ersetzt, `preise` und `einmalkosten` als ganze Liste (Konflikte deckt die `version` des Vertrags
+ab). Bei `kuendbar: false` gilt dasselbe Leeren wie beim Anlegen.
 
 Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` (`NotNull`); veraltete
 `version` → **409** `KONFLIKT`; unbekannte ID oder Vertrag eines anderen Haushalts → **404**
@@ -591,6 +586,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
   "einmalkostenImJahr": [ { "wert": 149.00, "waehrung": "EUR" } ],
   "jahr": 2026,
   "hatAnteile": true,
+  "hatNichtBegonnene": false,
   "naechsteKuendigungsfristen": [
     { "id": "…", "anbieter": "Musterversicherung AG", "bezeichnung": "Kfz-Versicherung",
       "betrag": { "wert": 586.80, "waehrung": "EUR" }, "zahlweise": "JAEHRLICH",
@@ -599,8 +595,9 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 }
 ```
 
-- **Laufend** sind alle Verträge mit `berechnet.status` ungleich `BEENDET`; gekündigte zählen bis zu
-  ihrem Ende mit.
+- **Laufend** sind die Verträge mit `berechnet.status` `AKTIV` oder `GEKUENDIGT` (Stand heute): gekündigte zählen
+  bis zu ihrem Ende mit, noch nicht begonnene erst ab ihrem Beginn (ein Vertrag ab 01.12. ab dem 01.12.),
+  beendete und stornierte nicht.
 - **Kosten:** je Währung ein Eintrag, nach Währungscode sortiert. Geteilte Verträge zählen nur mit ihrem
   `anteilProzent`; der Anteil wird je Vertrag ungerundet angewendet und erst die Summe gerundet, die Summe der
   `berechnet.eigenerAnteil` aus der Liste kann daher um einige Cent abweichen.
@@ -609,23 +606,25 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
     ist Summe ÷ 12, erst dann gerundet. Die Summe der `kostenProMonat` aus der Liste kann daher um einige Cent
     abweichen ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)).
   - `kostenImJahr`: Summe von `berechnet.kostenImJahr` über die laufenden Verträge **und** die im Jahr
-    beendeten, die bis dahin etwas gekostet haben; `jahr` wie dort. Sie passt also nicht zwingend zu
+    beendeten oder noch nicht begonnenen mit Abbuchungen im Jahr; `jahr` wie dort. Sie passt also nicht zwingend zu
     `laufendeVertraege` und ist auch nicht `kostenProMonat` × 12 (Preisänderungen im Jahr, Rundung). Ohne
     Einmalkosten, mit der Prognose wie am Vertrag.
   - `kostenImJahrMitPrognose`: `true`, wenn ein Vertrag mit `berechnet.kostenImJahrMitPrognose` in `kostenImJahr`
     eingeht („inkl. Prognose“).
   - `einmalkostenImJahr`: Summe der im Kalenderjahr `jahr` fälligen [Einmalkosten](#einmalkosten) über **alle**
-    Verträge, auch beendete (eine Gebühr im März zählt, auch wenn der Vertrag im Juni endet); leer ohne solche
-    Einträge.
-- **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` in der
+    Verträge, auch beendete, noch nicht begonnene und stornierte (eine Gebühr im März zählt, auch wenn der Vertrag im
+    Juni endet); leer ohne solche Einträge.
+- **`naechsteKuendigungsfristen`:** die fünf ersten Verträge mit `art` `KUENDIGEN_BIS` (auch noch nicht begonnene) in der
   Reihenfolge der [Liste](#verträge-auflisten), nur mit den Angaben für die Kachel (`betrag` = aktueller
   Preis, auch bei geteilten Verträgen voll); `kuendigenBis`,
   `zum` und `dringend` wie in `berechnet.kuendigung`. Endende und monatlich kündbare Verträge stehen
   nicht darin.
 - **`hatAnteile`:** `true`, wenn ein Vertrag, der in `kostenProMonat`, `kostenImJahr` oder `einmalkostenImJahr`
   eingeht, ein `anteilProzent` unter 100 hat; die SPA zeigt dann „Bei geteilten Verträgen nur dein Anteil“.
-- Ohne laufende Verträge, im Jahr beendete und Einmalkosten im Jahr: `laufendeVertraege` 0, leere Listen und
-  `hatAnteile` `false`.
+- **`hatNichtBegonnene`:** `true`, wenn ein Vertrag wegen eines späteren Beginns (`NICHT_BEGONNEN`) nicht in
+  `kostenProMonat` zählt; die SPA zeigt dann „Ohne Verträge, die erst später beginnen“.
+- Ohne laufende Verträge, im Jahr beendete und Einmalkosten im Jahr: `laufendeVertraege` 0, leere Listen,
+  `hatAnteile` und `hatNichtBegonnene` `false`.
 
 ### Vorschau
 
@@ -639,7 +638,6 @@ speichern → **200** (ohne `Location`):
   "preise": [{ "gueltigAb": null, "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
   "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
   "eigenerAnteil": { "betrag": { "wert": 7.00, "waehrung": "EUR" }, "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
-  "naechsteAbbuchung": { "am": "2026-11-23", "betrag": { "wert": 13.99, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
   "prognose": [],
   "einmalkosten": null,
@@ -647,12 +645,11 @@ speichern → **200** (ohne `Location`):
 }
 ```
 
-- **Anfrage:** die Formularwerte `preise`, `zahlweise`, `abbuchungAb`, `anteilProzent`, `einmalkosten`,
+- **Anfrage:** die Formularwerte `preise`, `zahlweise`, `anteilProzent`, `einmalkosten`,
   `preissteigerung`, `preisgarantieBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
   `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
-  Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen. Für
-  `abbuchungAb` gilt beim Bearbeiten dieselbe Regel wie beim [Speichern](#vertrag-anlegen): das gespeicherte Datum,
-  solange Datum und Zahlweise unverändert sind, sonst zeigt die Vorschau einen anderen Termin als später die Liste.
+  Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen, auch
+  `beginn` (ohne Beginn ist der Status `AKTIV`, und ohne Laufzeitende ist kein Vertragsende bestimmbar).
 - **Fehlende Werte sind kein Fehler:** Fehlt eine Angabe, ist jeder Wert `null`, der sie braucht (die SPA zeigt
   „Noch offen“); die übrigen werden trotzdem berechnet. **Unvollständige Zeilen** ignoriert die Vorschau: eine
   Preiszeile ohne `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne
@@ -669,7 +666,6 @@ speichern → **200** (ohne `Location`):
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
   | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |
-  | `naechsteAbbuchung` (`{ am, betrag }`) | keine `zahlweise`, kein `abbuchungAb`, kein Preis, oder es kommt keine mehr |
   | `naechstePreisaenderung` | kein Preis oder keine Änderung bekannt |
   | `prognose` | nie; leere Liste ohne oder mit unvollständiger Preissteigerung |
   | `einmalkosten` (Summe) | keine vollständige Zeile; ohne Preis in der Währung der Einmalkosten |

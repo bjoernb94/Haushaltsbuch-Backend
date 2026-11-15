@@ -56,18 +56,20 @@ class VertragControllerTests {
 		heute = LocalDate.now(clock);
 	}
 
-	/** Monatliches Abo ohne Laufzeitende, jederzeit zum Ende des Zahlungsintervalls kündbar. */
+	/**
+	 * Monatliches Abo ohne Laufzeitende, jederzeit zum Ende des Zahlungsintervalls kündbar. Ohne {@code beginn} seit
+	 * einem Jahr im Raster von heute + 9 Tagen: Abbuchung dann, Ende einen Tag vorher.
+	 */
 	private String abo(String betrag, String beginn, String laufzeitende, Object frist) {
 		return """
 				{"anbieter": "Streamingdienst", "bezeichnung": "", "kategorieId": "%s", "vertragsnummer": null,
 				 "preise": [{"gueltigAb": null, "betrag": {"wert": %s, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
-				 "abbuchungAb": "%s",
 				 "zahlungsweg": "KREDITKARTE", "einmalkosten": [], "preissteigerung": null, "preisgarantieBis": null,
 				 "erinnerungSonderkuendigung": true, "kuendbar": true, "beginn": %s, "laufzeitende": %s,
 				 "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": %s, "gekuendigtZum": null,
 				 "notiz": "Familien-Abo"}
-				""".formatted(VertragServiceTests.VERSICHERUNG, betrag, heute.plusDays(9), json(beginn),
-				json(laufzeitende), frist);
+				""".formatted(VertragServiceTests.VERSICHERUNG, betrag,
+				json(beginn != null ? beginn : heute.plusDays(9).minusYears(1).toString()), json(laufzeitende), frist);
 	}
 
 	private static String json(String datum) {
@@ -95,11 +97,12 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.preise[0].gueltigAb").doesNotExist())
 				.andExpect(jsonPath("$.preise[0].betrag.wert").value(13.99))
 				.andExpect(jsonPath("$.preise[0].art").value("AKTUELL"))
-				// Ohne Beginn zwölf Abbuchungen im Jahr, auch die vor dem Anker.
+				// Beginn im Vorjahr: zwölf Abbuchungen im Jahr.
 				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
 				.andExpect(jsonPath("$.berechnet.jahr").value(heute.getYear()))
-				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.am").value(heute.plusDays(9).toString()))
-				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.betrag.wert").value(13.99))
+				.andExpect(jsonPath("$.abbuchungAb").doesNotExist())
+				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung").doesNotExist())
+				.andExpect(jsonPath("$.berechnet.vertragsende").doesNotExist())
 				.andExpect(jsonPath("$.berechnet.naechstePreisaenderung").doesNotExist())
 				.andExpect(jsonPath("$.berechnet.kuendigung.art").value("MONATLICH_KUENDBAR"))
 				.andExpect(jsonPath("$.berechnet.kuendigung.zum").value(heute.plusDays(8).toString()))
@@ -205,7 +208,7 @@ class VertragControllerTests {
 						 "kostenProMonat": [{"wert": 13.99, "waehrung": "EUR"}],
 						 "kostenImJahr": [{"wert": 167.88, "waehrung": "EUR"}], "kostenImJahrMitPrognose": false,
 						 "einmalkostenImJahr": [], "jahr": %d,
-						 "hatAnteile": false,
+						 "hatAnteile": false, "hatNichtBegonnene": false,
 						 "naechsteKuendigungsfristen": [{"id": "%s", "anbieter": "Streamingdienst", "bezeichnung": null,
 						   "betrag": {"wert": 13.99, "waehrung": "EUR"}, "zahlweise": "MONATLICH",
 						   "kuendigenBis": "%s", "zum": "%s", "dringend": %s}]}
@@ -225,7 +228,7 @@ class VertragControllerTests {
 				.andExpect(content().json("""
 						{"laufendeVertraege": 0, "kostenProMonat": [], "kostenImJahr": [], "kostenImJahrMitPrognose": false,
 						 "einmalkostenImJahr": [], "jahr": %d,
-						 "hatAnteile": false, "naechsteKuendigungsfristen": []}
+						 "hatAnteile": false, "hatNichtBegonnene": false, "naechsteKuendigungsfristen": []}
 						""".formatted(heute.getYear()), true));
 	}
 
@@ -244,8 +247,7 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.berechnet.kostenProMonat.wert").value(13.99))
 				.andExpect(jsonPath("$.berechnet.eigenerAnteil.betrag.wert").value(4.66))
 				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenProMonat.wert").value(4.66))
-				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenImJahr.wert").value(55.90))
-				.andExpect(jsonPath("$.berechnet.naechsteAbbuchung.betrag.wert").value(13.99));
+				.andExpect(jsonPath("$.berechnet.eigenerAnteil.kostenImJahr.wert").value(55.90));
 
 		mockMvc.perform(get("/api/vertraege/uebersicht").with(haushalt.anmeldung()))
 				.andExpect(status().isOk())
@@ -671,13 +673,11 @@ class VertragControllerTests {
 	/** Ohne Grenze gäbe es einen Überlauf beim Weiterzählen bzw. Postgres könnte nicht speichern: 500 statt 400. */
 	@Test
 	void extremeDatenUngueltig() throws Exception {
-		mockMvc.perform(anlegen(abo("13.99", "1899-12-31", "+6000000-01-01", 1)
-						.replace("\"abbuchungAb\": \"" + heute.plusDays(9), "\"abbuchungAb\": \"+6000000-01-01")))
+		mockMvc.perform(anlegen(abo("13.99", "1899-12-31", "+6000000-01-01", 1)))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
-				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("abbuchungAb", "beginn", "laufzeitende")))
-				.andExpect(jsonPath("$.felder[*].code").value(containsInAnyOrder("PlausiblesDatum", "PlausiblesDatum",
-						"PlausiblesDatum")));
+				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("beginn", "laufzeitende")))
+				.andExpect(jsonPath("$.felder[*].code").value(containsInAnyOrder("PlausiblesDatum", "PlausiblesDatum")));
 
 		String id = JsonPath.read(angelegt(), "$.id");
 		mockMvc.perform(aendern(id, aenderung(0, "20.00").replace("\"gekuendigtZum\": null",
@@ -718,7 +718,6 @@ class VertragControllerTests {
 				.andReturn().getResponse().getContentAsString();
 		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.preise", "$.preise"},
 				{"$.kostenProMonat", "$.berechnet.kostenProMonat"},
-				{"$.naechsteAbbuchung", "$.berechnet.naechsteAbbuchung"},
 				{"$.naechstePreisaenderung", "$.berechnet.naechstePreisaenderung"},
 				{"$.kuendigung", "$.berechnet.kuendigung"}}) {
 			assertThat(JsonPath.<Object>read(vorschau, paar[0])).as(paar[0])
@@ -744,7 +743,6 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.preise", hasSize(1)))
 				.andExpect(jsonPath("$.preise[0].art").value("AKTUELL"))
 				.andExpect(jsonPath("$.kostenProMonat.wert").value(10.00))
-				.andExpect(jsonPath("$.naechsteAbbuchung").doesNotExist())
 				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
 				.andExpect(jsonPath("$.prognose", hasSize(0)));
 
@@ -791,7 +789,7 @@ class VertragControllerTests {
 		mockMvc.perform(anlegen("{}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder(
-						"anbieter", "kategorieId", "preise", "zahlweise", "abbuchungAb", "einmalkosten", "erinnerungSonderkuendigung",
+						"anbieter", "kategorieId", "preise", "zahlweise", "beginn", "einmalkosten", "erinnerungSonderkuendigung",
 						"kuendbar")));
 	}
 

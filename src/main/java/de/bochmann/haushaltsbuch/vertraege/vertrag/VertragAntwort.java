@@ -1,7 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Abbuchung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunkt;
@@ -35,7 +34,6 @@ record VertragAntwort(
 		Betrag betrag,
 		List<VertragPreisAntwort> preise,
 		Zahlweise zahlweise,
-		LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
 		@Nullable BigDecimal anteilProzent,
 		List<VertragEinmalkostenAntwort> einmalkosten,
@@ -43,7 +41,7 @@ record VertragAntwort(
 		@Nullable LocalDate preisgarantieBis,
 		boolean erinnerungSonderkuendigung,
 		boolean kuendbar,
-		@Nullable LocalDate beginn,
+		LocalDate beginn,
 		@Nullable LocalDate laufzeitende,
 		@Nullable Verlaengerung verlaengerung,
 		@Nullable Integer kuendigungsfristMonate,
@@ -62,7 +60,8 @@ record VertragAntwort(
 	 * @param eigenerAnteil der eigene Anteil an den Kosten; leer ohne Anteil unter 100&nbsp;% (dann sind die vollen
 	 *        Kosten der eigene Anteil)
 	 * @param einmalkosten Summe aller Einmalkosten, unabhängig vom Jahr und mit dem vollen Betrag; ohne Einträge 0
-	 * @param naechsteAbbuchung die erste Abbuchung ab heute; leer, wenn keine mehr kommt
+	 * @param vertragsende der letzte Vertragstag ({@code gekuendigtZum} bzw. Laufzeitende ohne Verlängerung, das
+	 *        frühere); leer bei offenem Ende
 	 * @param naechstePreisaenderung der nächste Eintrag nach dem heute gültigen, sonst der erste der Prognose; leer,
 	 *        wenn keiner bekannt ist
 	 * @param prognose die nächsten drei Preise aus der Preissteigerung; leer ohne Regel
@@ -76,7 +75,7 @@ record VertragAntwort(
 			int jahr,
 			@Nullable VertragEigenerAnteil eigenerAnteil,
 			Betrag einmalkosten,
-			@Nullable Abbuchung naechsteAbbuchung,
+			@Nullable LocalDate vertragsende,
 			@Nullable Preisaenderung naechstePreisaenderung,
 			List<Prognosepreis> prognose,
 			List<Preispunkt> preisverlauf,
@@ -105,14 +104,14 @@ record VertragAntwort(
 								werte.eigenerAnteilImJahr())
 						: null,
 				werte.einmalkosten(),
-				werte.naechsteAbbuchung(),
+				werte.vertragsende(),
 				werte.naechstePreisaenderung(),
 				werte.prognose(),
 				werte.preisverlauf(),
 				werte.kuendigung());
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
-				werte.betrag(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getAbbuchungAb(), vertrag.getZahlungsweg(),
+				werte.betrag(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getZahlungsweg(),
 				vertrag.getAnteilProzent(),
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
 				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(),

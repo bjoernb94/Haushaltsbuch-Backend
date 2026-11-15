@@ -350,18 +350,23 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
 
 - **Kündigungsart:** `KUENDIGEN_BIS` (dringend, nicht dringend), `MONATLICH_KUENDBAR`, `ENDET`,
   `KEINE_LAUFZEIT` (ohne Laufzeit, Laufzeitende ohne Verlängerung mit abgelaufener Frist), `NICHT_KUENDBAR`,
-  `GEKUENDIGT`, `BEENDET` (`gekuendigtZum` vorbei, Verlängerung `KEINE` mit vergangenem Laufzeitende).
+  `GEKUENDIGT`, `BEENDET` (`gekuendigtZum` vorbei, Verlängerung `KEINE` mit vergangenem Laufzeitende), `STORNIERT`.
+- **Status:** `NICHT_BEGONNEN` (kündbar und schon gekündigt), `STORNIERT` (vor dem Beginn gekündigt, mit
+  Einmalkosten), dazu `AKTIV`, `GEKUENDIGT` und `BEENDET`.
 - **Felder:** alle Zahlweisen, Kategorien und Zahlungswege; Frist keine, 0, 1 und 3 Monate; mit und ohne
   Bezeichnung; Höchstlängen; optionale Felder alle gefüllt und alle leer.
-- **Nächste Abbuchung:** vorhanden, keine mehr, genau am Vertragsende, Monatsende als Anker (31.01.). Das
-  Abrutschen zeigt sich nur, wenn die nächste Abbuchung in einen kürzeren Monat fällt.
+- **Beginn als Anker:** Beginn am 31. (Abbuchungen am 31. bzw. Monatsletzten; monatlich kündbar zum 30., im
+  Februar zum Monatsletzten), Beginn heute (Kosten im Jahr nur ab heute). Ohne eigenen Beginn liegt er ein Jahr
+  zurück im Raster von heute + 9 Tagen.
 - **Anteil:** geteilte Verträge mit 50&nbsp;% und 33,3&nbsp;% sowie einer mit 100&nbsp;% (zählt wie ohne Anteil).
 - **Einmalkosten:** im laufenden Jahr und im Vorjahr, einmal bei einem geteilten Vertrag.
 - **Preissteigerung:** in Prozent und als Betrag, mit Preisgarantie und mit vergangener „nächster Erhöhung“; einmal
   ohne Erinnerung ans Sonderkündigungsrecht.
 
-Für jeden Fall prüft das Skript `art`, `dringend`, die nächste Abbuchung, `berechnet.einmalkosten`, die drei
-Prognosepreise samt nächster Preisänderung und ob es `eigenerAnteil` gibt, in der Übersicht `hatAnteile` und `einmalkostenImJahr`, und bricht bei einer Abweichung ab,
+Für jeden Fall prüft das Skript `art`, `status`, `dringend`, `vertragsende`, wo angegeben `kuendigung.zum` und
+`kostenImJahr`, `berechnet.einmalkosten`, die drei Prognosepreise samt nächster Preisänderung und ob es
+`eigenerAnteil` gibt, in der Übersicht `hatAnteile`, `hatNichtBegonnene` und `einmalkostenImJahr`, und bricht bei
+einer Abweichung ab,
 ebenso wenn eine Feldvariante fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
 

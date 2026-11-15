@@ -26,8 +26,6 @@ interface Berechnungsangaben {
 
 	Zahlweise zahlweise();
 
-	LocalDate abbuchungAb();
-
 	BigDecimal anteilProzent();
 
 	List<? extends Einmalkostenangabe> einmalkosten();
@@ -54,7 +52,7 @@ interface Berechnungsangaben {
 	 */
 	default Vertragsdaten daten() {
 		boolean kuendbar = kuendbar();
-		return new Vertragsdaten(zahlweise(), abbuchungAb(), kuendbar, beginn(), laufzeitende(),
+		return new Vertragsdaten(zahlweise(), kuendbar, beginn(), laufzeitende(),
 				kuendbar ? verlaengerung() : null, kuendbar ? kuendigungsfristMonate() : null, gekuendigtZum());
 	}
 

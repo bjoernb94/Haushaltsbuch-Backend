@@ -37,10 +37,6 @@ ALLE_ZAHLUNGSWEGE = {"LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DA
 ALLE_KATEGORIEN = {"STREAMING_ABOS", "SOFTWARE_APPS", "VERSICHERUNG", "MOBILFUNK_INTERNET", "MITGLIEDSCHAFTEN",
                    "GEBUEHREN_BEITRAEGE", "SONSTIGES"}
 
-# Für erwartet_naechste: Es gibt eine nächste Abbuchung, das genaue Datum ist egal.
-VORHANDEN = object()
-
-
 class Abbruch(Exception):
     """Etwas stimmt nicht; das Skript endet mit dieser Meldung."""
 
@@ -53,11 +49,19 @@ class Fall:
     art: str
     kategorie: str = "SONSTIGES"
     zahlweise: str = "MONATLICH"
-    abbuchung_ab: date | None = None
     kuendbar: bool = True
     felder: dict = field(default_factory=dict)
     dringend: bool = False
-    erwartet_naechste: object = VORHANDEN
+    # Ohne Angabe AKTIV bzw. bei GEKUENDIGT, BEENDET und STORNIERT wie art.
+    status: str | None = None
+    # Erwartetes berechnet.kostenImJahr; None prüft es nicht.
+    kosten_im_jahr: Decimal | None = None
+    # Erwartetes berechnet.kuendigung.zum; None prüft es nicht.
+    zum: date | None = None
+
+    @property
+    def erwarteter_status(self):
+        return self.status or (self.art if self.art in ("GEKUENDIGT", "BEENDET", "STORNIERT") else "AKTIV")
 
 
 @dataclass
@@ -172,7 +176,13 @@ def vertraege_loeschen(sitzung, konto):
         erwarte(status, 204, f"{konto.email}: Vertrag löschen", antwort)
 
 
+def vor_einem_jahr(tag):
+    """Derselbe Tag im Vorjahr; der 29.02. wird zum 28.02."""
+    return tag.replace(year=tag.year - 1, day=min(tag.day, calendar.monthrange(tag.year - 1, tag.month)[1]))
+
+
 def anfrage_zu(fall, kategorie_ids, heute):
+    # Ohne Angabe seit einem Jahr im Raster von heute + 9 Tagen: Abbuchung dann, Ende einen Tag vorher.
     daten = {
         "anbieter": fall.anbieter,
         "bezeichnung": None,
@@ -180,7 +190,6 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "vertragsnummer": None,
         "preise": [{"gueltigAb": None, "betrag": {"wert": 9.99, "waehrung": "EUR"}}],
         "zahlweise": fall.zahlweise,
-        "abbuchungAb": fall.abbuchung_ab or heute + timedelta(days=9),
         "zahlungsweg": None,
         "anteilProzent": None,
         "einmalkosten": [],
@@ -188,7 +197,7 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "preisgarantieBis": None,
         "erinnerungSonderkuendigung": True,
         "kuendbar": fall.kuendbar,
-        "beginn": None,
+        "beginn": vor_einem_jahr(heute + timedelta(days=9)),
         "laufzeitende": None,
         "verlaengerung": None,
         "kuendigungsfristMonate": None,
@@ -198,24 +207,33 @@ def anfrage_zu(fall, kategorie_ids, heute):
     return {schluessel: wert.isoformat() if isinstance(wert, date) else wert for schluessel, wert in daten.items()}
 
 
-def pruefe_berechnung(fall, antwort):
+def vertragsende(daten):
+    """Wie das Backend: gekuendigtZum bzw. Laufzeitende eines kündbaren Vertrags ohne Verlängerung, das frühere."""
+    enden = [daten["gekuendigtZum"]]
+    if daten["kuendbar"] and daten["verlaengerung"] == "KEINE":
+        enden.append(daten["laufzeitende"])
+    enden = [ende for ende in enden if ende is not None]
+    return min(enden) if enden else None
+
+
+def pruefe_berechnung(fall, anfrage, antwort):
     """Vergleicht mit der Erwartung des Falls; gibt zurück, was die Tabelle am Ende zeigt."""
     berechnet = antwort["berechnet"]
     art = berechnet["kuendigung"]["art"]
-    naechste = berechnet["naechsteAbbuchung"] and berechnet["naechsteAbbuchung"]["am"]
+    status = berechnet["status"]
     fehler = []
     if art != fall.art:
         fehler.append(f"art {art} statt {fall.art}")
+    if status != fall.erwarteter_status:
+        fehler.append(f"status {status} statt {fall.erwarteter_status}")
     if berechnet["kuendigung"]["dringend"] != fall.dringend:
         fehler.append(f"dringend {berechnet['kuendigung']['dringend']} statt {fall.dringend}")
-    if fall.erwartet_naechste is VORHANDEN:
-        if naechste is None:
-            fehler.append("keine nächste Abbuchung, erwartet war eine")
-    elif fall.erwartet_naechste is None:
-        if naechste is not None:
-            fehler.append(f"nächste Abbuchung {naechste}, erwartet war keine")
-    elif naechste != fall.erwartet_naechste.isoformat():
-        fehler.append(f"nächste Abbuchung {naechste} statt {fall.erwartet_naechste}")
+    if fall.zum is not None and berechnet["kuendigung"]["zum"] != fall.zum.isoformat():
+        fehler.append(f"zum {berechnet['kuendigung']['zum']} statt {fall.zum}")
+    if berechnet["vertragsende"] != vertragsende(anfrage):
+        fehler.append(f"vertragsende {berechnet['vertragsende']} statt {vertragsende(anfrage)}")
+    if fall.kosten_im_jahr is not None and Decimal(str(berechnet["kostenImJahr"]["wert"])) != fall.kosten_im_jahr:
+        fehler.append(f"kostenImJahr {berechnet['kostenImJahr']['wert']} statt {fall.kosten_im_jahr}")
     einmalkosten = sum((Decimal(str(eintrag["betrag"]["wert"])) for eintrag in fall.felder.get("einmalkosten", [])),
                        Decimal(0))
     if Decimal(str(berechnet["einmalkosten"]["wert"])) != einmalkosten:
@@ -230,7 +248,7 @@ def pruefe_berechnung(fall, antwort):
         fehler.append(f"eigenerAnteil {berechnet['eigenerAnteil']} bei anteilProzent {fall.felder.get('anteilProzent')}")
     if fehler:
         raise Abbruch(f"Fall „{fall.anbieter[:60]}“: {', '.join(fehler)}")
-    return art, naechste
+    return art, status
 
 
 def vertraege_anlegen(sitzung, konto, heute):
@@ -239,10 +257,11 @@ def vertraege_anlegen(sitzung, konto, heute):
     kategorie_ids = {kategorie["schluessel"]: kategorie["id"] for kategorie in kategorien if kategorie["schluessel"]}
     zeilen = []
     for fall in konto.faelle:
-        status, antwort = sitzung.anfrage("POST", "/api/vertraege", anfrage_zu(fall, kategorie_ids, heute))
+        anfrage = anfrage_zu(fall, kategorie_ids, heute)
+        status, antwort = sitzung.anfrage("POST", "/api/vertraege", anfrage)
         erwarte(status, 201, f"Fall „{fall.anbieter[:60]}“: Anlegen", antwort)
-        art, naechste = pruefe_berechnung(fall, antwort)
-        zeilen.append((fall.anbieter[:50], art, "ja" if fall.dringend else "", naechste or "keine"))
+        art, vertragsstatus = pruefe_berechnung(fall, anfrage, antwort)
+        zeilen.append((fall.anbieter[:50], art, "ja" if fall.dringend else "", vertragsstatus))
     return zeilen
 
 
@@ -275,6 +294,9 @@ def pruefe_uebersicht(sitzung, konto, heute):
     hat_anteile = any(geteilt(fall) for fall in konto.faelle)
     if antwort["hatAnteile"] != hat_anteile:
         raise Abbruch(f"{konto.email}: hatAnteile {antwort['hatAnteile']} statt {hat_anteile}")
+    hat_nicht_begonnene = any(fall.erwarteter_status == "NICHT_BEGONNEN" for fall in konto.faelle)
+    if antwort["hatNichtBegonnene"] != hat_nicht_begonnene:
+        raise Abbruch(f"{konto.email}: hatNichtBegonnene {antwort['hatNichtBegonnene']} statt {hat_nicht_begonnene}")
     fristen = len(antwort["naechsteKuendigungsfristen"])
     if fristen != konto.fristen_in_uebersicht:
         raise Abbruch(f"{konto.email}: {fristen} Fristen in der Übersicht statt {konto.fristen_in_uebersicht}")
@@ -297,11 +319,12 @@ def einrichten(url, konto, heute):
     return zustand, zeilen
 
 
-def abbuchung_vom_monatsende(heute):
-    """Die nächste Abbuchung bei monatlichem Anker 31.01.: der 31. oder der letzte Tag eines kürzeren Monats."""
+def ende_bei_beginn_am_31(heute):
+    """Das nächste Vertragsende ab heute bei Beginn am 31. und monatlicher Verlängerung: der Tag vor dem 31., also der
+    30., im Februar der Monatsletzte (§ 188 Abs. 3 BGB)."""
     jahr, monat = heute.year, heute.month
     while True:
-        termin = date(jahr, monat, min(31, calendar.monthrange(jahr, monat)[1]))
+        termin = date(jahr, monat, min(30, calendar.monthrange(jahr, monat)[1]))
         if termin >= heute:
             return termin
         jahr, monat = (jahr + 1, 1) if monat == 12 else (jahr, monat + 1)
@@ -343,18 +366,21 @@ def faelle_alles(heute):
              felder={"verlaengerung": "MONATLICH", "kuendigungsfristMonate": 1, "beginn": tage(-400)}),
         Fall("Monatlich kündbar – Laufzeitende vorbei", "MONATLICH_KUENDBAR",
              felder={"laufzeitende": tage(-30), "verlaengerung": "ZAHLUNGSINTERVALL"}),
+        # Vertragsenden vom Beginn aus: 30., im Februar der Monatsletzte, nicht abgerutscht.
+        Fall("Monatlich kündbar – Beginn am 31.", "MONATLICH_KUENDBAR", zum=ende_bei_beginn_am_31(heute),
+             felder={"beginn": date(heute.year - 1, 1, 31), "verlaengerung": "MONATLICH", "kuendigungsfristMonate": 0}),
         # Kündigungsart ENDET
-        Fall("Endet – Abbuchung davor", "ENDET", felder={"laufzeitende": tage(100), "verlaengerung": "KEINE"}),
-        Fall("Endet – Abbuchung genau am Vertragsende", "ENDET", erwartet_naechste=tage(9),
-             felder={"laufzeitende": tage(9), "verlaengerung": "KEINE"}),
-        Fall("Endet – keine Abbuchung mehr", "ENDET", erwartet_naechste=None,
-             felder={"laufzeitende": tage(5), "verlaengerung": "KEINE"}),
+        Fall("Endet – in 100 Tagen", "ENDET", felder={"laufzeitende": tage(100), "verlaengerung": "KEINE"}),
+        Fall("Endet – in 5 Tagen", "ENDET", felder={"laufzeitende": tage(5), "verlaengerung": "KEINE"}),
         # Kündigungsart KEINE_LAUFZEIT
         Fall("Keine Laufzeit – optionale Felder alle leer", "KEINE_LAUFZEIT"),
         Fall("Keine Laufzeit – Laufzeitende ohne Verlängerung, Frist abgelaufen", "KEINE_LAUFZEIT",
              felder={"laufzeitende": tage(10), "kuendigungsfristMonate": 3}),
-        Fall("Keine Laufzeit – Monatsende als Anker (31.01.)", "KEINE_LAUFZEIT", abbuchung_ab=date(heute.year - 1, 1, 31),
-             erwartet_naechste=abbuchung_vom_monatsende(heute)),
+        Fall("Keine Laufzeit – Beginn am 31. (Abbuchung am 31. bzw. Monatsletzten)", "KEINE_LAUFZEIT",
+             felder={"beginn": date(heute.year - 1, 1, 31)}),
+        # Beginn im laufenden Jahr: Abbuchungen erst ab heute, je am heutigen Tag des Monats.
+        Fall("Kosten im Jahr – Beginn heute", "KEINE_LAUFZEIT", felder={"beginn": heute},
+             kosten_im_jahr=Decimal("9.99") * (13 - heute.month)),
         # Kündigungsart NICHT_KUENDBAR
         Fall("Nicht kündbar", "NICHT_KUENDBAR", kuendbar=False, felder={"beginn": tage(-1000)}),
         # Kündigungsart GEKUENDIGT
@@ -362,12 +388,21 @@ def faelle_alles(heute):
              felder={"bezeichnung": "Alle Felder", "vertragsnummer": "TEST-4711", "zahlungsweg": "LASTSCHRIFT",
                      "beginn": tage(-200), "laufzeitende": tage(165), "verlaengerung": "ZWOELF_MONATE",
                      "kuendigungsfristMonate": 3, "gekuendigtZum": tage(165), "notiz": "Alle optionalen Felder gesetzt."}),
-        Fall("Gekündigt – keine Abbuchung mehr", "GEKUENDIGT", erwartet_naechste=None,
-             felder={"gekuendigtZum": tage(5)}),
+        Fall("Gekündigt – in 5 Tagen", "GEKUENDIGT", felder={"gekuendigtZum": tage(5)}),
         # Kündigungsart BEENDET
-        Fall("Beendet – Kündigungsdatum vorbei", "BEENDET", erwartet_naechste=None, felder={"gekuendigtZum": tage(-1)}),
-        Fall("Beendet – Laufzeitende vorbei, Verlängerung KEINE", "BEENDET", erwartet_naechste=None,
+        Fall("Beendet – Kündigungsdatum vorbei", "BEENDET", felder={"gekuendigtZum": tage(-1)}),
+        Fall("Beendet – Laufzeitende vorbei, Verlängerung KEINE", "BEENDET",
              felder={"laufzeitende": tage(-1), "verlaengerung": "KEINE"}),
+        # Noch nicht begonnen: zählt nicht pro Monat, lässt sich aber schon kündigen.
+        Fall("Noch nicht begonnen – Beginn in 20 Tagen", "KUENDIGEN_BIS", status="NICHT_BEGONNEN",
+             felder={"beginn": tage(20), "verlaengerung": "ZWOELF_MONATE", "kuendigungsfristMonate": 1}),
+        Fall("Noch nicht begonnen – schon gekündigt", "GEKUENDIGT", status="NICHT_BEGONNEN",
+             felder={"beginn": tage(20), "gekuendigtZum": tage(120)}),
+        # Storniert: vor dem Beginn gekündigt, läuft nie; die Gebühr fällt trotzdem an.
+        Fall("Storniert – vor dem Beginn gekündigt", "STORNIERT",
+             felder={"beginn": tage(30), "gekuendigtZum": tage(29), "einmalkosten": [
+                 {"bezeichnung": "Stornogebühr", "betrag": {"wert": 15.00, "waehrung": "EUR"},
+                  "faelligAm": heute.isoformat()}]}),
         # Preisliste: früherer Preis, aktueller und angekündigte Erhöhung.
         Fall("Preise – Erhöhung angekündigt", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
              felder={"beginn": tage(-400), "preise": [
@@ -441,8 +476,8 @@ def pruefe_abdeckung(faelle):
 
 def ausgeben(konto, zustand, zeilen):
     print(f"\n{konto.email} ({zustand}; {', '.join(sorted(konto.komponenten))})")
-    for anbieter, art, dringend, naechste in zeilen:
-        print(f"  {anbieter:<50}  {art:<18}  {dringend:<2}  {naechste}")
+    for anbieter, art, dringend, status in zeilen:
+        print(f"  {anbieter:<50}  {art:<18}  {dringend:<2}  {status}")
 
 
 def main():

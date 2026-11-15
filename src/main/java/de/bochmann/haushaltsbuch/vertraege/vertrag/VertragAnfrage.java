@@ -26,7 +26,6 @@ import java.util.UUID;
  *
  * @param bezeichnung leer, wenn der Anbieter als Name genügt
  * @param preise Preise mit Gültigkeitsdatum in beliebiger Reihenfolge; der heute gültige ist der Betrag des Vertrags
- * @param abbuchungAb ab diesem Tag wird im Takt der Zahlweise abgebucht; im Formular „Nächste Abbuchung“
  * @param anteilProzent eigener Anteil an einem geteilten Vertrag (1–100, eine Nachkommastelle); leer = 100&nbsp;%.
  *        Übersichten zählen nur diesen Anteil der Kosten, Beträge und Abbuchungen bleiben die vollen
  * @param einmalkosten einmalige Kosten wie eine Anschlussgebühr in beliebiger Reihenfolge, auch leer; Pflicht, damit
@@ -37,6 +36,7 @@ import java.util.UUID;
  *        gespeichert und angezeigt
  * @param kuendbar {@code false} z.&nbsp;B. für den Rundfunkbeitrag; dann werden {@code verlaengerung} und
  *        {@code kuendigungsfristMonate} nicht gespeichert, {@code beginn} und {@code laufzeitende} bleiben (#67)
+ * @param beginn Vertragsbeginn und Anker des Zahlungsrhythmus: ab diesem Tag wird im Takt der Zahlweise abgebucht
  * @param gekuendigtZum gesetzt, wenn gekündigt; ein vergangenes Datum erfasst einen beendeten Vertrag
  */
 @LaufzeitendeNachBeginn
@@ -50,7 +50,6 @@ record VertragAnfrage(
 		@NotEmpty @Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
 		List<@NotNull @Valid VertragPreisAnfrage> preise,
 		@NotNull Zahlweise zahlweise,
-		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@NotNull @Size(max = 100) List<@NotNull @Valid VertragEinmalkostenAnfrage> einmalkosten,
@@ -58,7 +57,7 @@ record VertragAnfrage(
 		@PlausiblesDatum @Nullable LocalDate preisgarantieBis,
 		@NotNull Boolean erinnerungSonderkuendigung,
 		@NotNull Boolean kuendbar,
-		@PlausiblesDatum @Nullable LocalDate beginn,
+		@NotNull @PlausiblesDatum LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,
 		@Nullable Verlaengerung verlaengerung,
 		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,

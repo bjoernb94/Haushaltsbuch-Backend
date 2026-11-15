@@ -21,7 +21,7 @@ import java.time.LocalDate;
  *
  * @param prozent nur bei {@link Steigerungsart#PROZENT}, z.&nbsp;B. 2,5
  * @param betrag nur bei {@link Steigerungsart#BETRAG}
- * @param naechsteAm Datum der nächsten Erhöhung, Anker im Rhythmus wie {@code abbuchungAb}; darf vergangen sein
+ * @param naechsteAm Datum der nächsten Erhöhung, Anker im Rhythmus wie {@code beginn} für die Abbuchungen; darf vergangen sein
  */
 @PassenderWert
 record VertragPreissteigerungAnfrage(

@@ -700,19 +700,6 @@
   },
   "components" : {
     "schemas" : {
-      "Abbuchung" : {
-        "type" : "object",
-        "properties" : {
-          "am" : {
-            "type" : "string",
-            "format" : "date"
-          },
-          "betrag" : {
-            "$ref" : "#/components/schemas/Betrag"
-          }
-        },
-        "required" : [ "am", "betrag" ]
-      },
       "AnmeldungAnfrage" : {
         "type" : "object",
         "properties" : {
@@ -825,7 +812,7 @@
       },
       "Kuendigungsart" : {
         "type" : "string",
-        "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET" ]
+        "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET", "STORNIERT" ]
       },
       "Preisaenderung" : {
         "type" : "object",
@@ -978,10 +965,6 @@
       "VertragAenderung" : {
         "type" : "object",
         "properties" : {
-          "abbuchungAb" : {
-            "type" : "string",
-            "format" : "date"
-          },
           "anbieter" : {
             "type" : "string",
             "maxLength" : 200,
@@ -993,7 +976,7 @@
             "minimum" : 1
           },
           "beginn" : {
-            "type" : [ "string", "null" ],
+            "type" : "string",
             "format" : "date"
           },
           "bezeichnung" : {
@@ -1084,15 +1067,11 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
+        "required" : [ "anbieter", "beginn", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",
         "properties" : {
-          "abbuchungAb" : {
-            "type" : "string",
-            "format" : "date"
-          },
           "anbieter" : {
             "type" : "string",
             "maxLength" : 200,
@@ -1104,7 +1083,7 @@
             "minimum" : 1
           },
           "beginn" : {
-            "type" : [ "string", "null" ],
+            "type" : "string",
             "format" : "date"
           },
           "bezeichnung" : {
@@ -1191,15 +1170,11 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "zahlweise" ]
+        "required" : [ "anbieter", "beginn", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "zahlweise" ]
       },
       "VertragAntwort" : {
         "type" : "object",
         "properties" : {
-          "abbuchungAb" : {
-            "type" : "string",
-            "format" : "date"
-          },
           "anbieter" : {
             "type" : "string"
           },
@@ -1207,7 +1182,7 @@
             "type" : [ "number", "null" ]
           },
           "beginn" : {
-            "type" : [ "string", "null" ],
+            "type" : "string",
             "format" : "date"
           },
           "berechnet" : {
@@ -1295,7 +1270,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "abbuchungAb", "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1326,13 +1301,6 @@
           "kuendigung" : {
             "$ref" : "#/components/schemas/Kuendigung"
           },
-          "naechsteAbbuchung" : {
-            "oneOf" : [ {
-              "$ref" : "#/components/schemas/Abbuchung"
-            }, {
-              "type" : "null"
-            } ]
-          },
           "naechstePreisaenderung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Preisaenderung"
@@ -1354,9 +1322,13 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/Vertragsstatus"
+          },
+          "vertragsende" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
           }
         },
-        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "preisverlauf", "prognose", "status" ]
+        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preisverlauf", "prognose", "status", "vertragsende" ]
       },
       "VertragEigenerAnteil" : {
         "type" : "object",
@@ -1517,10 +1489,6 @@
       "VertragVorschauAnfrage" : {
         "type" : "object",
         "properties" : {
-          "abbuchungAb" : {
-            "type" : [ "string", "null" ],
-            "format" : "date"
-          },
           "anteilProzent" : {
             "type" : [ "number", "null" ],
             "maximum" : 100,
@@ -1625,13 +1593,6 @@
           "kuendigung" : {
             "$ref" : "#/components/schemas/Kuendigung"
           },
-          "naechsteAbbuchung" : {
-            "oneOf" : [ {
-              "$ref" : "#/components/schemas/Abbuchung"
-            }, {
-              "type" : "null"
-            } ]
-          },
           "naechstePreisaenderung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Preisaenderung"
@@ -1652,7 +1613,7 @@
             }
           }
         },
-        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechsteAbbuchung", "naechstePreisaenderung", "preise", "prognose" ]
+        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preise", "prognose" ]
       },
       "VertragVorschauEigenerAnteil" : {
         "type" : "object",
@@ -1744,7 +1705,7 @@
       },
       "Vertragsstatus" : {
         "type" : "string",
-        "enum" : [ "AKTIV", "GEKUENDIGT", "BEENDET" ]
+        "enum" : [ "NICHT_BEGONNEN", "AKTIV", "GEKUENDIGT", "BEENDET", "STORNIERT" ]
       },
       "VertragsuebersichtAntwort" : {
         "type" : "object",
@@ -1756,6 +1717,9 @@
             }
           },
           "hatAnteile" : {
+            "type" : "boolean"
+          },
+          "hatNichtBegonnene" : {
             "type" : "boolean"
           },
           "jahr" : {
@@ -1788,7 +1752,7 @@
             }
           }
         },
-        "required" : [ "einmalkostenImJahr", "hatAnteile", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+        "required" : [ "einmalkostenImJahr", "hatAnteile", "hatNichtBegonnene", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
       },
       "Zahlungsweg" : {
         "type" : "string",

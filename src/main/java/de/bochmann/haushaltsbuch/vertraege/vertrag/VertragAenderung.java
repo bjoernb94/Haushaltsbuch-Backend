@@ -38,7 +38,6 @@ record VertragAenderung(
 		@NotEmpty @Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
 		List<@NotNull @Valid VertragPreisAnfrage> preise,
 		@NotNull Zahlweise zahlweise,
-		@NotNull @PlausiblesDatum LocalDate abbuchungAb,
 		@Nullable Zahlungsweg zahlungsweg,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@NotNull @Size(max = 100) List<@NotNull @Valid VertragEinmalkostenAnfrage> einmalkosten,
@@ -46,7 +45,7 @@ record VertragAenderung(
 		@PlausiblesDatum @Nullable LocalDate preisgarantieBis,
 		@NotNull Boolean erinnerungSonderkuendigung,
 		@NotNull Boolean kuendbar,
-		@PlausiblesDatum @Nullable LocalDate beginn,
+		@NotNull @PlausiblesDatum LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,
 		@Nullable Verlaengerung verlaengerung,
 		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,

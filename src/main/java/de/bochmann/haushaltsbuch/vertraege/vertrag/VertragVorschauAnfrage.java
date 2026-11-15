@@ -32,7 +32,6 @@ record VertragVorschauAnfrage(
 		@Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
 		@Nullable List<@Valid VertragVorschauPreis> preise,
 		@Nullable Zahlweise zahlweise,
-		@PlausiblesDatum @Nullable LocalDate abbuchungAb,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
 		@Size(max = 100) @Nullable List<@Valid VertragVorschauEinmalkosten> einmalkosten,
 		@Valid @Nullable VertragVorschauPreissteigerung preissteigerung,
