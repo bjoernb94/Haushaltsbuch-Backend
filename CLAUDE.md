@@ -44,7 +44,7 @@ python3 scripts/testdaten.py                        # local test accounts with c
 - Releases come only from a tag `v<version>` on `main` that matches the `pom.xml` and the image versions in
   `betrieb/compose.yaml`, with an open milestone named exactly like the tag and no open issues
   (`.github/workflows/release.yml`, README "Veröffentlichen", ADR 0015). Release notes are grouped by PR labels,
-  so label PRs (`feature/` → `enhancement`, `fix/` → `bug`, `docs/` → `documentation`).
+  so label PRs (`feature/` → `enhancement`, `fix/` → `bug`, `docs/` → `documentation`, `chore/` → `technisch`).
 
 ## Architecture
 
