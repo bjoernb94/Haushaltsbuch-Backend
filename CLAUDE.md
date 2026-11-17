@@ -42,8 +42,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
 - Before starting work, create the branch from an up-to-date `main` if you are still on `main`.
 - Releases come only from a tag `v<version>` on `main` that matches the `pom.xml` and the image versions in
   `betrieb/compose.yaml`, with an open milestone named exactly like the tag and no open issues
-  (`.github/workflows/release.yml`, README "Veröffentlichen"). Release notes are grouped by PR labels, so
-  label PRs (`feature/` → `enhancement`, `fix/` → `bug`, `docs/` → `documentation`).
+  (`.github/workflows/release.yml`, README "Veröffentlichen", ADR 0015). Release notes are grouped by PR labels,
+  so label PRs (`feature/` → `enhancement`, `fix/` → `bug`, `docs/` → `documentation`).
 
 ## Architecture
 
@@ -112,11 +112,11 @@ python3 scripts/testdaten.py                        # local test accounts with c
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.
 - Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
-  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business calculations live only in the backend, the SPA only formats (ADR 0010). Business entities extend `shared.fachdaten.FachEntity`
+  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business calculations live only in the backend, the SPA only formats (ADR 0010); derived values are computed on read, never stored (ADR 0014). Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
   `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields, on `DELETE` with a required `@RequestParam long version` before deleting (load first so
-  unknown IDs give 404) (stale version → `KonfliktException`, 409 `KONFLIKT`; concurrent flushes are mapped to 409 too)
+  unknown IDs give 404) (stale version → `KonfliktException`, 409 `KONFLIKT`, ADR 0012; concurrent flushes are mapped to 409 too)
   and `flush()` before building the response, so it carries the new version. DTO names: `<Objekt>Anfrage` (create),
   `<Objekt>Aenderung` (update: same fields plus `@NotNull Long version`, shared interface, test keeps the field lists
   equal), `<Objekt>Antwort`.
@@ -142,7 +142,7 @@ python3 scripts/testdaten.py                        # local test accounts with c
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
   commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
-- `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale).
+- `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale; the contract with the SPA, ADR 0013).
   DTO fields that can be `null` get JSpecify `@Nullable` (requests and responses); without it a field is never `null`.
   springdoc turns that into nullable types, enums become named schemas (`ModelResolver.enumsAsRef`), and all fields of
   2xx responses are `required` (nulls are always serialized).
