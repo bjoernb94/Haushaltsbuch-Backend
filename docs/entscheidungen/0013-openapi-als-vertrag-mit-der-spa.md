@@ -20,7 +20,9 @@ Die OpenAPI-Beschreibung, die springdoc aus den Controllern erzeugt, ist der Ver
 - Ohne JSpecify-`@Nullable` ist ein Feld nie `null`. In Erfolgsantworten ist jedes Feld `required`, weil
   das Backend auch `null`-Felder ausliefert. `OpenApiExportTests` prüft das, soweit ein Testfall das Feld
   als `null` liefert.
-- Die SPA erzeugt daraus ihre Typen (`npm run api:typen`) und checkt sie ein.
+- Die SPA erzeugt daraus nur ihre Typen (`npm run api:typen`) und checkt sie ein, keinen Client: HTTP
+  bleibt `HttpClient` mit Interceptoren (z.&nbsp;B. Umleitung zur Anmeldung bei 401) und CSRF-Einstellung,
+  die ein generierter Client umgehen oder nachbauen müsste.
 
 ## Folgen
 

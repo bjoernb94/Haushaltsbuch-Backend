@@ -10,7 +10,8 @@ Backend of a household-budget app ("Haushaltsbuch"). Docs, comments and the READ
 `docs/api.md` (contract for the SPA: login, endpoints, error codes, money/date format, business endpoint rules),
 `docs/entwicklung.md` (conventions: modules, household separation, entities, errors, DB, tests, Git),
 `docs/betrieb.md` (Docker Compose, Keycloak setup, configuration, prod, system status) and
-`docs/entscheidungen/` (ADRs; add a new one for architecture decisions instead of rewriting old ones).
+`docs/entscheidungen/` (ADRs, also those of the frontend; add a new one for architecture decisions instead of
+rewriting old ones).
 Each topic lives in exactly one place; link instead of repeating. Update the docs together with the code.
 
 ## Commands
