@@ -64,7 +64,8 @@ unter [Build und Tests](docs/entwicklung.md#build-und-tests).
 
 ## Veröffentlichen
 
-Ein Release entsteht aus einem Tag auf `main`, nicht von Hand. Der Workflow `.github/workflows/release.yml`
+Ein Release entsteht aus einem Tag auf `main`, nicht von Hand ([ADR 0015](docs/entscheidungen/0015-release-prozess.md)).
+Der Workflow `.github/workflows/release.yml`
 prüft, dass der Tag zur Version in der `pom.xml` passt und `betrieb/compose.yaml` Backend und Frontend in
 dieser Version startet. Außerdem verlangt er einen offenen Milestone mit genau dem Namen des Tags ohne offene
 Issues (auch für Bugfix-Releases wie `v0.1.1`); sonst bricht er ab und nennt die offenen Issues. Dann baut und

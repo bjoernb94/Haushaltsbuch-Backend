@@ -17,6 +17,10 @@ bekommt den Status *ersetzt durch …*.
 | [0009](0009-nur-session-anmeldung.md)                | Nur Session-Anmeldung, keine Bearer-Tokens              | angenommen |
 | [0010](0010-berechnungen-nur-im-backend.md)          | Fachliche Berechnungen nur im Backend                   | angenommen |
 | [0011](0011-rundung-von-geldbetraegen.md)            | Ungerundet rechnen, erst bei der Ausgabe runden         | angenommen |
+| [0012](0012-konflikterkennung-per-version.md)        | Konflikterkennung per `version`, auch beim Löschen      | angenommen |
+| [0013](0013-openapi-als-vertrag-mit-der-spa.md)      | OpenAPI-Beschreibung als Vertrag mit der SPA            | angenommen |
+| [0014](0014-abgeleitete-werte-nicht-speichern.md)    | Abgeleitete Werte nicht speichern                       | angenommen |
+| [0015](0015-release-prozess.md)                      | Release nur per Tag mit passendem Milestone             | angenommen |
 
 Vorlage für neue Einträge: Datei `NNNN-kurzname.md` mit den Abschnitten *Kontext*,
 *Entscheidung* und *Folgen*, Status mit Datum und Issue/PR.

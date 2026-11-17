@@ -121,14 +121,15 @@ Das Format der Endpunkte für die SPA steht in der [API](api.md#fachendpunkte). 
   `KonfliktException` (409 `KONFLIKT`). Gleichzeitige Speichervorgänge bildet die
   Fehlerbehandlung ebenfalls auf 409 ab. Hibernate erhöht die Version erst beim Schreiben, daher
   vor dem Bauen der Antwort `repository.flush()`, sonst liefert sie die alte Version und das nächste
-  `PUT` ergibt 409.
+  `PUT` ergibt 409 ([ADR 0012](entscheidungen/0012-konflikterkennung-per-version.md)).
 - **Paging** über `Pageable` und `Page`; die Serialisierung als stabiles DTO stellt `FachdatenConfig` ein.
 
 ### OpenAPI-Beschreibung
 
 springdoc erzeugt die Beschreibung aus den Controllern; `OpenApiExportTests` schreibt sie nach
 [`docs/openapi.json`](openapi.json). Die Datei ist eingecheckt wie `docs/module`: Ändert sich die API,
-gehört sie mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nicht dem Build entspricht.
+gehört sie mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nicht dem Build entspricht
+([ADR 0013](entscheidungen/0013-openapi-als-vertrag-mit-der-spa.md)).
 
 - **Automatisch** (`shared.openapi.OpenApiConfig`): Anmeldung (Session-Cookie, bei schreibenden
   Anfragen zusätzlich der CSRF-Header) und die allgemeinen Fehlerantworten als Schema `Problem`: 400
@@ -185,6 +186,8 @@ Das Format für die SPA steht unter [Fehlerantworten](api.md#fehlerantworten).
   Datumsfelder in Anfrage-DTOs bekommen `@PlausiblesDatum` (1900–2199): Extremwerte ergäben sonst beim
   Weiterzählen einen Überlauf oder einen Datenbankfehler, also 500 statt 400.
 - Berechnungen gehören ins Backend, die SPA formatiert nur ([ADR 0010](entscheidungen/0010-berechnungen-nur-im-backend.md)).
+  Gespeichert werden nur Angaben des Nutzers, abgeleitete Werte entstehen beim Lesen
+  ([ADR 0014](entscheidungen/0014-abgeleitete-werte-nicht-speichern.md)).
 - Spalten dafür: siehe [Datenbank](#datenbank).
 
 ## Datenbank
