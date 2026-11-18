@@ -71,6 +71,10 @@ jobs:
   build:
     name: Build und Tests
     needs: version
+    # Rechte, die build.yml für den Testbericht braucht; ein aufgerufener Workflow bekommt nicht mehr als hier.
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/build.yml
 
   veroeffentlichen:

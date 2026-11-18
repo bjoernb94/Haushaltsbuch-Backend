@@ -316,7 +316,11 @@ Zum lokalen Start mit Testcontainers statt Docker Compose:
 `TestHaushaltsbuchBackendApplication` (unter `src/test`) ausführen.
 
 Die GitHub Action `.github/workflows/build.yml` führt bei jedem Push auf `main` und bei jedem
-Pull Request `./mvnw verify` aus und lädt bei Fehlern die Testberichte hoch.
+Pull Request `./mvnw verify` aus. Anzahl der Tests, Fehlschläge und die Abdeckung stehen als Check
+„Ergebnisse Tests“ im Pull Request und im Job-Summary, auch bei grünem Build. Die Abdeckung misst
+JaCoCo in `verify`, ohne Mindestwert; der Bericht liegt lokal unter `target/site/jacoco/index.html`
+und in der CI als Artefakt `abdeckung`. Bei Fehlern lädt die Action zusätzlich die Testberichte
+(`surefire-reports`) hoch.
 
 Dependabot (`.github/dependabot.yml`) öffnet Pull Requests für neue Versionen: Maven wöchentlich,
 GitHub Actions und die Images aus `compose.yaml` monatlich. Major-Updates von PostgreSQL sind

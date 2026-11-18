@@ -31,6 +31,7 @@
 		<java.version>25</java.version>
 		<spring-modulith.version>2.1.2</spring-modulith.version>
 		<springdoc-openapi.version>3.2.0</springdoc-openapi.version>
+		<jacoco.version>0.8.16</jacoco.version>
 		<!-- Unter rootless Podman true: Die Buildpacks brauchen dann den Socket aus DOCKER_HOST (README, Hinweis für Podman). -->
 		<image.podman>false</image.podman>
 	</properties>
@@ -203,6 +204,27 @@
 						<version>${postgresql.version}</version>
 					</dependency>
 				</dependencies>
+			</plugin>
+			<!-- Testabdeckung ohne Mindestwert; die CI zeigt sie im Job-Summary (docs/entwicklung.md, Build und Tests).
+			     Bericht unter target/site/jacoco/. -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco.version}</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
