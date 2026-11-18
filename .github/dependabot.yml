@@ -60,8 +60,7 @@ updates:
         patterns:
           - "*"
     ignore:
-      # Backend und Frontend: Deren Version setzt das Release (release.yml prüft sie). Die Images
-      # sind außerdem privat, Dependabot könnte sie gar nicht lesen.
+      # Backend und Frontend: Deren Version setzt das Release (release.yml prüft sie).
       - dependency-name: "*haushaltsbuch-backend"
       - dependency-name: "*haushaltsbuch-frontend"
       # Ein PostgreSQL-Major-Update braucht eine Migration der Daten (pg_upgrade oder Dump),

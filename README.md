@@ -1,7 +1,17 @@
 # Haushaltsbuch-Backend
 
-Backend der Haushaltsbuch-Anwendung: ein modularer Monolith auf Basis von Spring Boot,
-mit PostgreSQL als Datenbank und Keycloak als Identity Provider.
+Haushaltsbuch ist eine selbst gehostete Webanwendung, in der ein Haushalt seine Finanzen gemeinsam verwaltet:
+Ein- und Ausgaben, Verträge, Strom, Gas und Wasser sowie Geldanlagen. Fertig ist bisher der Bereich
+Verträge (Preise und Preisänderungen, Anteile, Einmalkosten, Kündigungsfristen und Prognose der Kosten);
+die anderen Bereiche sind geplant. Gedacht ist sie vorerst für das Heimnetz, der Betrieb im Internet folgt
+mit v1.0.0.
+
+Dieses Repo enthält das Backend: einen modularen Monolithen auf Basis von Spring Boot, mit PostgreSQL als
+Datenbank und Keycloak als Identity Provider. Die Oberfläche ist eine Angular-SPA im Repo
+[Haushaltsbuch-Frontend](https://github.com/bjoernb94/Haushaltsbuch-Frontend); sie spricht nur mit dem Backend
+([API](docs/api.md)), das auch die Anmeldung bei Keycloak übernimmt. Wer die Anwendung betreiben möchte,
+findet unter [Betrieb per Compose](docs/betrieb.md#betrieb-per-compose), wie sie mit allen Diensten aus den
+veröffentlichten Images startet.
 
 ## Voraussetzungen
 
@@ -80,7 +90,7 @@ Betrieb per Compose ([Betrieb per Compose](docs/betrieb.md#betrieb-per-compose))
 
 Backend und Frontend zählen gleich hoch; das Backend wird zuerst veröffentlicht. Solange die Hauptversion 0
 ist, ist jedes Release eine Vorabversion (Pre-release) und das Image bekommt nur die Tags `0.2.0` und `0.2`;
-ab 1.0 kommt `latest` dazu. Die Images sind privat wie die Repos und nur für amd64.
+ab 1.0 kommt `latest` dazu. Die Images sind öffentlich und nur für amd64.
 
 ## Dokumentation
 
@@ -89,9 +99,13 @@ ab 1.0 kommt `latest` dazu. Die Images sind privat wie die Repos und nur für am
 | [`docs/api.md`](docs/api.md)                           | API für die SPA: Anmeldung, Endpunkte, Fehlercodes, Geldbeträge, Fachendpunkte |
 | [`docs/entwicklung.md`](docs/entwicklung.md)           | Konventionen: Module, Fachdaten, Trennung der Haushalte, Datenbank, Tests, Git |
 | [`docs/betrieb.md`](docs/betrieb.md)                   | Docker Compose, Betrieb per Compose, Keycloak, Konfiguration, prod, Systemstatus |
-| [`docs/entscheidungen/`](docs/entscheidungen/README.md) | Architekturentscheidungen mit Begründung                                       |
+| [`docs/entscheidungen/`](docs/entscheidungen/README.md) | Architekturentscheidungen mit Begründung, auch die des Frontends               |
 | [`docs/openapi.json`](docs/openapi.json)               | von `OpenApiExportTests` erzeugte OpenAPI-Beschreibung der API                 |
 | [`docs/module/`](docs/module)                          | von `ModularityTests` erzeugte Modul-Dokumentation                             |
+
+Die Dokumentation liegt nur in den Repos, ein Wiki gibt es nicht: So wird sie im selben Pull Request wie der
+Code geändert und geprüft und passt zu jedem Release-Tag ([ADR 0021](docs/entscheidungen/0021-doku-im-repo.md)).
+Die Oberfläche ist im README des [Frontends](https://github.com/bjoernb94/Haushaltsbuch-Frontend) beschrieben.
 
 ## Projektstruktur
 
