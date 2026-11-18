@@ -114,6 +114,29 @@ class KeycloakTokenClientTests {
 				.hasMessageContaining("unauthorized_client");
 	}
 
+	/** Ohne Body oder ohne {@code error} lässt sich kein abgelehntes Passwort erkennen: Konfigurationsfehler. */
+	@Test
+	void fehlerOhneBodyOderErrorIstKonfigurationsfehler() {
+		server.expect(requestTo(OIDC_URI + "/token")).andRespond(withStatus(UNAUTHORIZED));
+		server.expect(requestTo(OIDC_URI + "/token"))
+				.andRespond(withStatus(BAD_REQUEST).contentType(MediaType.APPLICATION_JSON).body("{}"));
+
+		for (int i = 0; i < 2; i++) {
+			assertThatThrownBy(() -> tokenClient.anmelden("max@example.org", "Geheim123!"))
+					.isInstanceOf(IllegalStateException.class)
+					.hasMessageContaining("null (null)");
+		}
+	}
+
+	@Test
+	void erfolgOhneBodyIstFehler() {
+		server.expect(requestTo(OIDC_URI + "/token")).andRespond(withSuccess());
+
+		assertThatThrownBy(() -> tokenClient.erneuern("rt"))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("200");
+	}
+
 	@Test
 	void erneuertSitzung() {
 		server.expect(requestTo(OIDC_URI + "/token"))

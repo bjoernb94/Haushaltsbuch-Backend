@@ -124,6 +124,18 @@ class VertragsberechnungTests {
 			assertThat(vertragsende(gekuendigt("2026-12-01", "2026-11-30"))).isEqualTo(d("2026-11-30"));
 		}
 
+		/** Gekündigt zu einem Tag nach dem Laufzeitende ohne Verlängerung: Er endet schon mit der Laufzeit. */
+		@Test
+		void laufzeitendeVorDerKuendigung() {
+			var vertrag = new Vertragsdaten(Zahlweise.MONATLICH, true, d("2025-11-15"), d("2027-03-31"),
+					Verlaengerung.KEINE, null, d("2027-06-30"));
+
+			assertThat(vertragsende(vertrag)).isEqualTo(d("2027-03-31"));
+			// Umgekehrt zählt die frühere Kündigung.
+			assertThat(vertragsende(new Vertragsdaten(Zahlweise.MONATLICH, true, d("2025-11-15"), d("2027-03-31"),
+					Verlaengerung.KEINE, null, d("2026-12-31")))).isEqualTo(d("2026-12-31"));
+		}
+
 		@Test
 		void offenesEndeLeer() {
 			assertThat(vertragsende(vertrag())).isNull();
@@ -628,6 +640,24 @@ class VertragsberechnungTests {
 					.isEqualTo(new Kuendigung(KUENDIGEN_BIS, d("2027-10-31"), d("2027-11-30"), 1, false));
 			assertThat(berechnung.kuendigung(gekuendigt("2026-12-01", "2027-05-31")))
 					.isEqualTo(new Kuendigung(GEKUENDIGT, null, d("2027-05-31"), 1, false));
+		}
+
+		/**
+		 * Verlängerung um das Zahlungsintervall ohne Zahlweise (in der Vorschau möglich): Es gilt nur das Laufzeitende,
+		 * ohne eins keine Laufzeit. Verlängerung {@code KEINE} erreicht {@code verlaengerungMonate} nicht, weil
+		 * {@code kuendigung} vorher {@code ENDET} oder {@code KEINE_LAUFZEIT} liefert; der Zweig steht nur, weil der
+		 * {@code switch} über das Enum vollständig sein muss, und wird bewusst nicht getestet.
+		 */
+		@Test
+		void zahlungsintervallOhneZahlweise() {
+			var mitLaufzeitende = new Vertragsdaten(null, true, d("2025-11-15"), d("2027-03-31"),
+					Verlaengerung.ZAHLUNGSINTERVALL, 1, null);
+			var ohneLaufzeitende = new Vertragsdaten(null, true, d("2025-11-15"), null,
+					Verlaengerung.ZAHLUNGSINTERVALL, 1, null);
+
+			assertThat(berechnung.kuendigung(mitLaufzeitende))
+					.isEqualTo(new Kuendigung(KUENDIGEN_BIS, d("2027-02-28"), d("2027-03-31"), 1, false));
+			assertThat(berechnung.kuendigung(ohneLaufzeitende).art()).isEqualTo(KEINE_LAUFZEIT);
 		}
 
 		@Test
