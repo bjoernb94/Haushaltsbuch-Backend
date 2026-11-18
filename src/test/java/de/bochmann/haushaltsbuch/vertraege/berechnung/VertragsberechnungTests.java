@@ -398,6 +398,18 @@ class VertragsberechnungTests {
 			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-10-31"), preis("10.00"), prognose)).isEmpty();
 		}
 
+		/** Storniert in der Zukunft: Der Termin vor dem Kündigungsdatum zählt nicht, der Vertrag läuft nie (#141). */
+		@Test
+		void storniertKeine() {
+			var storniert = gekuendigt("2026-12-01", "2026-11-30");
+			var prognose = prozent("10", Erhoehungsrhythmus.JAEHRLICH, "2026-11-15", null);
+
+			assertThat(berechnung.prognose(storniert, preis("10.00"), prognose)).isEmpty();
+			assertThat(berechnung.preisverlauf(storniert, preis("10.00"), prognose)).extracting(Preispunkt::art)
+					.containsExactly(Preispunktart.GEZAHLT);
+			assertThat(berechnung.naechstePreisaenderung(storniert, preis("10.00"), prognose)).isEmpty();
+		}
+
 		@Test
 		void ohneRegelKeine() {
 			assertThat(berechnung.prognose(vertrag(), preis("10.00"), KEINE)).isEmpty();
