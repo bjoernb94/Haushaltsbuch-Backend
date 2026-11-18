@@ -213,6 +213,22 @@ class RegistrierungControllerTests {
 		verify(identitaetsanbieter).benutzerLoeschen(id);
 	}
 
+	/** Der ursprüngliche Fehler kommt durch, der beim Löschen hängt daran (das Konto muss von Hand weg). */
+	@Test
+	void loeschfehlerHaengtAmUrspruenglichenFehler() {
+		UUID id = UUID.randomUUID();
+		when(identitaetsanbieter.benutzerAnlegen(any(), any(), any(), any())).thenReturn(id);
+		var anfrage = new RegistrierungAnfrage("doppelt-ohne-loeschen@example.org", "geheim123", "Max", "Muster",
+				Set.of(Komponente.VERTRAGSUEBERSICHT));
+		registrierungService.registrieren(anfrage);
+		var loeschfehler = new IllegalStateException("Keycloak nicht erreichbar");
+		doThrow(loeschfehler).when(identitaetsanbieter).benutzerLoeschen(id);
+
+		assertThatThrownBy(() -> registrierungService.registrieren(anfrage))
+				.isInstanceOf(DataIntegrityViolationException.class)
+				.satisfies(e -> assertThat(e.getSuppressed()).containsExactly(loeschfehler));
+	}
+
 	private static String anfrage(String email, String komponenten) {
 		return """
 				{"email": "%s", "passwort": "geheim123", "vorname": "Max", "name": "Muster",
