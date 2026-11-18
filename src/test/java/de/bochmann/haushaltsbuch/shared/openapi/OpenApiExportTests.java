@@ -143,7 +143,7 @@ class OpenApiExportTests {
 		}
 
 		assertThat(namen).contains("VertragAntwort", "VertragBerechnet", "Kuendigung", "AnstehendeKuendigung", "Betrag",
-				"Profil", "VertragKategorieAntwort").doesNotContain("Problem", "Feldfehler");
+				"ProfilAntwort", "VertragKategorieAntwort").doesNotContain("Problem", "Feldfehler");
 		for (String name : namen) {
 			if (schemas(api).get(name).get("properties") instanceof Map<?, ?> felder) {
 				assertThat((List<String>) schemas(api).get(name).get("required")).as(name)

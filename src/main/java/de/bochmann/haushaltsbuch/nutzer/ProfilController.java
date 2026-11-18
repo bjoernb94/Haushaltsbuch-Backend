@@ -21,17 +21,14 @@ import java.util.Map;
 @RequestMapping("/api/nutzer/ich")
 class ProfilController {
 
-	record Profil(String vorname, String name, String email) {
-	}
-
 	@GetMapping
-	Profil meinProfil(Authentication authentication) {
+	ProfilAntwort meinProfil(Authentication authentication) {
 		Map<String, Object> claims = AngemeldeterNutzer.claims(authentication);
 		// Kann nicht anonym erreicht werden (SecurityConfig); Absicherung für Tokens ohne Claims.
 		if (claims.isEmpty()) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
 		}
-		return new Profil(text(claims, "given_name"), text(claims, "family_name"), text(claims, "email"));
+		return new ProfilAntwort(text(claims, "given_name"), text(claims, "family_name"), text(claims, "email"));
 	}
 
 	/**
