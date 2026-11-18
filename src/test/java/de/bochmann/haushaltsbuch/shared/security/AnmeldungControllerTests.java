@@ -8,12 +8,14 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -108,6 +110,32 @@ class AnmeldungControllerTests {
 		verify(tokenClient).erneuern("rt");
 		assertThat(session.getAttribute(KeycloakSitzung.ATTRIBUT))
 				.isInstanceOfSatisfying(KeycloakSitzung.class, s -> assertThat(s.refreshToken()).isEqualTo("rt-neu"));
+	}
+
+	/** Keycloak nicht erreichbar: nicht abmelden, beim nächsten Request erneut versuchen. */
+	@Test
+	void nichtErreichbaresKeycloakBeimErneuernMeldetNichtAb() throws Exception {
+		MockHttpSession session = anmelden(Instant.now().minusSeconds(1));
+		when(tokenClient.erneuern("rt")).thenThrow(new ResourceAccessException("Connection refused"));
+
+		mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
+				.andExpect(status().isOk());
+
+		assertThat(session.isInvalid()).isFalse();
+		assertThat(session.getAttribute(KeycloakSitzung.ATTRIBUT))
+				.isInstanceOfSatisfying(KeycloakSitzung.class, s -> assertThat(s.refreshToken()).isEqualTo("rt"));
+	}
+
+	/** Die Session im Backend endet trotzdem; die bei Keycloak läuft von selbst ab. */
+	@Test
+	void abmeldungGelingtAuchOhneKeycloak() throws Exception {
+		MockHttpSession session = anmelden(Instant.now().plusSeconds(300));
+		doThrow(new ResourceAccessException("Connection refused")).when(tokenClient).abmelden("rt");
+
+		mockMvc.perform(post("/api/abmeldung").with(csrf()).session(session))
+				.andExpect(status().isNoContent());
+
+		assertThat(session.isInvalid()).isTrue();
 	}
 
 	@Test

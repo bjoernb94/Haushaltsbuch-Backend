@@ -13,6 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withCreatedEntity;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withNoContent;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class KeycloakIdentitaetsanbieterTests {
 
@@ -76,6 +78,39 @@ class KeycloakIdentitaetsanbieterTests {
 		assertThatThrownBy(() -> identitaetsanbieter.benutzerAnlegen("max@example.org", "kurz", "Max", "Muster"))
 				.isInstanceOf(RegistrierungAbgelehntException.class)
 				.hasMessage("Invalid password: minimum length 12.");
+	}
+
+	/** Z.&nbsp;B. fehlende Rolle oder fehlender Scope (#113): ein Konfigurationsfehler, kein Fehler des Nutzers. */
+	@Test
+	void andererStatusIstFehler() {
+		server.expect(requestTo(ADMIN_URI + "/users")).andRespond(withStatus(FORBIDDEN));
+
+		assertThatThrownBy(() -> identitaetsanbieter.benutzerAnlegen("max@example.org", "geheim123", "Max", "Muster"))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("403");
+	}
+
+	@Test
+	void ohneLocationIstFehler() {
+		server.expect(requestTo(ADMIN_URI + "/users")).andRespond(withSuccess());
+
+		assertThatThrownBy(() -> identitaetsanbieter.benutzerAnlegen("max@example.org", "geheim123", "Max", "Muster"))
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining("Location");
+	}
+
+	/** Ohne Text vom Identity Provider eine allgemeine Meldung; ein leerer Text zählt wie keiner. */
+	@Test
+	void ablehnungOhneText() {
+		server.expect(requestTo(ADMIN_URI + "/users")).andRespond(withBadRequest());
+		server.expect(requestTo(ADMIN_URI + "/users"))
+				.andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON).body("{\"errorMessage\": \" \"}"));
+
+		for (int i = 0; i < 2; i++) {
+			assertThatThrownBy(() -> identitaetsanbieter.benutzerAnlegen("max@example.org", "kurz", "Max", "Muster"))
+					.isInstanceOf(RegistrierungAbgelehntException.class)
+					.hasMessage("Registration was rejected by Keycloak.");
+		}
 	}
 
 	@Test
