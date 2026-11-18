@@ -86,7 +86,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/Profil"
+                  "$ref" : "#/components/schemas/ProfilAntwort"
                 }
               }
             },
@@ -891,7 +891,7 @@
         },
         "required" : [ "code", "status" ]
       },
-      "Profil" : {
+      "ProfilAntwort" : {
         "type" : "object",
         "properties" : {
           "email" : {
