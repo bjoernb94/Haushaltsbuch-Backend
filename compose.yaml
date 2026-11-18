@@ -31,7 +31,7 @@ services:
       retries: 10
 
   keycloak:
-    image: 'quay.io/keycloak/keycloak:26.8.1'
+    image: 'quay.io/keycloak/keycloak:26.8.2-2'
     # Spielt den Realm haushaltsbuch aus docker/keycloak/import ein, sofern er noch nicht existiert.
     command: ['start-dev', '--import-realm']
     environment:

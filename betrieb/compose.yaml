@@ -32,7 +32,7 @@ services:
       retries: 10
 
   keycloak:
-    image: 'quay.io/keycloak/keycloak:26.8.1'
+    image: 'quay.io/keycloak/keycloak:26.8.2-2'
     restart: unless-stopped
     # Produktionsmodus, aber nur per HTTP im internen Netz; der Realm wird beim ersten Start importiert.
     command: ['start', '--import-realm', '--http-enabled=true', '--hostname-strict=false']
