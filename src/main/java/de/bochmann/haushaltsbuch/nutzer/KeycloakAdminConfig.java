@@ -16,7 +16,8 @@ import org.springframework.web.client.RestClient;
  * {@value #CLIENT_REGISTRATION_ID} (Client Credentials, siehe application.yml).
  * <p>
  * Der Client braucht in Keycloak einen Service Account mit der Rolle
- * {@code realm-management/manage-users}.
+ * {@code realm-management/manage-users} und den optionalen Client-Scope {@code kc-admin-api}, den die
+ * Registrierung anfordert: Ab Keycloak 26.8.2 lehnt die Admin API Tokens ohne ihn mit 401 ab.
  */
 @Configuration(proxyBeanMethods = false)
 class KeycloakAdminConfig {

@@ -72,6 +72,13 @@ liegen im Volume `postgres-data`. Ein Update heißt: neues Paket, `.env` und `in
 `podman compose restart keycloak`: Keycloak hält sonst die beendeten Verbindungen im Pool, und die ersten
 Anmeldungen und Registrierungen scheitern mit 500, bis alle einmal verworfen sind. Das Backend prüft seine
 Verbindungen vor der Benutzung und braucht das nicht. Dasselbe gilt für die lokale Umgebung aus `compose.yaml`.
+Vor einem Update die Datenbank sichern (`podman compose exec postgres pg_dumpall -U haushaltsbuch > sicherung.sql`):
+Keycloak migriert sein Schema beim Start, zurück auf die alte Version geht danach nicht mehr.
+
+**Update von v0.1.0:** Mit Keycloak 26.8.2 braucht die Registrierung den Client-Scope `kc-admin-api`. Der
+Realm-Import trägt ihn nur in neuen Instanzen ein; in einer bestehenden nach dem `podman compose up -d` den Schritt
+[Scope `kc-admin-api` nachtragen](#scope-kc-admin-api-nachtragen) ausführen. Bis dahin scheitert jede Registrierung
+(500, im Log des Backends `invalid_scope`).
 
 ## Keycloak einrichten
 
@@ -85,6 +92,10 @@ von Hand nachziehen.
   `KEYCLOAK_CLIENT_SECRET` des Keycloak-Containers gelesen (Default `dev-secret`, passend zum
   Default des Backends in dev).
 - **Nutzer:** enthält der Import keine, nur den Service Account des Clients.
+- **Client-Scopes:** Der Import setzt am Client `haushaltsbuch-backend` beide Listen, `defaultClientScopes` (die
+  Standardliste von Keycloak) und `optionalClientScopes` (die Standardliste plus `kc-admin-api`). Eine angegebene
+  Liste ersetzt die Standardliste; fehlte `defaultClientScopes`, bekäme der Client gar keine Default-Scopes, und den
+  Anmelde-Tokens fehlten Name und E-Mail.
 - **Einzeln gestarteter Container** (ohne `compose.yaml`): Verzeichnis einbinden und Import
   aktivieren, z.&nbsp;B.
 
@@ -93,7 +104,7 @@ von Hand nachziehen.
     -v ./docker/keycloak/import:/opt/keycloak/data/import:ro,Z \
     -e KEYCLOAK_CLIENT_SECRET=dev-secret \
     -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
-    quay.io/keycloak/keycloak:26.8.1 start-dev --import-realm
+    quay.io/keycloak/keycloak:26.8.2 start-dev --import-realm
   ```
 
   (`:Z` setzt das SELinux-Label, z.&nbsp;B. unter Fedora; ohne Angabe von `KC_DB*` speichert
@@ -124,13 +135,18 @@ Dev-Zugang `admin` / `admin`, alle Schritte außer dem ersten im Realm `haushalt
    *Service account roles* → *Assign role* → Filter *Filter by clients* → `manage-users` von
    `realm-management` zuweisen. Ohne diese Rolle schlägt die Registrierung mit einem Fehler der
    Admin API fehl. Die Rolle deckt auch das Löschen ab (siehe [Konten und Registrierung](#konten-und-registrierung)).
-6. **Client-Secret:** Reiter *Credentials* → *Client Secret* kopieren und als
+6. **Client-Scope für die Admin API:** *Clients* → `haushaltsbuch-backend` → Reiter *Client scopes* →
+   *Add client scope* → `kc-admin-api` als **Optional** hinzufügen. Ab Keycloak 26.8.2 lehnt die Admin API Tokens
+   ohne diesen Scope mit 401 ab. Das Backend fordert ihn nur für den Service Account an (`scope: kc-admin-api` an der
+   Registrierung `keycloak-admin`); als *Default* stünde die Admin-API-Audience auch in jedem Anmelde-Token der
+   Nutzer. Den Scope selbst legt Keycloak an, beim Import wie beim Upgrade eines bestehenden Realms.
+7. **Client-Secret:** Reiter *Credentials* → *Client Secret* kopieren und als
    `KEYCLOAK_CLIENT_SECRET` setzen (der Import setzt es aus derselben Variablen).
-7. **Sperre nach Fehlversuchen:** *Realm settings* → Reiter *Security defenses* →
+8. **Sperre nach Fehlversuchen:** *Realm settings* → Reiter *Security defenses* →
    *Brute force detection* einschalten. Das Login-Formular der SPA prüft Passwörter über das
    Backend; ohne Sperre ließen sie sich dort beliebig durchprobieren. Der Keycloak-Standard
    (30 Fehlversuche) ist großzügig, vor prod niedriger ansetzen (z.&nbsp;B. 5–10).
-8. **Keine Pflichtschritte:** Unter *Authentication* → *Required actions* keine Aktion als
+9. **Keine Pflichtschritte:** Unter *Authentication* → *Required actions* keine Aktion als
    *Default action* aktivieren und Konten nicht mit temporärem Passwort anlegen. Die Seiten, auf
    denen Keycloak solche Schritte abfragt, werden nie angezeigt; ein Konto mit offenem
    Pflichtschritt kann sich nicht anmelden (Antwort 403, `code` `ANMELDUNG_NICHT_EINGERICHTET`).
@@ -140,6 +156,25 @@ Benutzer werden mit der E-Mail-Adresse als Benutzername angelegt.
 Außerdem setzt der Import *Require SSL* auf `none` (*Realm settings* → *General*): Hinter dem
 Port-Forwarding von Podman gelten Anfragen nicht als lokal, mit dem Keycloak-Standard `external`
 lehnt Keycloak sie daher ohne HTTPS ab.
+
+### Scope `kc-admin-api` nachtragen
+
+Für eine bestehende Instanz nach dem Update auf Keycloak 26.8.2 (Schritt 6 oben, ohne Admin-Konsole). Im Verzeichnis
+des Betriebspakets; `KEYCLOAK_ADMIN_PASSWORD` steht nur in der `.env`, deshalb zuerst einlesen. In der lokalen
+Umgebung im Repo ohne `.env`, das Passwort ist dort `admin`.
+
+```bash
+set -a; . ./.env; set +a
+K="podman compose exec keycloak /opt/keycloak/bin/kcadm.sh"
+$K config credentials --server http://localhost:8080 --realm master --user admin --password "$KEYCLOAK_ADMIN_PASSWORD"
+CID=$($K get clients -r haushaltsbuch -q clientId=haushaltsbuch-backend --fields id --format csv --noquotes)
+SID=$($K get client-scopes -r haushaltsbuch --fields id,name --format csv --noquotes | grep ',kc-admin-api$' | cut -d, -f1)
+$K update clients/$CID/optional-client-scopes/$SID -r haushaltsbuch
+$K get clients/$CID/optional-client-scopes -r haushaltsbuch --fields name --format csv --noquotes
+```
+
+Die letzte Zeile muss `kc-admin-api` enthalten. Danach klappt die Registrierung wieder; ein Neustart ist nicht
+nötig.
 
 ### Konten und Registrierung
 
