@@ -60,11 +60,17 @@ class Fall:
     kosten_im_jahr: Decimal | None = None
     # Erwartetes berechnet.kuendigung.zum; None prüft es nicht.
     zum: date | None = None
-    # Erwartete Art von berechnet.naechstePreisaenderung bei einer Preissteigerung.
-    naechste_art: str = "PROGNOSE"
-    # Erwartete Termine bzw. Beträge der drei Prognosepreise; None prüft sie nicht.
+    # Erwartetes berechnet.kuendigung.kuendigenBis; None prüft es nicht.
+    kuendigen_bis: date | None = None
+    # Erwartete Art von berechnet.naechstePreisaenderung bei einer Preissteigerung; None: keine Änderung.
+    naechste_art: str | None = "PROGNOSE"
+    # Erwartete Termine der Prognose (sonst drei beliebige) bzw. ihre Beträge; None prüft sie nicht.
     prognose_ab: list | None = None
     prognose_betraege: list | None = None
+    # Erwartete art der Einträge in preise; ohne Angabe genau ein AKTUELL (nur bei Fällen ohne eigene Preisliste).
+    preis_arten: list | None = None
+    # Erwarteter betrag (aktueller Preis); None prüft ihn nicht.
+    aktueller_preis: Decimal | None = None
 
     @property
     def erwarteter_status(self):
@@ -237,6 +243,13 @@ def pruefe_berechnung(fall, anfrage, antwort):
         fehler.append(f"dringend {berechnet['kuendigung']['dringend']} statt {fall.dringend}")
     if fall.zum is not None and berechnet["kuendigung"]["zum"] != fall.zum.isoformat():
         fehler.append(f"zum {berechnet['kuendigung']['zum']} statt {fall.zum}")
+    if fall.kuendigen_bis is not None and berechnet["kuendigung"]["kuendigenBis"] != fall.kuendigen_bis.isoformat():
+        fehler.append(f"kuendigenBis {berechnet['kuendigung']['kuendigenBis']} statt {fall.kuendigen_bis}")
+    preis_arten = [preis["art"] for preis in antwort["preise"]]
+    if preis_arten != (fall.preis_arten or ["AKTUELL"]):
+        fehler.append(f"Preiszeilen {preis_arten} statt {fall.preis_arten or ['AKTUELL']}")
+    if fall.aktueller_preis is not None and Decimal(str(antwort["betrag"]["wert"])) != fall.aktueller_preis:
+        fehler.append(f"betrag {antwort['betrag']['wert']} statt {fall.aktueller_preis}")
     if berechnet["vertragsende"] != vertragsende(anfrage):
         fehler.append(f"vertragsende {berechnet['vertragsende']} statt {vertragsende(anfrage)}")
     if fall.kosten_im_jahr is not None and Decimal(str(berechnet["kostenImJahr"]["wert"])) != fall.kosten_im_jahr:
@@ -247,8 +260,11 @@ def pruefe_berechnung(fall, anfrage, antwort):
         fehler.append(f"einmalkosten {berechnet['einmalkosten']['wert']} statt {einmalkosten}")
     prognose = berechnet["prognose"]
     if fall.felder.get("preissteigerung"):
-        if len(prognose) != 3 or berechnet["naechstePreisaenderung"]["art"] != fall.naechste_art:
-            fehler.append(f"{len(prognose)} Prognosepreise, nächste Preisänderung {berechnet['naechstePreisaenderung']} "
+        # Am Vertragsende hört die Prognose auf, dann auch weniger als drei.
+        anzahl = len(fall.prognose_ab) if fall.prognose_ab is not None else 3
+        naechste = berechnet["naechstePreisaenderung"]
+        if len(prognose) != anzahl or (naechste["art"] if naechste else None) != fall.naechste_art:
+            fehler.append(f"{len(prognose)} Prognosepreise statt {anzahl}, nächste Preisänderung {naechste} "
                           f"statt {fall.naechste_art}")
         ab = [date.fromisoformat(preis["ab"]) for preis in prognose]
         if fall.prognose_ab is not None and ab != fall.prognose_ab:
@@ -349,6 +365,31 @@ def termine(anker, monate, nach):
     return [plus_monate(anker, (k + i) * monate) for i in range(3)]
 
 
+def monatsletzter(tag):
+    return tag.replace(day=calendar.monthrange(tag.year, tag.month)[1])
+
+
+def ende_nach(beginn, monate):
+    """Wie das Backend: letzter Tag einer Laufzeit ab Beginn, der Tag vor dem Beginn-Tag, sonst der Monatsletzte."""
+    tag = plus_monate(beginn, monate)
+    return tag if tag.day < beginn.day else tag - timedelta(days=1)
+
+
+def kuendigen_bis(ende, frist_monate):
+    """Wie das Backend: Ende minus Frist; liegt das Ende auf einem Monatsende, auch „kündigen bis“."""
+    tag = plus_monate(ende, -frist_monate)
+    return monatsletzter(tag) if ende == monatsletzter(ende) else tag
+
+
+def monatsende_am_30(ab):
+    """Der erste 30. ab „ab“, der ein Monatsende ist und auf einen Monat mit 31 Tagen folgt (30.04., 30.06., 30.09.,
+    30.11.); „kündigen bis“ muss dann auf den 31. fallen, nicht auf den 30."""
+    tag = monatsletzter(ab)
+    while not (tag.day == 30 and tag.month in (4, 6, 9, 11)):
+        tag = monatsletzter(tag + timedelta(days=1))
+    return tag
+
+
 def ende_bei_beginn_am_31(heute):
     """Das nächste Vertragsende ab heute bei Beginn am 31. und monatlicher Verlängerung: der Tag vor dem 31., also der
     30., im Februar der Monatsletzte (§ 188 Abs. 3 BGB)."""
@@ -387,6 +428,18 @@ def faelle_alles(heute):
         Fall("Kündigen bis – vierteljährlich", "KUENDIGEN_BIS", zahlweise="VIERTELJAEHRLICH", dringend=True,
              felder={"laufzeitende": tage(40), "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 1,
                      "bezeichnung": "Mit Bezeichnung"}),
+        # Endet der Vertrag am Monatsende, ist auch „kündigen bis“ eins: 30.11. mit einem Monat → 31.10.
+        Fall("Kündigen bis – Laufzeitende am Monatsende", "KUENDIGEN_BIS", zum=monatsende_am_30(tage(80)),
+             kuendigen_bis=kuendigen_bis(monatsende_am_30(tage(80)), 1),
+             felder={"laufzeitende": monatsende_am_30(tage(80)), "verlaengerung": "ZWOELF_MONATE",
+                     "kuendigungsfristMonate": 1}),
+        # Ohne Laufzeitende zählen die Verlängerungen vom Beginn aus; die erste Laufzeit ist schon vorbei.
+        Fall("Kündigen bis – ohne Laufzeitende, 12 Monate vom Beginn", "KUENDIGEN_BIS",
+             zum=ende_nach(tage(-500), 24), kuendigen_bis=kuendigen_bis(ende_nach(tage(-500), 24), 1),
+             felder={"beginn": tage(-500), "verlaengerung": "ZWOELF_MONATE", "kuendigungsfristMonate": 1}),
+        # Monatliche Verlängerung erst nach dem Laufzeitende: bis dahin KUENDIGEN_BIS.
+        Fall("Kündigen bis – monatlich, Laufzeitende kommt noch", "KUENDIGEN_BIS", zum=tage(120),
+             felder={"laufzeitende": tage(120), "verlaengerung": "MONATLICH", "kuendigungsfristMonate": 1}),
         Fall("Kündigen bis – halbjährlich", "KUENDIGEN_BIS", zahlweise="HALBJAEHRLICH",
              felder={"laufzeitende": tage(180), "verlaengerung": "ZAHLUNGSINTERVALL"}),
         Fall("Kündigen bis – jährlich", "KUENDIGEN_BIS", zahlweise="JAEHRLICH",
@@ -429,16 +482,32 @@ def faelle_alles(heute):
         Fall("Noch nicht begonnen – schon gekündigt", "GEKUENDIGT", status="NICHT_BEGONNEN",
              felder={"beginn": tage(20), "gekuendigtZum": tage(120)}),
         # Storniert: vor dem Beginn gekündigt, läuft nie; die Gebühr fällt trotzdem an.
+        # Gekündigt genau zum Beginn: läuft einen Tag, also nicht storniert.
+        Fall("Gekündigt zum Beginn", "GEKUENDIGT", status="NICHT_BEGONNEN",
+             felder={"beginn": tage(25), "gekuendigtZum": tage(25)}),
         Fall("Storniert – vor dem Beginn gekündigt", "STORNIERT",
              felder={"beginn": tage(30), "gekuendigtZum": tage(29), "einmalkosten": [
                  {"bezeichnung": "Stornogebühr", "betrag": {"wert": 15.00, "waehrung": "EUR"},
                   "faelligAm": heute.isoformat()}]}),
         # Preisliste: früherer Preis, aktueller und angekündigte Erhöhung.
         Fall("Preise – Erhöhung angekündigt", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             preis_arten=["FRUEHER", "AKTUELL", "ANGEKUENDIGT"], aktueller_preis=Decimal("9.99"),
              felder={"beginn": tage(-400), "preise": [
                  {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 7.99, "waehrung": "EUR"}},
                  {"gueltigAb": tage(-100).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
                  {"gueltigAb": tage(30).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
+        # Eine Erhöhung nach dem Vertragsende gilt nie: NACH_ENDE, keine nächste Preisänderung.
+        Fall("Preise – Erhöhung nach Vertragsende", "GEKUENDIGT", preis_arten=["AKTUELL", "NACH_ENDE"],
+             felder={"gekuendigtZum": tage(60), "preise": [
+                 {"gueltigAb": None, "betrag": {"wert": 9.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(90).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
+        # Beendet: aktuell ist der Preis am letzten Tag, die Erhöhung danach wurde nie gezahlt.
+        Fall("Preise – beendet nach Preiserhöhung", "BEENDET", preis_arten=["FRUEHER", "AKTUELL", "NACH_ENDE"],
+             aktueller_preis=Decimal("9.99"),
+             felder={"beginn": tage(-400), "gekuendigtZum": tage(-30), "preise": [
+                 {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 7.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(-100).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(-10).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
         # Geteilte Verträge: Übersichten zählen nur den Anteil; 100 % zählt wie ohne Anteil.
         Fall("Geteilt – 50 %", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS", felder={"anteilProzent": 50}),
         Fall("Geteilt – 33,3 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET", zahlweise="VIERTELJAEHRLICH",
@@ -469,6 +538,7 @@ def faelle_alles(heute):
         # die Prognose rechnet vom angekündigten Preis aus weiter (je Schritt auf Cent gerundet).
         Fall("Preissteigerung – mit angekündigter Erhöhung", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
              naechste_art="ANGEKUENDIGT", prognose_ab=termine(tage(10), 12, nach=tage(30)),
+             preis_arten=["AKTUELL", "ANGEKUENDIGT"],
              prognose_betraege=[Decimal("13.19"), Decimal("14.51"), Decimal("15.96")],
              felder={"beginn": tage(-400), "preise": [
                  {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
@@ -485,6 +555,19 @@ def faelle_alles(heute):
              felder={"preisgarantieBis": tage(200),
                      "preissteigerung": {"art": "PROZENT", "prozent": 3, "betrag": None, "rhythmus": "VIERTELJAEHRLICH",
                                          "naechsteAm": tage(20).isoformat()}}),
+        # Mit Vertragsende: Die Prognose hört am letzten Tag auf; beendet oder storniert gibt es keine.
+        Fall("Preissteigerung – gekündigt, Prognose bis zum Ende", "GEKUENDIGT", prognose_ab=[tage(20)],
+             felder={"gekuendigtZum": tage(100),
+                     "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "VIERTELJAEHRLICH",
+                                         "naechsteAm": tage(20).isoformat()}}),
+        Fall("Preissteigerung – beendet", "BEENDET", prognose_ab=[], naechste_art=None,
+             felder={"gekuendigtZum": tage(-1),
+                     "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "VIERTELJAEHRLICH",
+                                         "naechsteAm": tage(20).isoformat()}}),
+        Fall("Preissteigerung – storniert", "STORNIERT", prognose_ab=[], naechste_art=None,
+             felder={"beginn": tage(30), "gekuendigtZum": tage(29),
+                     "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": tage(10).isoformat()}}),
         # Geteilt: Die Prognose zeigt die vollen Beträge, nur eigenerAnteil zählt den Anteil.
         Fall("Preissteigerung – geteilt 50 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET",
              prognose_betraege=[Decimal("10.49"), Decimal("11.01"), Decimal("11.56")],

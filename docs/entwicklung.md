@@ -374,11 +374,15 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
 
 **Fälle im Konto `alles`.** Der Fall steht jeweils in `anbieter`, die einzelnen Verträge nur im Skript:
 
-- **Kündigungsart:** `KUENDIGEN_BIS` (dringend, nicht dringend), `MONATLICH_KUENDBAR`, `ENDET`,
+- **Kündigungsart:** `KUENDIGEN_BIS` (dringend, nicht dringend; Laufzeitende am Monatsende, dann auch „kündigen
+  bis“ am Monatsende; ohne Laufzeitende vom Beginn aus gezählt; monatliche Verlängerung, solange das Laufzeitende
+  noch kommt), `MONATLICH_KUENDBAR`, `ENDET`,
   `KEINE_LAUFZEIT` (ohne Laufzeit, Laufzeitende ohne Verlängerung mit abgelaufener Frist), `NICHT_KUENDBAR`,
   `GEKUENDIGT`, `BEENDET` (`gekuendigtZum` vorbei, Verlängerung `KEINE` mit vergangenem Laufzeitende), `STORNIERT`.
-- **Status:** `NICHT_BEGONNEN` (kündbar und schon gekündigt), `STORNIERT` (vor dem Beginn gekündigt, mit
-  Einmalkosten), dazu `AKTIV`, `GEKUENDIGT` und `BEENDET`.
+- **Status:** `NICHT_BEGONNEN` (kündbar, schon gekündigt, gekündigt genau zum Beginn), `STORNIERT` (vor dem Beginn
+  gekündigt, mit Einmalkosten), dazu `AKTIV`, `GEKUENDIGT` und `BEENDET`.
+- **Preisliste:** frühere, aktuelle und angekündigte Preise, eine Erhöhung nach dem Vertragsende (`NACH_ENDE`) und ein
+  beendeter Vertrag, dessen aktueller Preis der am letzten Tag ist.
 - **Felder:** alle Zahlweisen, Kategorien und Zahlungswege; Frist keine, 0, 1 und 3 Monate; mit und ohne
   Bezeichnung; Höchstlängen; optionale Felder alle gefüllt und alle leer.
 - **Beginn als Anker:** Beginn am 31. (Abbuchungen am 31. bzw. Monatsletzten; monatlich kündbar zum 30., im
@@ -389,14 +393,16 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
   einmal bei einem geteilten Vertrag.
 - **Preissteigerung:** in Prozent und als Betrag, in allen Rhythmen, mit vergangener „nächster Erhöhung“, bei einem
   geteilten Vertrag und zusammen mit einer angekündigten Erhöhung der Preisliste (`ANGEKUENDIGT` vor `PROGNOSE`, die
-  Prognose rechnet vom angekündigten Preis weiter); einmal ohne Erinnerung ans Sonderkündigungsrecht.
+  Prognose rechnet vom angekündigten Preis weiter); bei einem gekündigten Vertrag (Prognose nur bis zum Ende), einem
+  beendeten und einem stornierten (keine Prognose); einmal ohne Erinnerung ans Sonderkündigungsrecht.
 - **Preisgarantie:** laufend bei Steigerung als Betrag und in Prozent, abgelaufen (ändert nichts).
 
-Für jeden Fall prüft das Skript `art`, `status`, `dringend`, `vertragsende`, wo angegeben `kuendigung.zum` und
-`kostenImJahr`, `berechnet.einmalkosten`, die drei Prognosepreise samt nächster Preisänderung (wo angegeben mit
-Terminen und Beträgen) und ob es `eigenerAnteil` gibt, in der Übersicht `hatAnteile`, `hatNichtBegonnene` und
-`einmalkostenImJahr`, und bricht bei einer Abweichung ab, ebenso wenn eine Feldvariante (auch ein Rhythmus der
-Preissteigerung) fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
+Für jeden Fall prüft das Skript `art`, `status`, `dringend`, `vertragsende`, die `art` der Preiszeilen, wo
+angegeben `kuendigung.zum`, `kuendigung.kuendigenBis`, den aktuellen `betrag` und `kostenImJahr`,
+`berechnet.einmalkosten`, die Prognosepreise (drei, am Vertragsende weniger) samt nächster Preisänderung (wo
+angegeben mit Terminen und Beträgen) und ob es `eigenerAnteil` gibt, in der Übersicht `hatAnteile`,
+`hatNichtBegonnene` und `einmalkostenImJahr`, und bricht bei einer Abweichung ab, ebenso wenn eine Feldvariante
+(auch ein Rhythmus der Preissteigerung) fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
 
 **Nicht abgedeckt**, weil sich das nicht mit Testdaten herstellen lässt: Datenbank, Keycloak oder Backend nicht
