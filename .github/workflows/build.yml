@@ -10,9 +10,17 @@ on:
   # Vom Release-Workflow aufgerufen, damit ein Release nur mit grünem Build entsteht.
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    # checks: write für den Testbericht im PR (action-junit-report). Ruft release.yml diesen Workflow auf,
+    # muss es dort dieselben Rechte geben.
+    permissions:
+      contents: read
+      checks: write
     # Ein hängender Download soll schnell scheitern statt bis zum Standard von sechs Stunden zu laufen.
     timeout-minutes: 30
     steps:
@@ -39,6 +47,53 @@ jobs:
             git diff -- docs/module docs/openapi.json
             exit 1
           fi
+
+      # Gesamtwerte aus dem JaCoCo-Bericht (ohne Mindestwert) als Tabelle für den Testbericht.
+      - id: abdeckung
+        name: Abdeckung zusammenfassen
+        if: ${{ !cancelled() }}
+        run: |
+          python3 - <<'ENDE_PYTHON'
+          import os, xml.etree.ElementTree as ET
+          datei = "target/site/jacoco/jacoco.xml"
+          text = "Keine Abdeckung gemessen."
+          if os.path.exists(datei):
+              zaehler = {z.get("type"): z for z in ET.parse(datei).getroot().findall("counter")}
+              def zeile(name, typ):
+                  abgedeckt, fehlt = int(zaehler[typ].get("covered")), int(zaehler[typ].get("missed"))
+                  gesamt = abgedeckt + fehlt
+                  anteil = f"{100 * abgedeckt / gesamt:.1f}".replace(".", ",") if gesamt else "–"
+                  return f"| {name} | {anteil} % | {abgedeckt} / {gesamt} |"
+              text = "\n".join([
+                  "**Abdeckung**",
+                  "",
+                  "| | Anteil | Abgedeckt |",
+                  "|---|---:|---:|",
+                  zeile("Zeilen", "LINE"),
+                  zeile("Zweige", "BRANCH"),
+                  zeile("Anweisungen", "INSTRUCTION"),
+                  zeile("Methoden", "METHOD"),
+              ])
+          with open(os.environ["GITHUB_OUTPUT"], "a") as ausgabe:
+              ausgabe.write(f"tabelle<<ENDE\n{text}\nENDE\n")
+          ENDE_PYTHON
+
+      # Anzahl der Tests, Fehlschläge und Abdeckung im PR (Check) und im Job-Summary, auch bei grünem Build.
+      - uses: mikepenz/action-junit-report@v6
+        if: ${{ !cancelled() }}
+        with:
+          report_paths: target/surefire-reports/TEST-*.xml
+          check_name: Ergebnisse Tests
+          summary: ${{ steps.abdeckung.outputs.tabelle }}
+          job_summary: true
+          job_summary_text: ${{ steps.abdeckung.outputs.tabelle }}
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: abdeckung
+          path: target/site/jacoco/
+          retention-days: 14
 
       - name: Testberichte hochladen
         if: failure()
