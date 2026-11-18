@@ -28,6 +28,7 @@ import java.lang.annotation.Target;
  * {@code @Autowired} und legen ihr Verhalten mit {@code when(...)} fest; Spring setzt sie nach
  * jedem Test zurück. {@link Anmeldung} ist ein Spy: Sie arbeitet echt (gegen den gemockten
  * Token-Endpunkt), lässt sich aber prüfen ({@code verify}) und gezielt scheitern lassen.
+ * Die Anbindung an einen echten Keycloak prüft {@link KeycloakTest}.
  * <p>
  * Eigene {@code @MockitoBean}s, {@code @TestPropertySource} oder weitere Profile in einer
  * Testklasse erzeugen einen eigenen Kontext und verlangsamen den Build; nur in begründeten

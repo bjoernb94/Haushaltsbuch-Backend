@@ -43,8 +43,8 @@ updates:
 
   # Container-Images in compose.yaml (dev, auch Quelle der Versionen für die Tests) und
   # betrieb/compose.yaml (Betriebspaket). Ein Update eines Images ändert beide Dateien im selben PR;
-  # ComposeImagesTests prüft, dass sie gleich bleiben. Keycloak-Updates vor dem Merge lokal mit
-  # Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+  # ComposeImagesTests prüft, dass sie gleich bleiben. Keycloak-Updates prüft der Build mit
+  # @KeycloakTest; die Migration einer bestehenden Instanz vor dem Merge von Hand testen.
   - package-ecosystem: docker-compose
     directories:
       - /
