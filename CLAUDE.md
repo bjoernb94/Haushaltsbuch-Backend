@@ -138,7 +138,7 @@ python3 scripts/testdaten.py                        # local test accounts with c
   spies on `Anmeldung`; tests `@Autowired` these and stub with `when(...)`. Don't add per-class `@MockitoBean`s,
   properties or profiles without need: each variant is a new context. Create other modules' test data via their
   public API (e.g. `HaushaltService`), not mocks. One Postgres container is shared by all contexts
-  (`TestcontainersConfiguration` starts it statically; not a `@ServiceConnection` bean, since Boot stops those when a
+  (`TestcontainersConfiguration` starts it statically, image read from `compose.yaml` via `ComposeImages`; not a `@ServiceConnection` bean, since Boot stops those when a
   context closes). `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
