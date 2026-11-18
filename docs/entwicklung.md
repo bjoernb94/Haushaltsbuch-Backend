@@ -276,7 +276,8 @@ Keycloak-Zugriffe:
 - Der Health-Indikator `keycloakHealthIndicator` ist ein Mock und meldet vor jedem Test `UP`.
 
 Tests holen sich die Mocks per `@Autowired` und legen ihr Verhalten mit `when(...)` fest; Spring
-setzt sie nach jedem Test zurück. Eigene `@MockitoBean`s nur in begründeten Ausnahmen, ebenso
+setzt sie nach jedem Test zurück. `KeycloakTokenClient` ist package-private; Tests anderer Pakete lassen eine
+Anmeldung mit `GemockteAnmeldung.nimmtAn(...)` gelingen (z.&nbsp;B. die Registrierung, die danach anmeldet). Eigene `@MockitoBean`s nur in begründeten Ausnahmen, ebenso
 `@DirtiesContext` (Beispiel: `CsrfCookieTests`, das einen frischen Kontext braucht).
 
 `@KeycloakTest` prüft die Anbindung an Keycloak ohne Mocks: ganze Anwendung wie `@IntegrationTest`,

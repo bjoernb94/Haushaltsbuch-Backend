@@ -3,11 +3,14 @@ package de.bochmann.haushaltsbuch.nutzer;
 import de.bochmann.haushaltsbuch.IntegrationTest;
 import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
+import de.bochmann.haushaltsbuch.shared.security.GemockteAnmeldung;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Set;
@@ -15,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -22,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,6 +37,9 @@ class RegistrierungControllerTests {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private ApplicationContext context;
 
 	@Autowired
 	private NutzerRepository nutzerRepository;
@@ -49,16 +57,24 @@ class RegistrierungControllerTests {
 	@Autowired
 	private Anmeldung anmeldung;
 
+	/** Danach direkt angemeldet: Dieselbe Session sieht die gewählten Komponenten des neuen Nutzers. */
 	@Test
-	void registriertNutzerOhneAnmeldung() throws Exception {
+	void registriertUndMeldetAn() throws Exception {
 		UUID id = UUID.randomUUID();
 		when(identitaetsanbieter.benutzerAnlegen("max@example.org", "geheim123", "Max", "Muster"))
 				.thenReturn(id);
+		GemockteAnmeldung.nimmtAn(context, "max@example.org", "geheim123", id);
 
-		mockMvc.perform(post("/api/registrierung").with(csrf())
+		MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/api/registrierung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("max@example.org", "[\"FINANZUEBERSICHT\", \"PORTFOLIO\"]")))
-				.andExpect(status().isCreated());
+				.andExpect(status().isCreated())
+				.andReturn().getRequest().getSession(false);
+
+		assertThat(session).isNotNull();
+		mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$").value(containsInAnyOrder("FINANZUEBERSICHT", "PORTFOLIO")));
 
 		assertThat(nutzerRepository.findById(id)).hasValueSatisfying(nutzer ->
 				assertThat(nutzer.getAngelegtAm()).isNotNull());
