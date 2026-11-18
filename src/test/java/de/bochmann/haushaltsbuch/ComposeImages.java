@@ -26,7 +26,7 @@ public final class ComposeImages {
 	private ComposeImages() {
 	}
 
-	/** Image des Dienstes aus {@code compose.yaml}, z.&nbsp;B. {@code postgres:18.6}. */
+	/** Image des Dienstes aus {@code compose.yaml}, z.&nbsp;B. {@code postgres:18.7}. */
 	public static DockerImageName ausEntwicklung(String dienst) {
 		return DockerImageName.parse(image(ENTWICKLUNG, dienst));
 	}
