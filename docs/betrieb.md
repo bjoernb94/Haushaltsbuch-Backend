@@ -78,7 +78,7 @@ Keycloak migriert sein Schema beim Start, zurück auf die alte Version geht dana
 **Update von v0.1.0:** Mit Keycloak 26.8.2 braucht die Registrierung den Client-Scope `kc-admin-api`. Der
 Realm-Import trägt ihn nur in neuen Instanzen ein; in einer bestehenden nach dem `podman compose up -d` den Schritt
 [Scope `kc-admin-api` nachtragen](#scope-kc-admin-api-nachtragen) ausführen. Bis dahin scheitert jede Registrierung
-(500, im Log des Backends `invalid_scope`).
+(500, im Log des Backends `invalid_scope`); Anmeldungen bestehender Konten gehen weiter.
 
 ## Keycloak einrichten
 
