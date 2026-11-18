@@ -141,6 +141,9 @@ python3 scripts/testdaten.py                        # local test accounts with c
   (`TestcontainersConfiguration` starts it statically, image read from `compose.yaml` via `ComposeImages`; not a `@ServiceConnection` bean, since Boot stops those when a
   context closes). `csrf()` from spring-security-test permanently swaps the CSRF repository in the cached context,
   so tests asserting the real `XSRF-TOKEN` cookie need a fresh context (see `CsrfCookieTests`).
+  `@KeycloakTest` is the exception to the mocks: whole app against a real Keycloak (`KeycloakTestcontainer`, realm
+  import, image from `compose.yaml`, started statically like Postgres), own context; keep these tests in
+  `KeycloakAdminApiTests`/`KeycloakAnbindungTests` without extra mocks or properties, unique emails per test.
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
   commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
 - `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale; the contract with the SPA, ADR 0013).

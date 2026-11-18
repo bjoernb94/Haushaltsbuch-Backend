@@ -248,10 +248,11 @@ ausschließlich in Keycloak, die gebuchten Komponenten beim [Haushalt](#haushalt
 ```
 
 Integrationstests starten PostgreSQL per Testcontainers und benötigen daher eine laufende
-Container-Umgebung. Ein Container wird für den ganzen Testlauf geteilt. Keycloak wird in den
-Tests nicht gebraucht: Die Tests simulieren die Session-Anmeldung mit `oidcLogin()`
-(Fachmodule: `TestHaushalt.anmeldung()`), alle Zugriffe auf Keycloak sind Mocks. `jwt()` passt
-nicht, weil das Backend keine Bearer-Tokens annimmt. `ModularityTests` prüft die Modulstruktur
+Container-Umgebung. Ein Container wird für den ganzen Testlauf geteilt. Fast alle Tests brauchen
+Keycloak nicht: Sie simulieren die Session-Anmeldung mit `oidcLogin()` (Fachmodule:
+`TestHaushalt.anmeldung()`), alle Zugriffe auf Keycloak sind Mocks. `jwt()` passt nicht, weil das
+Backend keine Bearer-Tokens annimmt. Nur die Tests mit `@KeycloakTest` laufen gegen einen echten
+Keycloak (siehe unten). `ModularityTests` prüft die Modulstruktur
 mit Spring Modulith und schreibt die [Modul-Dokumentation](#module).
 
 ### Aufbau der Tests
@@ -277,6 +278,17 @@ Keycloak-Zugriffe:
 Tests holen sich die Mocks per `@Autowired` und legen ihr Verhalten mit `when(...)` fest; Spring
 setzt sie nach jedem Test zurück. Eigene `@MockitoBean`s nur in begründeten Ausnahmen, ebenso
 `@DirtiesContext` (Beispiel: `CsrfCookieTests`, das einen frischen Kontext braucht).
+
+`@KeycloakTest` prüft die Anbindung an Keycloak ohne Mocks: ganze Anwendung wie `@IntegrationTest`,
+dazu ein Keycloak-Testcontainer (`KeycloakTestcontainer`) mit dem Realm-Import aus
+`docker/keycloak/import`, demselben Image wie in `compose.yaml` und dem Client-Secret aus dev. So
+fällt ein Keycloak-Update, das die Anbindung bricht, schon im Build auf. Getestet werden die Admin
+API (`KeycloakAdminApiTests`), Token-Endpunkt, Registrierung, Anmeldung und Abmeldung über HTTP
+und der Systemstatus (`KeycloakAnbindungTests`). Der Kontext ist ein eigener und der Container
+startet einmal je Testlauf (etwa 10&nbsp;s); deshalb bleiben diese Tests in den beiden Klassen,
+ohne eigene Mocks oder Properties. Alle Tests teilen sich einen Realm, jeder legt Konten mit
+eigener E-Mail an. Nicht abgedeckt sind die Migration einer bestehenden Keycloak-Instanz und das
+Erneuern über `SitzungErneuernFilter` nach Ablauf des Access Tokens; die bleiben Handtest.
 
 `@ModuleTest` startet nur die Beans des eigenen Moduls und von `shared`. `shared` ist ausdrücklich
 eingebunden (`extraIncludes`), weil Spring Modulith sonst alle Beans außerhalb des Moduls entfernt,
@@ -325,7 +337,8 @@ und in der CI als Artefakt `abdeckung`. Bei Fehlern lädt die Action zusätzlich
 Dependabot (`.github/dependabot.yml`) öffnet Pull Requests für neue Versionen: Maven wöchentlich,
 GitHub Actions und die Images aus `compose.yaml` und `betrieb/compose.yaml` monatlich. Major-Updates
 von PostgreSQL sind ausgenommen, weil sie eine Datenmigration brauchen. Keycloak-Updates vor dem
-Merge lokal mit Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+Merge zusätzlich zu `@KeycloakTest` von Hand testen: die Migration einer bestehenden Instanz
+(dev-Volume) mit Registrierung und Anmeldung.
 
 Die Versionen von PostgreSQL und Keycloak stehen nur in den beiden Compose-Dateien. Die Tests lesen
 ihr Image aus `compose.yaml` (`ComposeImages`), es gibt also für dev und Tests eine Version.
