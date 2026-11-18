@@ -204,8 +204,15 @@ public class Vertragsberechnung {
 						.map(preis -> new Preisaenderung(preis.gueltigAb(), preis.betrag(), Preisaenderungsart.PROGNOSE)));
 	}
 
-	/** Die nächsten {@value #PROGNOSE_PREISE} Preise der {@link Preisprognose}; leer ohne Regel. */
+	/**
+	 * Die nächsten {@value #PROGNOSE_PREISE} Preise der {@link Preisprognose}; leer ohne Regel und bei einem beendeten
+	 * oder stornierten Vertrag. Das Vertragsende allein reicht nicht: Bei einer Stornierung in der Zukunft lägen
+	 * Termine zwischen heute und dem Kündigungsdatum.
+	 */
 	public List<Prognosepreis> prognose(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
+		if (vorbei(vertrag)) {
+			return List.of();
+		}
 		return prognose.preise(preise, heute, ende(vertrag), LocalDate.MAX, PROGNOSE_PREISE).stream()
 				.map(preis -> new Prognosepreis(preis.gueltigAb(), preis.betrag()))
 				.toList();
