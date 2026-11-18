@@ -68,7 +68,10 @@ Keycloak-Admin-Oberfläche ist nicht veröffentlicht, ein Konto sperren oder lö
 `podman compose exec keycloak /opt/keycloak/bin/kcadm.sh …` mit dem Bootstrap-Admin `admin` und
 `KEYCLOAK_ADMIN_PASSWORD`. `KEYCLOAK_CLIENT_SECRET` wirkt nur beim ersten Start (Realm-Import); die Daten
 liegen im Volume `postgres-data`. Ein Update heißt: neues Paket, `.env` und `instanz.json` übernehmen,
-`podman compose up -d`.
+`podman compose up -d`. Startet dabei PostgreSQL neu (neues Image), Keycloak aber nicht, danach
+`podman compose restart keycloak`: Keycloak hält sonst die beendeten Verbindungen im Pool, und die ersten
+Anmeldungen und Registrierungen scheitern mit 500, bis alle einmal verworfen sind. Das Backend prüft seine
+Verbindungen vor der Benutzung und braucht das nicht. Dasselbe gilt für die lokale Umgebung aus `compose.yaml`.
 
 ## Keycloak einrichten
 
