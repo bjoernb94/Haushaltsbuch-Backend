@@ -16,7 +16,10 @@
 	<description>Backend der Haushaltsbuch-Anwendung</description>
 	<url/>
 	<licenses>
-		<license/>
+		<license>
+			<name>AGPL-3.0-or-later</name>
+			<url>https://www.gnu.org/licenses/agpl-3.0.html</url>
+		</license>
 	</licenses>
 	<developers>
 		<developer/>
@@ -151,7 +154,7 @@
 					<image>
 						<name>ghcr.io/bjoernb94/haushaltsbuch-backend:${project.version}</name>
 						<env>
-							<BP_IMAGE_LABELS>org.opencontainers.image.title="Haushaltsbuch Backend" org.opencontainers.image.source="https://github.com/bjoernb94/Haushaltsbuch-Backend" org.opencontainers.image.version="${project.version}"</BP_IMAGE_LABELS>
+							<BP_IMAGE_LABELS>org.opencontainers.image.title="Haushaltsbuch Backend" org.opencontainers.image.source="https://github.com/bjoernb94/Haushaltsbuch-Backend" org.opencontainers.image.licenses="AGPL-3.0-or-later" org.opencontainers.image.version="${project.version}"</BP_IMAGE_LABELS>
 						</env>
 					</image>
 				</configuration>
