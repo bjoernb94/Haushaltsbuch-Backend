@@ -147,3 +147,10 @@ Weitere Dateien:
 Geplante Erweiterungen und bekannte Lücken (z.&nbsp;B. „Passwort vergessen“, Profilbereich,
 Keycloak für prod) werden als [GitHub Issues](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues)
 gepflegt und sind Meilensteinen zugeordnet.
+
+## Lizenz
+
+Copyright © 2026 Björn Bochmann. Veröffentlicht unter der
+[GNU Affero General Public License v3.0](LICENSE) oder einer späteren Version (`AGPL-3.0-or-later`).
+Wer das Backend verändert und anderen über ein Netzwerk bereitstellt, muss ihnen den geänderten
+Quellcode zugänglich machen (Abschnitt 13 der Lizenz).
