@@ -385,15 +385,18 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
   Februar zum Monatsletzten), Beginn heute (Kosten im Jahr nur ab heute). Ohne eigenen Beginn liegt er ein Jahr
   zurück im Raster von heute + 9 Tagen.
 - **Anteil:** geteilte Verträge mit 50&nbsp;% und 33,3&nbsp;% sowie einer mit 100&nbsp;% (zählt wie ohne Anteil).
-- **Einmalkosten:** im laufenden Jahr und im Vorjahr, einmal bei einem geteilten Vertrag.
-- **Preissteigerung:** in Prozent und als Betrag, mit Preisgarantie und mit vergangener „nächster Erhöhung“; einmal
-  ohne Erinnerung ans Sonderkündigungsrecht.
+- **Einmalkosten:** im laufenden Jahr, im Vorjahr und im nächsten Jahr (zählen nicht zu `einmalkostenImJahr`),
+  einmal bei einem geteilten Vertrag.
+- **Preissteigerung:** in Prozent und als Betrag, in allen Rhythmen, mit vergangener „nächster Erhöhung“, bei einem
+  geteilten Vertrag und zusammen mit einer angekündigten Erhöhung der Preisliste (`ANGEKUENDIGT` vor `PROGNOSE`, die
+  Prognose rechnet vom angekündigten Preis weiter); einmal ohne Erinnerung ans Sonderkündigungsrecht.
+- **Preisgarantie:** laufend bei Steigerung als Betrag und in Prozent, abgelaufen (ändert nichts).
 
 Für jeden Fall prüft das Skript `art`, `status`, `dringend`, `vertragsende`, wo angegeben `kuendigung.zum` und
-`kostenImJahr`, `berechnet.einmalkosten`, die drei Prognosepreise samt nächster Preisänderung und ob es
-`eigenerAnteil` gibt, in der Übersicht `hatAnteile`, `hatNichtBegonnene` und `einmalkostenImJahr`, und bricht bei
-einer Abweichung ab,
-ebenso wenn eine Feldvariante fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
+`kostenImJahr`, `berechnet.einmalkosten`, die drei Prognosepreise samt nächster Preisänderung (wo angegeben mit
+Terminen und Beträgen) und ob es `eigenerAnteil` gibt, in der Übersicht `hatAnteile`, `hatNichtBegonnene` und
+`einmalkostenImJahr`, und bricht bei einer Abweichung ab, ebenso wenn eine Feldvariante (auch ein Rhythmus der
+Preissteigerung) fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.
 
 **Nicht abgedeckt**, weil sich das nicht mit Testdaten herstellen lässt: Datenbank, Keycloak oder Backend nicht

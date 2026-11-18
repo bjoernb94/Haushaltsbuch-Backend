@@ -37,6 +37,8 @@ ALLE_ZAHLUNGSWEGE = {"LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DA
 ALLE_KATEGORIEN = {"STREAMING_ABOS", "SOFTWARE_APPS", "VERSICHERUNG", "MOBILFUNK_INTERNET", "MITGLIEDSCHAFTEN",
                    "GEBUEHREN_BEITRAEGE", "SONSTIGES"}
 
+ALLE_RHYTHMEN = {"VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH", "ZWEIJAEHRLICH", "DREIJAEHRLICH"}
+
 class Abbruch(Exception):
     """Etwas stimmt nicht; das Skript endet mit dieser Meldung."""
 
@@ -58,6 +60,11 @@ class Fall:
     kosten_im_jahr: Decimal | None = None
     # Erwartetes berechnet.kuendigung.zum; None prüft es nicht.
     zum: date | None = None
+    # Erwartete Art von berechnet.naechstePreisaenderung bei einer Preissteigerung.
+    naechste_art: str = "PROGNOSE"
+    # Erwartete Termine bzw. Beträge der drei Prognosepreise; None prüft sie nicht.
+    prognose_ab: list | None = None
+    prognose_betraege: list | None = None
 
     @property
     def erwarteter_status(self):
@@ -238,12 +245,19 @@ def pruefe_berechnung(fall, anfrage, antwort):
                        Decimal(0))
     if Decimal(str(berechnet["einmalkosten"]["wert"])) != einmalkosten:
         fehler.append(f"einmalkosten {berechnet['einmalkosten']['wert']} statt {einmalkosten}")
-    prognose = len(berechnet["prognose"])
+    prognose = berechnet["prognose"]
     if fall.felder.get("preissteigerung"):
-        if prognose != 3 or berechnet["naechstePreisaenderung"]["art"] != "PROGNOSE":
-            fehler.append(f"{prognose} Prognosepreise, nächste Preisänderung {berechnet['naechstePreisaenderung']}")
+        if len(prognose) != 3 or berechnet["naechstePreisaenderung"]["art"] != fall.naechste_art:
+            fehler.append(f"{len(prognose)} Prognosepreise, nächste Preisänderung {berechnet['naechstePreisaenderung']} "
+                          f"statt {fall.naechste_art}")
+        ab = [date.fromisoformat(preis["ab"]) for preis in prognose]
+        if fall.prognose_ab is not None and ab != fall.prognose_ab:
+            fehler.append(f"Prognose ab {[str(tag) for tag in ab]} statt {[str(tag) for tag in fall.prognose_ab]}")
+        betraege = [Decimal(str(preis["betrag"]["wert"])) for preis in prognose]
+        if fall.prognose_betraege is not None and betraege != fall.prognose_betraege:
+            fehler.append(f"Prognosebeträge {betraege} statt {fall.prognose_betraege}")
     elif prognose:
-        fehler.append(f"{prognose} Prognosepreise ohne Preissteigerung")
+        fehler.append(f"{len(prognose)} Prognosepreise ohne Preissteigerung")
     if (berechnet["eigenerAnteil"] is not None) != geteilt(fall):
         fehler.append(f"eigenerAnteil {berechnet['eigenerAnteil']} bei anteilProzent {fall.felder.get('anteilProzent')}")
     if fehler:
@@ -317,6 +331,22 @@ def einrichten(url, konto, heute):
     status, antwort = sitzung.anfrage("POST", "/api/abmeldung")
     erwarte(status, 204, f"{konto.email}: Abmeldung", antwort)
     return zustand, zeilen
+
+
+def plus_monate(tag, monate):
+    """Wie LocalDate.plusMonths: Gibt es den Tag im Zielmonat nicht, der Monatsletzte."""
+    jahr, monat = divmod(tag.month - 1 + monate, 12)
+    jahr += tag.year
+    return tag.replace(year=jahr, month=monat + 1, day=min(tag.day, calendar.monthrange(jahr, monat + 1)[1]))
+
+
+def termine(anker, monate, nach):
+    """Die drei Termine der Prognose: vom Anker aus im Rhythmus, nur die nach dem Tag „nach“ (Garantie, letzter Preis
+    oder gestern)."""
+    k = 0
+    while plus_monate(anker, k * monate) <= nach:
+        k += 1
+    return [plus_monate(anker, (k + i) * monate) for i in range(3)]
 
 
 def ende_bei_beginn_am_31(heute):
@@ -419,6 +449,7 @@ def faelle_alles(heute):
              felder={"preissteigerung": {"art": "PROZENT", "prozent": 2.5, "betrag": None, "rhythmus": "JAEHRLICH",
                                          "naechsteAm": tage(60).isoformat()}}),
         Fall("Preissteigerung – 1 € vierteljährlich mit Preisgarantie", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             prognose_ab=termine(tage(20), 3, nach=tage(100)),
              felder={"preisgarantieBis": tage(100),
                      "preissteigerung": {"art": "BETRAG", "prozent": None, "betrag": {"wert": 1.00, "waehrung": "EUR"},
                                          "rhythmus": "VIERTELJAEHRLICH", "naechsteAm": tage(20).isoformat()}}),
@@ -426,6 +457,40 @@ def faelle_alles(heute):
              felder={"erinnerungSonderkuendigung": False,
                      "preissteigerung": {"art": "PROZENT", "prozent": 3, "betrag": None, "rhythmus": "ZWEIJAEHRLICH",
                                          "naechsteAm": tage(-400).isoformat()}}),
+        # Alle Rhythmen; die Termine zählen vom Anker aus.
+        Fall("Preissteigerung – 2 % halbjährlich", "KEINE_LAUFZEIT", prognose_ab=termine(tage(50), 6, nach=tage(-1)),
+             felder={"preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "HALBJAEHRLICH",
+                                         "naechsteAm": tage(50).isoformat()}}),
+        Fall("Preissteigerung – 5 € dreijährlich", "KEINE_LAUFZEIT", zahlweise="JAEHRLICH",
+             prognose_ab=termine(tage(200), 36, nach=tage(-1)),
+             felder={"preissteigerung": {"art": "BETRAG", "prozent": None, "betrag": {"wert": 5.00, "waehrung": "EUR"},
+                                         "rhythmus": "DREIJAEHRLICH", "naechsteAm": tage(200).isoformat()}}),
+        # Angekündigter Preis und Prognose: Die Erhöhung kommt zuerst, der Termin der Regel davor wird übersprungen,
+        # die Prognose rechnet vom angekündigten Preis aus weiter (je Schritt auf Cent gerundet).
+        Fall("Preissteigerung – mit angekündigter Erhöhung", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
+             naechste_art="ANGEKUENDIGT", prognose_ab=termine(tage(10), 12, nach=tage(30)),
+             prognose_betraege=[Decimal("13.19"), Decimal("14.51"), Decimal("15.96")],
+             felder={"beginn": tage(-400), "preise": [
+                 {"gueltigAb": tage(-400).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
+                 {"gueltigAb": tage(30).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}],
+                     "preissteigerung": {"art": "PROZENT", "prozent": 10, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": tage(10).isoformat()}}),
+        # Preisgarantie: abgelaufen ändert nichts; laufend verschiebt sie die Prognose, auch bei Prozent.
+        Fall("Preisgarantie – abgelaufen", "KEINE_LAUFZEIT", prognose_ab=termine(tage(40), 12, nach=tage(-1)),
+             felder={"preisgarantieBis": tage(-30),
+                     "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": tage(40).isoformat()}}),
+        Fall("Preisgarantie – Steigerung in Prozent", "KEINE_LAUFZEIT", kategorie="VERSICHERUNG",
+             prognose_ab=termine(tage(20), 3, nach=tage(200)),
+             felder={"preisgarantieBis": tage(200),
+                     "preissteigerung": {"art": "PROZENT", "prozent": 3, "betrag": None, "rhythmus": "VIERTELJAEHRLICH",
+                                         "naechsteAm": tage(20).isoformat()}}),
+        # Geteilt: Die Prognose zeigt die vollen Beträge, nur eigenerAnteil zählt den Anteil.
+        Fall("Preissteigerung – geteilt 50 %", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET",
+             prognose_betraege=[Decimal("10.49"), Decimal("11.01"), Decimal("11.56")],
+             felder={"anteilProzent": 50,
+                     "preissteigerung": {"art": "PROZENT", "prozent": 5, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": tage(60).isoformat()}}),
         # Einmalkosten: im Jahr und im Vorjahr; in der Übersicht nur die im Jahr, beim geteilten nur der Anteil.
         Fall("Einmalkosten – im Jahr und im Vorjahr", "KEINE_LAUFZEIT", kategorie="MOBILFUNK_INTERNET",
              felder={"einmalkosten": [
@@ -433,6 +498,10 @@ def faelle_alles(heute):
                   "faelligAm": date(heute.year - 1, 6, 1).isoformat()},
                  {"bezeichnung": "Router", "betrag": {"wert": 99.99, "waehrung": "EUR"},
                   "faelligAm": date(heute.year, 6, 1).isoformat()}]}),
+        Fall("Einmalkosten – im nächsten Jahr", "KEINE_LAUFZEIT",
+             felder={"einmalkosten": [
+                 {"bezeichnung": "Wechselprämie zurück", "betrag": {"wert": 25.00, "waehrung": "EUR"},
+                  "faelligAm": date(heute.year + 1, 3, 1).isoformat()}]}),
         Fall("Einmalkosten – geteilt 50 %", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
              felder={"anteilProzent": 50, "einmalkosten": [
                  {"bezeichnung": "Aufnahmegebühr", "betrag": {"wert": 10.01, "waehrung": "EUR"},
@@ -461,7 +530,9 @@ def konten(heute):
 def pruefe_abdeckung(faelle):
     """Hält fest, dass das Konto „alles“ jede geforderte Feldvariante enthält."""
     frist = {fall.felder.get("kuendigungsfristMonate") for fall in faelle}
+    rhythmen = {fall.felder["preissteigerung"]["rhythmus"] for fall in faelle if fall.felder.get("preissteigerung")}
     fehlend = {
+        "Rhythmen der Preissteigerung": ALLE_RHYTHMEN - rhythmen,
         "Zahlweisen": ALLE_ZAHLWEISEN - {fall.zahlweise for fall in faelle},
         "Kategorien": ALLE_KATEGORIEN - {fall.kategorie for fall in faelle},
         "Zahlungswege": ALLE_ZAHLUNGSWEGE - {fall.felder.get("zahlungsweg") for fall in faelle},
