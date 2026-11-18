@@ -55,8 +55,10 @@ folgen mit v1.0.0 (#7, #17).
    Secret zufällig wählen, z.&nbsp;B. `openssl rand -base64 32`. `HAUSHALTSBUCH_STAGE` ist `PROD` für echte
    Daten oder `DEV` für eine Testinstanz (die Oberfläche zeigt dann einen Streifen).
 2. `instanz.json` mit den Angaben des Betreibers für Impressum und Datenschutz neben `compose.yaml` legen
-   (Format im README des Frontends, Abschnitt Container). Nie die Beispieldatei aus dem Frontend-Repo
-   verwenden; ohne Datei zeigen beide Seiten nur einen Hinweis.
+   (Format unter
+   [Angaben des Betreibers](https://github.com/bjoernb94/Haushaltsbuch-Frontend/blob/main/docs/betrieb.md#angaben-des-betreibers)
+   im Frontend). Nie die Beispieldatei aus dem Frontend-Repo verwenden; ohne Datei zeigen beide Seiten nur
+   einen Hinweis.
 3. Starten: `podman compose up -d` (oder `docker compose up -d`). Die Anwendung ist danach unter
    `http://<Rechner>:8080` erreichbar, auch von anderen Geräten im Heimnetz.
 
