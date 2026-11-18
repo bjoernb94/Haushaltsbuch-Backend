@@ -44,23 +44,20 @@ Variablen für `compose.yaml` (per Umgebung oder `.env`-Datei):
 
 Jedes Release hat ein Paket `haushaltsbuch-<version>.tar.gz` (erzeugt von `scripts/betrieb-paket.sh`) mit
 `compose.yaml`, `.env.beispiel`, dem Realm-Import und dem Init-Skript der Datenbank. Damit startet die ganze
-Anwendung aus den veröffentlichten Images: PostgreSQL, Keycloak, Backend (Profil `prod`) und Frontend.
+Anwendung aus den veröffentlichten, öffentlichen Images (ohne Anmeldung bei `ghcr.io`): PostgreSQL, Keycloak, Backend (Profil `prod`) und Frontend.
 
 Für die eigene Nutzung im Heimnetz gedacht, nicht für das offene Internet: Keycloak läuft ohne HTTPS,
 die Session-Cookies gehen unverschlüsselt durchs lokale Netz. TLS, Reverse Proxy und Keycloak für prod
 folgen mit v1.0.0 (#7, #17).
 
-1. Bei `ghcr.io` anmelden, die Images sind privat: `podman login ghcr.io -u <GitHub-Name>`, als Passwort ein
-   klassischer Token mit `read:packages` (GitHub: Settings → Developer settings → Personal access tokens →
-   Tokens (classic)). Fine-grained Tokens haben kein Recht für Packages.
-2. Paket entpacken und darin `.env` aus `.env.beispiel` anlegen. Alle Werte sind Pflicht, außer
+1. Paket entpacken und darin `.env` aus `.env.beispiel` anlegen. Alle Werte sind Pflicht, außer
    `HAUSHALTSBUCH_PORT` (Standard `8080`); fehlt einer, bricht Compose mit einer Meldung ab. Passwörter und
    Secret zufällig wählen, z.&nbsp;B. `openssl rand -base64 32`. `HAUSHALTSBUCH_STAGE` ist `PROD` für echte
    Daten oder `DEV` für eine Testinstanz (die Oberfläche zeigt dann einen Streifen).
-3. `instanz.json` mit den Angaben des Betreibers für Impressum und Datenschutz neben `compose.yaml` legen
+2. `instanz.json` mit den Angaben des Betreibers für Impressum und Datenschutz neben `compose.yaml` legen
    (Format im README des Frontends, Abschnitt Container). Nie die Beispieldatei aus dem Frontend-Repo
    verwenden; ohne Datei zeigen beide Seiten nur einen Hinweis.
-4. Starten: `podman compose up -d` (oder `docker compose up -d`). Die Anwendung ist danach unter
+3. Starten: `podman compose up -d` (oder `docker compose up -d`). Die Anwendung ist danach unter
    `http://<Rechner>:8080` erreichbar, auch von anderen Geräten im Heimnetz.
 
 Erreichbar ist nur das Frontend; Backend, Keycloak und PostgreSQL bleiben im internen Compose-Netz. Die
