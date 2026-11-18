@@ -38,6 +38,10 @@ spring:
             client-id: ${haushaltsbuch.keycloak.client-id}
             client-secret: ${haushaltsbuch.keycloak.client-secret}
             authorization-grant-type: client_credentials
+            # Ab Keycloak 26.8.2 prüft die Admin API die Audience; das Token braucht den Client-Scope
+            # kc-admin-api, sonst 401. Am Client optional zugewiesen und nur hier angefordert, damit
+            # die Anmelde-Tokens der Nutzer ihn nicht tragen (docs/betrieb.md, Keycloak einrichten).
+            scope: kc-admin-api
         provider:
           keycloak:
             # Endpunkt explizit statt über issuer-uri, damit der Start nicht

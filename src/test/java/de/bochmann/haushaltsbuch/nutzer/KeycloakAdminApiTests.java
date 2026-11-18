@@ -3,10 +3,12 @@ package de.bochmann.haushaltsbuch.nutzer;
 import de.bochmann.haushaltsbuch.KeycloakTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Admin API ({@link KeycloakIdentitaetsanbieter}) gegen einen echten Keycloak mit unserem Realm. */
@@ -17,6 +19,16 @@ class KeycloakAdminApiTests {
 
 	@Autowired
 	private Identitaetsanbieter identitaetsanbieter;
+
+	@Autowired
+	private ClientRegistrationRepository clientRegistrations;
+
+	/** Ohne den Scope antwortet die Admin API ab Keycloak 26.8.2 mit 401 (#113). */
+	@Test
+	void fordertDenScopeDerAdminApiAn() {
+		assertThat(clientRegistrations.findByRegistrationId(KeycloakAdminConfig.CLIENT_REGISTRATION_ID).getScopes())
+				.containsExactly("kc-admin-api");
+	}
 
 	@Test
 	void legtKontoAnUndLoeschtEs() {
