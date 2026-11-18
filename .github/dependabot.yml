@@ -41,15 +41,29 @@ updates:
         patterns:
           - "*"
 
-  # Container-Images in compose.yaml (PostgreSQL, Keycloak). Keycloak-Updates vor dem Merge
-  # lokal mit Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+  # Container-Images in compose.yaml (dev, auch Quelle der Versionen für die Tests) und
+  # betrieb/compose.yaml (Betriebspaket). Ein Update eines Images ändert beide Dateien im selben PR;
+  # ComposeImagesTests prüft, dass sie gleich bleiben. Keycloak-Updates vor dem Merge lokal mit
+  # Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
   - package-ecosystem: docker-compose
-    directory: /
+    directories:
+      - /
+      - /betrieb
     schedule:
       interval: monthly
     commit-message:
       prefix: "deps"
+    groups:
+      # Je Image ein PR über beide Verzeichnisse, PostgreSQL und Keycloak bleiben getrennt.
+      images:
+        group-by: dependency-name
+        patterns:
+          - "*"
     ignore:
+      # Backend und Frontend: Deren Version setzt das Release (release.yml prüft sie). Die Images
+      # sind außerdem privat, Dependabot könnte sie gar nicht lesen.
+      - dependency-name: "*haushaltsbuch-backend"
+      - dependency-name: "*haushaltsbuch-frontend"
       # Ein PostgreSQL-Major-Update braucht eine Migration der Daten (pg_upgrade oder Dump),
       # das Volume ist nicht kompatibel. Bewusst von Hand machen.
       - dependency-name: "postgres"

@@ -323,9 +323,15 @@ und in der CI als Artefakt `abdeckung`. Bei Fehlern lädt die Action zusätzlich
 (`surefire-reports`) hoch.
 
 Dependabot (`.github/dependabot.yml`) öffnet Pull Requests für neue Versionen: Maven wöchentlich,
-GitHub Actions und die Images aus `compose.yaml` monatlich. Major-Updates von PostgreSQL sind
-ausgenommen, weil sie eine Datenmigration brauchen. Keycloak-Updates vor dem Merge lokal mit
-Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+GitHub Actions und die Images aus `compose.yaml` und `betrieb/compose.yaml` monatlich. Major-Updates
+von PostgreSQL sind ausgenommen, weil sie eine Datenmigration brauchen. Keycloak-Updates vor dem
+Merge lokal mit Registrierung und Anmeldung testen; die Tests im Build laufen ohne Keycloak.
+
+Die Versionen von PostgreSQL und Keycloak stehen nur in den beiden Compose-Dateien. Die Tests lesen
+ihr Image aus `compose.yaml` (`ComposeImages`), es gibt also für dev und Tests eine Version.
+`betrieb/compose.yaml` muss dieselben Images haben; Dependabot ändert beide Dateien im selben PR,
+und `ComposeImagesTests` schlägt fehl, wenn sie abweichen. Die Images von Backend und Frontend im
+Betriebspaket setzt das Release, nicht Dependabot ([README](../README.md), Veröffentlichen).
 
 ## Testkonten
 
