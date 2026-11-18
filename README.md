@@ -105,7 +105,10 @@ ab 1.0 kommt `latest` dazu. Die Images sind öffentlich und nur für amd64.
 
 Die Dokumentation liegt nur in den Repos, ein Wiki gibt es nicht: So wird sie im selben Pull Request wie der
 Code geändert und geprüft und passt zu jedem Release-Tag ([ADR 0021](docs/entscheidungen/0021-doku-im-repo.md)).
-Die Oberfläche ist im README des [Frontends](https://github.com/bjoernb94/Haushaltsbuch-Frontend) beschrieben.
+Die Oberfläche beschreibt das Frontend in
+[`docs/entwicklung.md`](https://github.com/bjoernb94/Haushaltsbuch-Frontend/blob/main/docs/entwicklung.md),
+Image und `instanz.json` in
+[`docs/betrieb.md`](https://github.com/bjoernb94/Haushaltsbuch-Frontend/blob/main/docs/betrieb.md).
 
 ## Projektstruktur
 
