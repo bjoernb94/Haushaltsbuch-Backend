@@ -74,7 +74,7 @@ class RegistrierungControllerTests {
 		assertThat(session).isNotNull();
 		mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$").value(containsInAnyOrder("FINANZUEBERSICHT", "PORTFOLIO")));
+				.andExpect(jsonPath("$.komponenten").value(containsInAnyOrder("FINANZUEBERSICHT", "PORTFOLIO")));
 
 		assertThat(nutzerRepository.findById(id)).hasValueSatisfying(nutzer ->
 				assertThat(nutzer.getAngelegtAm()).isNotNull());
@@ -117,6 +117,17 @@ class RegistrierungControllerTests {
 				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
 				.andExpect(jsonPath("$.felder[0].feld").value("komponenten"))
 				.andExpect(jsonPath("$.felder[0].code").value("NotEmpty"));
+	}
+
+	/** {@code null} in der Menge lehnt schon Jackson beim Lesen ab, nicht erst die Validierung. */
+	@Test
+	void nullAlsKomponenteUngueltig() throws Exception {
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("null@example.org", "[\"PORTFOLIO\", null]")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("ANFRAGE_UNGUELTIG"));
+		verifyNoInteractions(identitaetsanbieter);
 	}
 
 	@Test
