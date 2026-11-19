@@ -358,7 +358,8 @@ python3 scripts/testdaten.py --url http://localhost:8081  # anderer lokaler Port
 ```
 
 Es braucht nur Python 3 ohne Zusatzpakete und arbeitet über die öffentliche API. Beliebig oft ausführbar:
-Vorhandene Konten bleiben, ihre Verträge werden ersetzt (die IDs ändern sich also). Die Daten hängen vom
+Vorhandene Konten bleiben, ihre Verträge werden ersetzt (die IDs ändern sich also) und ihre Komponenten wieder
+auf den Stand der Tabelle gesetzt, falls sie z.&nbsp;B. in den Einstellungen geändert wurden. Die Daten hängen vom
 heutigen Tag ab; erneutes Ausführen bringt den Stand wieder in Ordnung. Die E2E-Tests der SPA nutzen diese
 Konten nicht.
 
