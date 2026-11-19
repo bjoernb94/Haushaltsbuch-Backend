@@ -1,6 +1,8 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
 import de.bochmann.haushaltsbuch.IntegrationTest;
+import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
+import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.security.AnmeldungFehlgeschlagenException.Grund;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,6 +40,9 @@ class AnmeldungControllerTests {
 
 	@Autowired
 	private KeycloakTokenClient tokenClient;
+
+	@Autowired
+	private HaushaltService haushaltService;
 
 	@Test
 	void anmeldungLegtSessionAn() throws Exception {
@@ -151,9 +157,12 @@ class AnmeldungControllerTests {
 		assertThat(session.isInvalid()).isTrue();
 	}
 
+	/** Meldet einen Nutzer mit Haushalt an, sonst gäbe {@code /api/nutzer/ich/komponenten} 404. */
 	private MockHttpSession anmelden(Instant accessTokenAblauf) throws Exception {
+		UUID nutzerId = UUID.randomUUID();
+		haushaltService.anlegen(nutzerId, Set.of(Komponente.PORTFOLIO));
 		var idToken = OidcIdToken.withTokenValue("id-token")
-				.subject(UUID.randomUUID().toString())
+				.subject(nutzerId.toString())
 				.issuedAt(Instant.now())
 				.expiresAt(Instant.now().plusSeconds(300))
 				.build();

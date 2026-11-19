@@ -9,7 +9,8 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 |-----------------------------------|-----------------|-------------------------------------------------|
 | `POST /api/registrierung`         | öffentlich      | Konto in Keycloak und Nutzer anlegen            |
 | `GET /api/nutzer/ich`             | angemeldet      | Profil: `vorname`, `name`, `email`              |
-| `GET /api/nutzer/ich/komponenten` | angemeldet      | Gebuchte Komponenten, z.&nbsp;B. `["PORTFOLIO"]`|
+| `GET /api/nutzer/ich/komponenten` | angemeldet      | Gebuchte Komponenten, siehe [Komponenten](#komponenten) |
+| `PUT /api/nutzer/ich/komponenten` | angemeldet      | Komponenten ändern, siehe [Komponenten](#komponenten) |
 | `POST /api/anmeldung`             | öffentlich      | Anmeldung mit E-Mail und Passwort (Session)     |
 | `POST /api/abmeldung`             | angemeldet      | Abmeldung, auch bei Keycloak                    |
 | `GET /api/vertraege/kategorien`   | `VERTRAGSUEBERSICHT` | Vertragskategorien, siehe [Verträge](#verträge) |
@@ -72,7 +73,7 @@ Session-Cookie. Es gibt keine Weiterleitung zu Keycloak. Bearer-Tokens nimmt das
   `X-XSRF-TOKEN` zurück. Nach der Anmeldung wird das Token erneuert; Angular liest es dafür
   ohnehin vor jeder Anfrage neu aus dem Cookie.
 - **Beim Start:** `GET /api/nutzer/ich/komponenten`. **401** → Login-Seite zeigen, **200** →
-  angemeldet, Bereiche nach der Liste einblenden.
+  angemeldet, Bereiche nach `komponenten` einblenden.
 - **Anmeldung:** `POST /api/anmeldung` mit `{"email": "...", "passwort": "..."}`.
   - **204**: angemeldet, Session-Cookie gesetzt
   - **401**, `code` `ANMELDUNG_UNGUELTIG`: E-Mail-Adresse oder Passwort falsch
@@ -127,7 +128,26 @@ Das Backend prüft bei jeder Anfrage auf einen dieser Pfade, ob der Haushalt des
 Komponente gebucht hat, sonst **403** `KEIN_ZUGRIFF`.
 
 Die SPA fragt die gebuchten Komponenten über `GET /api/nutzer/ich/komponenten` ab und blendet
-danach Bereiche ein oder aus. Das ist reine Anzeige, der Schutz liegt im Backend.
+danach Bereiche ein oder aus. Das ist reine Anzeige, der Schutz liegt im Backend. Die Antwort
+enthält die Komponenten sortiert und die `version` des Haushalts:
+
+```json
+{ "komponenten": ["FINANZUEBERSICHT", "PORTFOLIO"], "version": 3 }
+```
+
+`PUT /api/nutzer/ich/komponenten` (CSRF-Token nötig) ersetzt die Auswahl, z.&nbsp;B. in den
+Einstellungen: Body wie die Antwort, mit der zuletzt gelesenen `version` (Schema
+`KomponentenAenderung`) → **200** mit der neuen Auswahl und der neuen `version`. Die Änderung gilt für
+den ganzen Haushalt und sofort, auch für die Zugriffsprüfung. Wird eine Komponente ausgeschaltet,
+**bleiben ihre Daten erhalten**, nur der Zugriff ist gesperrt; nach dem Einschalten sind sie wieder da.
+Dieselbe Auswahl noch einmal ändert nichts, auch nicht die `version`.
+
+- **400** `VALIDIERUNG`: keine Komponente (`komponenten`, `NotEmpty`) oder `version` fehlt
+- **400** `ANFRAGE_UNGUELTIG`: unbekannte Komponente oder `null` in der Liste
+- **409** `KONFLIKT`: `version` veraltet. Sie gilt für den ganzen Haushalt, ändert sich also auch,
+  wenn sich später etwas anderes daran ändert (z.&nbsp;B. Mitglieder); die SPA lädt dann neu.
+- **404** `NICHT_GEFUNDEN` (GET und PUT): Das Konto gehört zu keinem Haushalt. Das kommt nur nach
+  Fehlern oder Eingriffen von Hand vor (z.&nbsp;B. Konto direkt in Keycloak angelegt).
 
 ## Fehlerantworten
 

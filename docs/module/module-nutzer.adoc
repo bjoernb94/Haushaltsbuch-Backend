@@ -3,7 +3,6 @@
 |Base package
 |`de.bochmann.haushaltsbuch.nutzer`
 |Bean references
-|* `d.b.h.s.security.KomponentenAbfrage` (in Shared)
+|* `d.b.h.h.HaushaltService` (in Haushalt)
 * `d.b.h.s.security.Anmeldung` (in Shared)
-* `d.b.h.h.HaushaltService` (in Haushalt)
 |===
