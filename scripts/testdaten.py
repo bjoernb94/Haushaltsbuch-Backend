@@ -171,13 +171,25 @@ def anmelden(sitzung, konto):
     return "vorhanden"
 
 
-def pruefe_komponenten(sitzung, konto):
+def komponenten_zuruecksetzen(sitzung, konto):
+    """Setzt die Komponenten auf den Sollstand, falls sie jemand geändert hat (z. B. in den Einstellungen).
+
+    Gibt zurück, ob sie abwichen.
+    """
     status, antwort = sitzung.anfrage("GET", "/api/nutzer/ich/komponenten")
+    if status == 404:
+        raise Abbruch(f"{konto.email}: Das Konto gibt es in Keycloak, aber nicht im Backend. Meist wurde die lokale "
+                      "Datenbank zurückgesetzt, Keycloak aber nicht. Konto in Keycloak löschen und das Skript neu "
+                      "starten.")
     erwarte(status, 200, f"{konto.email}: Komponenten", antwort)
-    if set(antwort) != konto.komponenten:
-        raise Abbruch(f"{konto.email}: Komponenten {sorted(antwort)} statt {sorted(konto.komponenten)}. Leer heißt oft: "
-                      "Die lokale Datenbank wurde zurückgesetzt, das Konto in Keycloak aber nicht. Konto in Keycloak "
-                      "löschen und das Skript neu starten.")
+    if set(antwort["komponenten"]) == konto.komponenten:
+        return False
+    status, antwort = sitzung.anfrage("PUT", "/api/nutzer/ich/komponenten", {
+        "komponenten": sorted(konto.komponenten),
+        "version": antwort["version"],
+    })
+    erwarte(status, 200, f"{konto.email}: Komponenten zurücksetzen", antwort)
+    return True
 
 
 def vertraege_loeschen(sitzung, konto):
@@ -335,7 +347,9 @@ def pruefe_uebersicht(sitzung, konto, heute):
 def einrichten(url, konto, heute):
     sitzung = Sitzung(url)
     zustand = anmelden(sitzung, konto)
-    pruefe_komponenten(sitzung, konto)
+    # Vor den Verträgen: Ohne VERTRAGSUEBERSICHT ließen sie sich nicht ersetzen.
+    if komponenten_zuruecksetzen(sitzung, konto):
+        zustand += ", Komponenten zurückgesetzt"
     zeilen = []
     if konto.fristen_in_uebersicht is None:
         status, antwort = sitzung.anfrage("GET", "/api/vertraege")
