@@ -54,7 +54,7 @@ services:
         condition: service_healthy
 
   backend:
-    image: 'ghcr.io/bjoernb94/haushaltsbuch-backend:0.1.0'
+    image: 'ghcr.io/bjoernb94/haushaltsbuch-backend:0.2.0'
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: 'prod'
@@ -73,7 +73,7 @@ services:
         condition: service_started
 
   frontend:
-    image: 'ghcr.io/bjoernb94/haushaltsbuch-frontend:0.1.0'
+    image: 'ghcr.io/bjoernb94/haushaltsbuch-frontend:0.2.0'
     restart: unless-stopped
     environment:
       BACKEND_URL: 'http://backend:8080'
