@@ -296,7 +296,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
   "kategorieId": "7cb7a2b8-38a6-432d-8546-03b3d74f76ec",
   "vertragsnummer": "KFZ-4711-23",
   "preise": [
-    { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" } },
+    { "gueltigAb": "2023-01-01", "betrag": { "wert": 549.00, "waehrung": "EUR" } },
     { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" } }
   ],
   "zahlweise": "JAEHRLICH",
@@ -347,8 +347,8 @@ berechnet (siehe unten).
 #### Preise
 
 Ein Vertrag hat eine Liste von Preisen mit Gültigkeitsdatum, z.&nbsp;B. frühere Preise, angekündigte
-Erhöhungen oder Aktionspreise. Ein Preis gilt von seinem `gueltigAb` bis zum nächsten Eintrag. Vor dem ersten
-Eintrag gilt der erste rückwirkend (z.&nbsp;B. für Abbuchungen im Jahr vor seinem `gueltigAb`).
+Erhöhungen oder Aktionspreise. Jeder Eintrag hat ein `gueltigAb`, der früheste genau den `beginn`. Ein Preis gilt
+von seinem `gueltigAb` bis zum nächsten Eintrag.
 
 `betrag` in der [Antwort](#antwort) ist der **aktuelle Preis**: der heute gültige, bei einem beendeten Vertrag der
 an seinem letzten Tag gültige (ein Eintrag nach dem Vertragsende wurde nie gezahlt); beginnt der Vertrag erst in
@@ -357,14 +357,15 @@ der Zukunft, der erste Eintrag.
 | Regel | Feldfehler (an `preise[i]…`, `i` = Position in der Anfrage) |
 |---|---|
 | mindestens ein, höchstens 100 Einträge | `NotEmpty` bzw. `Size` an `preise` |
-| `gueltigAb` darf nur bei einem Eintrag fehlen (gilt dann ab Vertragsbeginn) | `GueltigAbPflicht` an `preise[i].gueltigAb` |
-| kein `gueltigAb` doppelt | `GueltigAbEindeutig` an `preise[i].gueltigAb` |
+| `gueltigAb` bei jedem Eintrag | `NotNull` an `preise[i].gueltigAb` |
+| kein `gueltigAb` doppelt (die spätere Wiederholung ist der Fehler) | `GueltigAbEindeutig` an `preise[i].gueltigAb` |
 | kein `gueltigAb` vor `beginn`, auch wenn der Beginn später nach hinten verschoben wird | `PreisNichtVorBeginn` an `preise[i].gueltigAb` |
+| der früheste Eintrag gilt genau ab `beginn`, nicht später (davor meldet `PreisNichtVorBeginn`) | `ErsterPreisAbBeginn` an `preise[i].gueltigAb` dieses Eintrags |
 | `betrag` größer 0 | `PositiverBetrag` an `preise[i].betrag` |
 | alle Beträge in derselben Währung wie der erste (eine Währung am Vertrag kommt mit [#30](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/30)) | `GleicheWaehrung` an `preise[i].betrag.waehrung` |
 
 Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort liefert `preise` sortiert nach
-`gueltigAb`, der Eintrag ohne Datum zuerst, jeden Eintrag mit `art`:
+`gueltigAb`, jeden Eintrag mit `art`:
 
 | `art` | Eintrag |
 |---|---|
@@ -429,7 +430,7 @@ nicht zurückgeschickt:
 ```json
 "betrag": { "wert": 586.80, "waehrung": "EUR" },
 "preise": [
-  { "gueltigAb": null, "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "FRUEHER" },
+  { "gueltigAb": "2023-01-01", "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "FRUEHER" },
   { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "art": "AKTUELL" }
 ],
 "berechnet": {
@@ -506,8 +507,7 @@ nicht zurückgeschickt:
   ein, rechnet die Prognose von dort weiter. `betrag` und `kostenProMonat` bleiben der bekannte Preis von heute.
 - **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
   [Preisliste](#preise) (`FRUEHER` und `AKTUELL` als `GEZAHLT`, `ANGEKUENDIGT` als `ANGEKUENDIGT`, `NACH_ENDE`
-  fallen weg) und die drei aus `prognose` (`PROGNOSE`). `ab` ist nie `null`: Der erste Eintrag ohne `gueltigAb` beginnt mit
-  `beginn`. Die SPA zeichnet nur.
+  fallen weg) und die drei aus `prognose` (`PROGNOSE`). Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
@@ -655,7 +655,7 @@ speichern → **200** (ohne `Location`):
 ```json
 {
   "betrag": { "wert": 13.99, "waehrung": "EUR" },
-  "preise": [{ "gueltigAb": null, "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
+  "preise": [{ "gueltigAb": "2024-11-22", "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
   "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
   "eigenerAnteil": { "betrag": { "wert": 7.00, "waehrung": "EUR" }, "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
@@ -669,20 +669,23 @@ speichern → **200** (ohne `Location`):
   `preissteigerung`, `preisgarantieBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
   `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
   Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen, auch
-  `beginn` (ohne Beginn ist der Status `AKTIV`, und ohne Laufzeitende ist kein Vertragsende bestimmbar).
+  `beginn` (ohne Beginn ist der Status `AKTIV`, und ohne Laufzeitende ist kein Vertragsende bestimmbar). Ohne
+  `beginn` rechnet die Vorschau ohne Preise, weil der früheste ab dem Beginn gilt und spätere sonst rückwirkend
+  gälten.
 - **Fehlende Werte sind kein Fehler:** Fehlt eine Angabe, ist jeder Wert `null`, der sie braucht (die SPA zeigt
   „Noch offen“); die übrigen werden trotzdem berechnet. **Unvollständige Zeilen** ignoriert die Vorschau: eine
-  Preiszeile ohne `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne
+  Preiszeile ohne `gueltigAb` oder `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne
   `art`, `rhythmus`, `naechsteAm` oder den Wert zur `art` (dann keine Prognose; der Wert der anderen Art zählt
-  nicht). Die Regeln über die Liste (`GueltigAbPflicht`, `GueltigAbEindeutig`, `PreisNichtVorBeginn`,
-  `GleicheWaehrung`) gelten für die vollständigen Zeilen.
+  nicht). Die Regeln über die Liste (`GueltigAbEindeutig`, `PreisNichtVorBeginn`, `ErsterPreisAbBeginn`,
+  `GleicheWaehrung`) gelten für die vollständigen Zeilen; `ErsterPreisAbBeginn` also erst mit `beginn` und einer
+  vollständigen Zeile.
 - **Antwort**, je Wert wie in `berechnet` eines gespeicherten Vertrags ([Antwort](#antwort)); dieselbe Berechnung,
   für dieselben Werte steht nach dem Speichern dasselbe in der Liste:
 
   | Feld | `null`, wenn |
   |---|---|
-  | `betrag` (aktueller Preis) | keine vollständige Preiszeile |
-  | `preise` (wie [Preise](#preise) der Antwort; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne vollständige Preiszeile, unvollständige Zeilen fehlen |
+  | `betrag` (aktueller Preis) | kein `beginn` oder keine vollständige Preiszeile |
+  | `preise` (wie [Preise](#preise) der Antwort; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
   | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |

@@ -21,7 +21,6 @@ import java.util.List;
  * @param einmalkosten Summe aller Einmalkosten; ohne Einträge 0 in der Währung der Preise, ohne beides leer
  * @param vertragsende letzter Vertragstag ({@code gekuendigtZum} bzw. Laufzeitende ohne Verlängerung, das frühere);
  *        leer bei offenem Ende
- * @param preisverlauf braucht {@code beginn}
  */
 public record Vertragswerte(
 		Vertragsstatus status,

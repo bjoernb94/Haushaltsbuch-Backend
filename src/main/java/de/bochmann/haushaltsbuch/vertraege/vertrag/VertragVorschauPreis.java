@@ -9,8 +9,8 @@ import org.jspecify.annotations.Nullable;
 import java.time.LocalDate;
 
 /**
- * Eine Preiszeile der Vorschau: geprüft wie {@link VertragPreisAnfrage}, aber ohne Pflicht. Ohne Betrag ignoriert die
- * Vorschau die Zeile.
+ * Eine Preiszeile der Vorschau: geprüft wie {@link VertragPreisAnfrage}, aber ohne Pflicht. Ohne Datum oder Betrag
+ * ignoriert die Vorschau die Zeile.
  */
 record VertragVorschauPreis(
 		@PlausiblesDatum @Nullable LocalDate gueltigAb,

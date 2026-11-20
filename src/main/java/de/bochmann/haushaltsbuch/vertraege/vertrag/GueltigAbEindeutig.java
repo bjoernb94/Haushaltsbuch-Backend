@@ -16,7 +16,7 @@ import java.util.Set;
 
 /**
  * Kein {@code gueltigAb} doppelt; jede Wiederholung ist ein Verstoß an {@code preise[i].gueltigAb}. Unvollständige
- * Zeilen (ohne Betrag) zählen nicht.
+ * Zeilen zählen nicht.
  */
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
@@ -39,9 +39,7 @@ import java.util.Set;
 			boolean gueltig = true;
 			Set<LocalDate> gesehen = new HashSet<>();
 			for (int i = 0; i < preise.size(); i++) {
-				LocalDate gueltigAb = preise.get(i) == null || !preise.get(i).vollstaendig() ? null : preise.get(i).gueltigAb();
-				// Mehrere ohne Datum meldet GueltigAbPflicht.
-				if (gueltigAb != null && !gesehen.add(gueltigAb)) {
+				if (preise.get(i) != null && preise.get(i).vollstaendig() && !gesehen.add(preise.get(i).gueltigAb())) {
 					gueltig = Preisregeln.verstoss(context, i, "gueltigAb");
 				}
 			}

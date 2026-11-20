@@ -177,9 +177,9 @@ class OpenApiExportTests {
 		LocalDate heute = LocalDate.now(clock);
 		String nurPflichtfelder = """
 				{"anbieter": "Streamingdienst", "kategorieId": "%s",
-				 "preise": [{"betrag": {"wert": 10, "waehrung": "EUR"}}],
-				 "zahlweise": "MONATLICH", "beginn": "%s", "einmalkosten": [], "erinnerungSonderkuendigung": true,
-				 "kuendbar": true%s}
+				 "preise": [{"gueltigAb": "%2$s", "betrag": {"wert": 10, "waehrung": "EUR"}}],
+				 "zahlweise": "MONATLICH", "beginn": "%2$s", "einmalkosten": [], "erinnerungSonderkuendigung": true,
+				 "kuendbar": true%3$s}
 				""";
 
 		for (String zusatz : List.of("",

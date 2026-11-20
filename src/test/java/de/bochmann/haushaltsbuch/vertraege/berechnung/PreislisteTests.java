@@ -18,15 +18,16 @@ class PreislisteTests {
 		return LocalDate.parse(iso);
 	}
 
-	/** Seit Beginn 10 €, ab 01.03.2026 12 €, angekündigt ab 01.01.2027 15 €; absichtlich unsortiert. */
+	/** Ab Beginn 01.01.2026 10 €, ab 01.03.2026 12 €, angekündigt ab 01.01.2027 15 €; absichtlich unsortiert. */
 	private final Preisliste preise = new Preisliste(List.of(
 			new Preis(d("2027-01-01"), euro("15.00")),
-			new Preis(null, euro("10.00")),
+			new Preis(d("2026-01-01"), euro("10.00")),
 			new Preis(d("2026-03-01"), euro("12.00"))));
 
 	@Test
-	void sortiertOhneDatumZuerst() {
-		assertThat(preise.preise()).extracting(Preis::gueltigAb).containsExactly(null, d("2026-03-01"), d("2027-01-01"));
+	void sortiertNachGueltigAb() {
+		assertThat(preise.preise()).extracting(Preis::gueltigAb)
+				.containsExactly(d("2026-01-01"), d("2026-03-01"), d("2027-01-01"));
 	}
 
 	@Test
@@ -37,7 +38,7 @@ class PreislisteTests {
 		assertThat(preise.am(d("2027-06-01"))).isEqualTo(euro("15.00"));
 	}
 
-	/** Vor dem ersten Eintrag gilt der erste rückwirkend (unvollständige Eingabe, #79). */
+	/** Vor dem ersten Eintrag gilt der erste, z.&nbsp;B. als aktueller Preis eines Vertrags, der erst später beginnt. */
 	@Test
 	void vorDemErstenEintragGiltDerErste() {
 		var spaeter = new Preisliste(List.of(new Preis(d("2026-06-01"), euro("10.00")),

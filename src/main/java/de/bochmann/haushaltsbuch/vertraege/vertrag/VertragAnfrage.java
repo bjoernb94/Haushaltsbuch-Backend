@@ -25,7 +25,8 @@ import java.util.UUID;
  * gekündigt ist ein Vertrag mit {@code gekuendigtZum}.
  *
  * @param bezeichnung leer, wenn der Anbieter als Name genügt
- * @param preise Preise mit Gültigkeitsdatum in beliebiger Reihenfolge; der heute gültige ist der Betrag des Vertrags
+ * @param preise Preise mit Gültigkeitsdatum in beliebiger Reihenfolge, der früheste ab {@code beginn}; der heute
+ *        gültige ist der Betrag des Vertrags
  * @param anteilProzent eigener Anteil an einem geteilten Vertrag (1–100, eine Nachkommastelle); leer = 100&nbsp;%.
  *        Übersichten zählen nur diesen Anteil der Kosten, Beträge und Abbuchungen bleiben die vollen
  * @param einmalkosten einmalige Kosten wie eine Anschlussgebühr in beliebiger Reihenfolge, auch leer; Pflicht, damit
@@ -41,13 +42,14 @@ import java.util.UUID;
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
+@ErsterPreisAbBeginn
 @GleicheWaehrung
 record VertragAnfrage(
 		@NotBlank @Size(max = 200) String anbieter,
 		@Size(max = 200) @Nullable String bezeichnung,
 		@NotNull UUID kategorieId,
 		@Size(max = 100) @Nullable String vertragsnummer,
-		@NotEmpty @Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
+		@NotEmpty @Size(max = 100) @GueltigAbEindeutig @GleicheWaehrung
 		List<@NotNull @Valid VertragPreisAnfrage> preise,
 		@NotNull Zahlweise zahlweise,
 		@Nullable Zahlungsweg zahlungsweg,

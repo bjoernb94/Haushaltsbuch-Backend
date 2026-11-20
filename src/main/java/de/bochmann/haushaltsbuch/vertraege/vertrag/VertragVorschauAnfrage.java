@@ -20,16 +20,17 @@ import java.util.List;
 /**
  * Die Formularwerte für die Vorschau (Zusammenfassung und Statuszeilen). Bedeutung und Prüfungen wie in
  * {@link VertragAnfrage}, aber außer {@code kuendbar} darf alles fehlen, weil das Formular noch halb ausgefüllt sein
- * kann: Ein fehlender Wert ist kein Fehler, nur das Ergebnis, das ihn braucht, bleibt leer. Unvollständige Zeilen
- * (Preis ohne Betrag, Einmalkosten ohne Bezeichnung, Betrag oder Fälligkeit, Preissteigerung ohne alle Angaben)
- * ignoriert die Vorschau. Ungültige Werte lehnt sie ab wie das Speichern, damit sie nichts für Werte zeigt, die sich
- * nicht speichern lassen.
+ * kann: Ein fehlender Wert ist kein Fehler, nur das Ergebnis, das ihn braucht, bleibt leer. Ohne {@code beginn} rechnet
+ * sie ohne Preise, weil der erste ab dem Beginn gilt. Unvollständige Zeilen (Preis ohne Datum oder Betrag,
+ * Einmalkosten ohne Bezeichnung, Betrag oder Fälligkeit, Preissteigerung ohne alle Angaben) ignoriert die Vorschau.
+ * Ungültige Werte lehnt sie ab wie das Speichern, damit sie nichts für Werte zeigt, die sich nicht speichern lassen.
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
+@ErsterPreisAbBeginn
 @GleicheWaehrung
 record VertragVorschauAnfrage(
-		@Size(max = 100) @GueltigAbPflicht @GueltigAbEindeutig @GleicheWaehrung
+		@Size(max = 100) @GueltigAbEindeutig @GleicheWaehrung
 		@Nullable List<@Valid VertragVorschauPreis> preise,
 		@Nullable Zahlweise zahlweise,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,

@@ -175,7 +175,7 @@ class KomponentenControllerTests {
 	private static String vertrag() {
 		return """
 				{"anbieter": "Versicherer", "bezeichnung": null, "kategorieId": "%s", "vertragsnummer": null,
-				 "preise": [{"gueltigAb": null, "betrag": {"wert": 10.00, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
+				 "preise": [{"gueltigAb": "2026-01-01", "betrag": {"wert": 10.00, "waehrung": "EUR"}}], "zahlweise": "MONATLICH",
 				 "zahlungsweg": "LASTSCHRIFT", "einmalkosten": [], "preissteigerung": null, "preisgarantieBis": null,
 				 "erinnerungSonderkuendigung": false, "kuendbar": true, "beginn": "2026-01-01", "laufzeitende": null,
 				 "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 0, "gekuendigtZum": null,

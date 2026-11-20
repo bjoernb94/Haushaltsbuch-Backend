@@ -1511,11 +1511,11 @@
             "$ref" : "#/components/schemas/Betrag"
           },
           "gueltigAb" : {
-            "type" : [ "string", "null" ],
+            "type" : "string",
             "format" : "date"
           }
         },
-        "required" : [ "betrag" ]
+        "required" : [ "betrag", "gueltigAb" ]
       },
       "VertragPreisAntwort" : {
         "type" : "object",
@@ -1527,7 +1527,7 @@
             "$ref" : "#/components/schemas/Betrag"
           },
           "gueltigAb" : {
-            "type" : [ "string", "null" ],
+            "type" : "string",
             "format" : "date"
           }
         },

@@ -1,7 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
 
@@ -10,5 +9,5 @@ import java.time.LocalDate;
  *
  * @param gueltigAb wie {@link Preis#gueltigAb()}
  */
-public record Preiszeile(@Nullable LocalDate gueltigAb, Betrag betrag, Preiszeilenart art) {
+public record Preiszeile(LocalDate gueltigAb, Betrag betrag, Preiszeilenart art) {
 }

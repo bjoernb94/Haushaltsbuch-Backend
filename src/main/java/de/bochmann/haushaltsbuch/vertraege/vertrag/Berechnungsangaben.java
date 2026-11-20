@@ -18,7 +18,7 @@ import java.util.Objects;
  * Die Angaben, aus denen die Berechnung rechnet: Teil der {@link Vertragsangaben} und die Anfrage der Vorschau
  * ({@link VertragVorschauAnfrage}). {@link #daten} und {@link #grundlage} bereinigen sie für beide gleich, damit die
  * Vorschau dasselbe ergibt wie der gespeicherte Vertrag. Die Regeln am Vertrag ({@link PreisNichtVorBeginn},
- * {@link GleicheWaehrung}) prüfen beide.
+ * {@link ErsterPreisAbBeginn}, {@link GleicheWaehrung}) prüfen beide.
  */
 interface Berechnungsangaben {
 
@@ -56,9 +56,13 @@ interface Berechnungsangaben {
 				kuendbar ? verlaengerung() : null, kuendbar ? kuendigungsfristMonate() : null, gekuendigtZum());
 	}
 
-	/** Für die Berechnung, nur mit vollständigen Zeilen; beim Speichern sind ohnehin alle vollständig. */
+	/**
+	 * Für die Berechnung, nur mit vollständigen Zeilen; beim Speichern sind ohnehin alle vollständig. Ohne
+	 * {@code beginn} (nur in der Vorschau) ohne Preise: Der erste gilt ab dem Beginn, ohne ihn rechneten spätere
+	 * Preise rückwirkend.
+	 */
 	default Berechnungsgrundlage grundlage() {
-		List<Preis> preise = preise() == null ? List.of() : preise().stream()
+		List<Preis> preise = preise() == null || beginn() == null ? List.of() : preise().stream()
 				.filter(Objects::nonNull).filter(Preisangabe::vollstaendig).<Preis>map(Preisangabe::preis).toList();
 		List<? extends Einmalkostenangabe> einmalkosten = einmalkosten() == null ? List.of() : einmalkosten();
 		return new Berechnungsgrundlage(daten(), preise.isEmpty() ? null : new Preisliste(preise),
