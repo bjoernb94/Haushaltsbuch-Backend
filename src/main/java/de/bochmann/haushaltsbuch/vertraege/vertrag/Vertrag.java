@@ -203,7 +203,7 @@ class Vertrag extends FachEntity {
 		return vertragsnummer;
 	}
 
-	/** Sortiert nach {@code gueltigAb}, der Eintrag ohne Datum zuerst. */
+	/** Sortiert nach {@code gueltigAb}. */
 	List<VertragPreis> getPreise() {
 		return preise.stream().sorted(REIHENFOLGE).toList();
 	}

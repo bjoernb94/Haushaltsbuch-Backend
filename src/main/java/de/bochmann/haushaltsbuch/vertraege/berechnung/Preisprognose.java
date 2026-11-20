@@ -37,7 +37,7 @@ public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable Loca
 		// Der letzte Tag, an dem noch nicht erhöht wird.
 		LocalDate grenze = heute.minusDays(1);
 		LocalDate letzter = preise.letzter().gueltigAb();
-		if (letzter != null && letzter.isAfter(grenze)) {
+		if (letzter.isAfter(grenze)) {
 			grenze = letzter;
 		}
 		if (garantieBis != null && garantieBis.isAfter(grenze)) {

@@ -164,51 +164,51 @@ class VertragsberechnungTests {
 			assertThat(werte.betrag()).isEqualTo(euro(betrag));
 			assertThat(werte.preise()).isEqualTo(berechnung.preiszeilen(daten, preise));
 			assertThat(werte.preise()).filteredOn(zeile -> zeile.art() == AKTUELL).singleElement()
-					.isEqualTo(new Preiszeile(gueltigAb == null ? null : d(gueltigAb), euro(betrag), AKTUELL));
+					.isEqualTo(new Preiszeile(d(gueltigAb), euro(betrag), AKTUELL));
 			assertThat(werte.preise()).extracting(Preiszeile::art).containsExactly(arten);
 		}
 
 		@Test
 		void preiswechselHeute() {
-			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-11-01"), euro("12.00")));
+			var preise = preise(new Preis(d("2025-11-15"), euro("10.00")), new Preis(d("2026-11-01"), euro("12.00")));
 
 			aktuellIst(vertrag(), preise, "2026-11-01", "12.00", FRUEHER, AKTUELL);
 		}
 
 		@Test
 		void angekuendigterPreisIstNichtAktuell() {
-			var preise = preise(new Preis(d("2027-01-01"), euro("15.00")), new Preis(null, euro("10.00")),
+			var preise = preise(new Preis(d("2027-01-01"), euro("15.00")), new Preis(d("2025-11-15"), euro("10.00")),
 					new Preis(d("2026-03-01"), euro("12.00")));
 
 			aktuellIst(vertrag(), preise, "2026-03-01", "12.00", FRUEHER, AKTUELL, ANGEKUENDIGT);
 			assertThat(berechnung.preiszeilen(vertrag(), preise)).extracting(Preiszeile::gueltigAb)
-					.containsExactly(null, d("2026-03-01"), d("2027-01-01"));
+					.containsExactly(d("2025-11-15"), d("2026-03-01"), d("2027-01-01"));
 		}
 
 		@Test
 		void kuenftigerBeginnDerErste() {
 			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", null, null, null);
-			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2027-07-01"), euro("11.00")));
+			var preise = preise(new Preis(d("2027-01-01"), euro("10.00")), new Preis(d("2027-07-01"), euro("11.00")));
 
-			aktuellIst(daten, preise, null, "10.00", AKTUELL, ANGEKUENDIGT);
+			aktuellIst(daten, preise, "2027-01-01", "10.00", AKTUELL, ANGEKUENDIGT);
 		}
 
 		/** Ein Eintrag nach dem Ende wurde nie gezahlt; am letzten Tag gilt er schon. */
 		@Test
 		void beendetDerAmLetztenTagGueltige() {
-			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("12.00")),
+			var preise = preise(new Preis(d("2025-11-15"), euro("10.00")), new Preis(d("2026-07-01"), euro("12.00")),
 					new Preis(d("2026-09-01"), euro("15.00")));
 
-			aktuellIst(gekuendigtZum("2026-06-30"), preise, null, "10.00", AKTUELL, NACH_ENDE, NACH_ENDE);
+			aktuellIst(gekuendigtZum("2026-06-30"), preise, "2025-11-15", "10.00", AKTUELL, NACH_ENDE, NACH_ENDE);
 			aktuellIst(gekuendigtZum("2026-07-01"), preise, "2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 			aktuellIst(gekuendigtZum("2026-10-31"), preise, "2026-09-01", "15.00", FRUEHER, FRUEHER, AKTUELL);
-			aktuellIst(mit(Zahlweise.MONATLICH, null, "2026-08-31", Verlaengerung.KEINE, null), preise,
+			aktuellIst(mit(Zahlweise.MONATLICH, "2025-11-15", "2026-08-31", Verlaengerung.KEINE, null), preise,
 					"2026-07-01", "12.00", FRUEHER, AKTUELL, NACH_ENDE);
 		}
 
 		@Test
 		void beendetKostenProMonatMitDemAktuellenPreis() {
-			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-09-01"), euro("15.00")));
+			var preise = preise(new Preis(d("2025-11-15"), euro("10.00")), new Preis(d("2026-09-01"), euro("15.00")));
 
 			assertThat(berechnung.werte(new Berechnungsgrundlage(gekuendigtZum("2026-06-30"), preise, KEINE, Anteil.GANZ,
 					List.of())).kostenProMonat()).isEqualTo(euro("10.00"));
@@ -220,7 +220,7 @@ class VertragsberechnungTests {
 		 */
 		@Test
 		void gekuendigtDerHeuteGueltige() {
-			var preise = preise(new Preis(null, euro("10.00")), new Preis(d("2026-10-01"), euro("12.00")),
+			var preise = preise(new Preis(d("2025-11-15"), euro("10.00")), new Preis(d("2026-10-01"), euro("12.00")),
 					new Preis(d("2027-03-01"), euro("15.00")));
 
 			aktuellIst(gekuendigtZum("2027-03-01"), preise, "2026-10-01", "12.00", FRUEHER, AKTUELL, ANGEKUENDIGT);
@@ -298,7 +298,8 @@ class VertragsberechnungTests {
 
 		@Test
 		void kostenImJahrMitPreiswechsel() {
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2026-07-01"), euro("20.00"))));
+			var preise = new Preisliste(List.of(new Preis(d("2025-10-01"), euro("10.00")),
+					new Preis(d("2026-07-01"), euro("20.00"))));
 
 			// Januar bis Juni zu 10 €, Juli bis Dezember zu 20 €.
 			assertThat(berechnung.kostenImJahr(mit(Zahlweise.MONATLICH, "2025-12-01", null, null, null), preise, KEINE))
@@ -310,7 +311,8 @@ class VertragsberechnungTests {
 
 		@Test
 		void keinePreisaenderungBeiBeendetemVertrag() {
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2027-01-01"), euro("12.00"))));
+			var preise = new Preisliste(List.of(new Preis(d("2025-11-15"), euro("10.00")),
+					new Preis(d("2027-01-01"), euro("12.00"))));
 
 			assertThat(berechnung.naechstePreisaenderung(vertrag(), preise, KEINE)).isPresent();
 			assertThat(berechnung.naechstePreisaenderung(gekuendigtZum("2026-12-31"), preise, KEINE)).isEmpty();
@@ -325,7 +327,7 @@ class VertragsberechnungTests {
 	class Prognose {
 
 		private static Preisliste preis(String wert) {
-			return new Preisliste(List.of(new Preis(null, euro(wert))));
+			return new Preisliste(List.of(new Preis(d("2025-11-15"), euro(wert))));
 		}
 
 		private static Preisprognose prozent(String prozent, Erhoehungsrhythmus rhythmus, String naechsteAm,
@@ -363,7 +365,8 @@ class VertragsberechnungTests {
 		/** Erst nach dem letzten Eintrag, ein Termin genau an seinem Tag zählt nicht; angekündigt kommt zuerst. */
 		@Test
 		void setztBeimLetztenPreisAn() {
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2027-02-01"), euro("12.00"))));
+			var preise = new Preisliste(List.of(new Preis(d("2025-11-15"), euro("10.00")),
+					new Preis(d("2027-02-01"), euro("12.00"))));
 			var prognose = prozent("10", Erhoehungsrhythmus.JAEHRLICH, "2026-02-01", null);
 
 			assertThat(berechnung.prognose(vertrag(), preise, prognose)).first()
@@ -454,10 +457,22 @@ class VertragsberechnungTests {
 			assertThat(januar.prognose(daten, preis("10.00"), prognose)).hasSize(3);
 		}
 
+		/** Beginnt der Vertrag erst später, erhöht die Prognose weder davor noch am Beginn (dort gilt sein erster Preis). */
+		@Test
+		void keineErhoehungBisZumBeginn() {
+			var daten = mit(Zahlweise.MONATLICH, "2027-01-01", null, null, null);
+			var preise = new Preisliste(List.of(new Preis(d("2027-01-01"), euro("10.00"))));
+			var prognose = betrag("1.00", Erhoehungsrhythmus.VIERTELJAEHRLICH, "2026-10-01");
+
+			assertThat(berechnung.prognose(daten, preise, prognose)).first()
+					.isEqualTo(new Prognosepreis(d("2027-04-01"), euro("11.00")));
+		}
+
 		@Test
 		void preisverlaufMitAllenArten() {
 			var daten = mit(Zahlweise.MONATLICH, "2024-01-01", null, null, null);
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2025-06-01"), euro("11.00")),
+			var preise = new Preisliste(List.of(new Preis(d("2024-01-01"), euro("10.00")),
+					new Preis(d("2025-06-01"), euro("11.00")),
 					new Preis(d("2027-01-01"), euro("12.00"))));
 			var prognose = prozent("10", Erhoehungsrhythmus.JAEHRLICH, "2027-06-01", null);
 
@@ -470,10 +485,11 @@ class VertragsberechnungTests {
 					new Preispunkt(d("2029-06-01"), euro("15.97"), Preispunktart.PROGNOSE));
 		}
 
-		/** Der Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag; nach dem Vertragsende nichts. */
+		/** Nach dem Vertragsende nichts. */
 		@Test
-		void preisverlaufStartdatumUndVertragsende() {
-			var preise = new Preisliste(List.of(new Preis(null, euro("10.00")), new Preis(d("2027-06-01"), euro("11.00"))));
+		void preisverlaufBisZumVertragsende() {
+			var preise = new Preisliste(List.of(new Preis(d("2025-11-15"), euro("10.00")),
+					new Preis(d("2027-06-01"), euro("11.00"))));
 
 			assertThat(berechnung.preisverlauf(vertrag(), preise, KEINE)).extracting(Preispunkt::ab)
 					.containsExactly(d("2025-11-15"), d("2027-06-01"));

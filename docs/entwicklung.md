@@ -218,6 +218,10 @@ Die Namen eingebetteter Werte bildet Hibernate aus Feldname und Komponente
 
 Migrationen nur für Tests liegen in `src/test/resources/db/migration` mit Versionen ab 1000.
 
+Eine Migration, die bestehende Daten umschreibt, bekommt einen Test ohne Spring mit eigener Datenbank im
+gemeinsamen Container (`TestcontainersConfiguration.postgres()`): Flyway bis zur Vorversion, Daten per SQL, dann
+die neue Migration und das Ergebnis prüfen, z.&nbsp;B. `PreisGueltigAbMigrationTests`.
+
 Fach-Entities erben von `shared.fachdaten.FachEntity` (ID, Haushalt, `@Version`, Audit-Spalten) und brauchen in
 ihrer Tabelle diese Spalten:
 

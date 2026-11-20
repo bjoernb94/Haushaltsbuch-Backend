@@ -10,15 +10,14 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * Die Preise eines Vertrags, sortiert nach {@code gueltigAb} (der Eintrag ohne Datum zuerst). Ein Preis gilt von
- * seinem {@code gueltigAb} bis zum nächsten Eintrag. Vor dem ersten Eintrag gilt der erste Preis rückwirkend
- * (eigentlich eine unvollständige Eingabe, siehe #79).
+ * Die Preise eines Vertrags, sortiert nach {@code gueltigAb}. Ein Preis gilt von seinem {@code gueltigAb} bis zum
+ * nächsten Eintrag; der erste gilt ab Vertragsbeginn. Vor dem ersten Eintrag gilt ebenfalls der erste, z.&nbsp;B. als
+ * aktueller Preis eines Vertrags, der erst in der Zukunft beginnt.
  */
 public final class Preisliste {
 
-	/** Nach {@code gueltigAb}, der Eintrag ohne Datum zuerst. */
-	public static final Comparator<Preis> REIHENFOLGE = Comparator.comparing(Preis::gueltigAb,
-			Comparator.nullsFirst(Comparator.naturalOrder()));
+	/** Nach {@code gueltigAb}. */
+	public static final Comparator<Preis> REIHENFOLGE = Comparator.comparing(Preis::gueltigAb);
 
 	private final List<Preis> preise;
 

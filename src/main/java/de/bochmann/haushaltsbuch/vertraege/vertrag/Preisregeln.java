@@ -2,7 +2,10 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import jakarta.validation.ConstraintValidatorContext;
 
-/** Gemeinsames der Constraints an der Preisliste ({@link GueltigAbPflicht}, {@link GueltigAbEindeutig} …). */
+/**
+ * Gemeinsames der Constraints an der Preisliste ({@link GueltigAbEindeutig} …) und am Vertrag über die Preise
+ * ({@link PreisNichtVorBeginn}, {@link ErsterPreisAbBeginn}).
+ */
 final class Preisregeln {
 
 	private Preisregeln() {
@@ -16,6 +19,16 @@ final class Preisregeln {
 	 */
 	static boolean verstoss(ConstraintValidatorContext context, int index, String feld) {
 		meldung(context).addPropertyNode(feld).inIterable().atIndex(index).addConstraintViolation();
+		return false;
+	}
+
+	/**
+	 * Wie {@link #verstoss(ConstraintValidatorContext, int, String)} für einen Constraint am ganzen Vertrag, also mit
+	 * {@code preise} davor.
+	 */
+	static boolean verstossInPreisen(ConstraintValidatorContext context, int index, String feld) {
+		meldung(context).addPropertyNode("preise").addPropertyNode(feld).inIterable().atIndex(index)
+				.addConstraintViolation();
 		return false;
 	}
 

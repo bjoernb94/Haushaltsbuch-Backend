@@ -22,6 +22,11 @@ public class TestcontainersConfiguration {
 		POSTGRES.start();
 	}
 
+	/** Der gemeinsame Container, für Tests ohne Spring-Kontext mit eigener Datenbank (z.&nbsp;B. Migrationstests). */
+	public static PostgreSQLContainer postgres() {
+		return POSTGRES;
+	}
+
 	@Bean
 	DynamicPropertyRegistrar postgresProperties() {
 		return registry -> {

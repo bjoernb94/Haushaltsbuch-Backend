@@ -36,14 +36,8 @@ import java.lang.annotation.Target;
 			boolean gueltig = true;
 			for (int i = 0; i < anfrage.preise().size(); i++) {
 				var preis = anfrage.preise().get(i);
-				if (preis != null && preis.vollstaendig() && preis.gueltigAb() != null
-						&& preis.gueltigAb().isBefore(anfrage.beginn())) {
-					context.disableDefaultConstraintViolation();
-					context.buildConstraintViolationWithTemplate(context.getDefaultConstraintMessageTemplate())
-							.addPropertyNode("preise")
-							.addPropertyNode("gueltigAb").inIterable().atIndex(i)
-							.addConstraintViolation();
-					gueltig = false;
+				if (preis != null && preis.vollstaendig() && preis.gueltigAb().isBefore(anfrage.beginn())) {
+					gueltig = Preisregeln.verstossInPreisen(context, i, "gueltigAb");
 				}
 			}
 			return gueltig;

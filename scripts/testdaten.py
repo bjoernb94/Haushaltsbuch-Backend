@@ -206,14 +206,17 @@ def vor_einem_jahr(tag):
     return tag.replace(year=tag.year - 1, day=min(tag.day, calendar.monthrange(tag.year - 1, tag.month)[1]))
 
 
+def standardbeginn(heute):
+    """Ohne Angabe seit einem Jahr im Raster von heute + 9 Tagen: Abbuchung dann, Ende einen Tag vorher."""
+    return vor_einem_jahr(heute + timedelta(days=9))
+
+
 def anfrage_zu(fall, kategorie_ids, heute):
-    # Ohne Angabe seit einem Jahr im Raster von heute + 9 Tagen: Abbuchung dann, Ende einen Tag vorher.
     daten = {
         "anbieter": fall.anbieter,
         "bezeichnung": None,
         "kategorieId": kategorie_ids[fall.kategorie],
         "vertragsnummer": None,
-        "preise": [{"gueltigAb": None, "betrag": {"wert": 9.99, "waehrung": "EUR"}}],
         "zahlweise": fall.zahlweise,
         "zahlungsweg": None,
         "anteilProzent": None,
@@ -222,13 +225,16 @@ def anfrage_zu(fall, kategorie_ids, heute):
         "preisgarantieBis": None,
         "erinnerungSonderkuendigung": True,
         "kuendbar": fall.kuendbar,
-        "beginn": vor_einem_jahr(heute + timedelta(days=9)),
+        "beginn": standardbeginn(heute),
         "laufzeitende": None,
         "verlaengerung": None,
         "kuendigungsfristMonate": None,
         "gekuendigtZum": None,
         "notiz": None,
     } | fall.felder
+    # Ohne eigene Preisliste ein Preis ab Vertragsbeginn.
+    daten.setdefault("preise", [{"gueltigAb": daten["beginn"].isoformat(),
+                                 "betrag": {"wert": 9.99, "waehrung": "EUR"}}])
     return {schluessel: wert.isoformat() if isinstance(wert, date) else wert for schluessel, wert in daten.items()}
 
 
@@ -513,7 +519,7 @@ def faelle_alles(heute):
         # Eine Erhöhung nach dem Vertragsende gilt nie: NACH_ENDE, keine nächste Preisänderung.
         Fall("Preise – Erhöhung nach Vertragsende", "GEKUENDIGT", preis_arten=["AKTUELL", "NACH_ENDE"],
              felder={"gekuendigtZum": tage(60), "preise": [
-                 {"gueltigAb": None, "betrag": {"wert": 9.99, "waehrung": "EUR"}},
+                 {"gueltigAb": standardbeginn(heute).isoformat(), "betrag": {"wert": 9.99, "waehrung": "EUR"}},
                  {"gueltigAb": tage(90).isoformat(), "betrag": {"wert": 11.99, "waehrung": "EUR"}}]}),
         # Beendet: aktuell ist der Preis am letzten Tag, die Erhöhung danach wurde nie gezahlt.
         Fall("Preise – beendet nach Preiserhöhung", "BEENDET", preis_arten=["FRUEHER", "AKTUELL", "NACH_ENDE"],

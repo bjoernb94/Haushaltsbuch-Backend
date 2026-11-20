@@ -64,7 +64,7 @@ public class Vertragsberechnung {
 			anteilBetrag = anteil.geteilt() ? anteil.von(betrag).gerundet() : null;
 			naechstePreisaenderung = naechstePreisaenderung(daten, preise, prognose).orElse(null);
 			prognosepreise = prognose(daten, preise, prognose);
-			preisverlauf = daten.beginn() != null ? preisverlauf(daten, preise, prognose) : List.of();
+			preisverlauf = preisverlauf(daten, preise, prognose);
 			if (daten.zahlweise() != null) {
 				Betrag proJahr = Kosten.proJahr(betrag, daten.zahlweise());
 				kostenProMonat = Kosten.proMonat(proJahr);
@@ -221,16 +221,14 @@ public class Vertragsberechnung {
 	/**
 	 * Die Punkte für das Diagramm des Preisverlaufs, sortiert: die {@link #preiszeilen} ({@link Preiszeilenart#FRUEHER}
 	 * und {@link Preiszeilenart#AKTUELL} als {@link Preispunktart#GEZAHLT}, {@link Preiszeilenart#NACH_ENDE} fallen
-	 * weg) und die {@link #prognose}. Der erste Eintrag ohne {@code gueltigAb} beginnt mit dem Vertrag, damit die SPA
-	 * nur zeichnet. Braucht {@code beginn}.
+	 * weg) und die {@link #prognose}.
 	 */
 	public List<Preispunkt> preisverlauf(Vertragsdaten vertrag, Preisliste preise, Preisprognose prognose) {
 		List<Preispunkt> punkte = new ArrayList<>();
 		for (Preiszeile zeile : preiszeilen(vertrag, preise)) {
-			LocalDate ab = zeile.gueltigAb() != null ? zeile.gueltigAb() : vertrag.beginn();
 			switch (zeile.art()) {
-				case FRUEHER, AKTUELL -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.GEZAHLT));
-				case ANGEKUENDIGT -> punkte.add(new Preispunkt(ab, zeile.betrag(), Preispunktart.ANGEKUENDIGT));
+				case FRUEHER, AKTUELL -> punkte.add(new Preispunkt(zeile.gueltigAb(), zeile.betrag(), Preispunktart.GEZAHLT));
+				case ANGEKUENDIGT -> punkte.add(new Preispunkt(zeile.gueltigAb(), zeile.betrag(), Preispunktart.ANGEKUENDIGT));
 				case NACH_ENDE -> {
 				}
 			}

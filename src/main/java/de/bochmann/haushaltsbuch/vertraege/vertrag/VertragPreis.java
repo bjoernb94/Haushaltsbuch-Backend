@@ -12,7 +12,7 @@ import java.time.LocalDate;
  * Ein Eintrag der Preisliste, als Zeile in {@code vertrag_preis} gespeichert. In der API
  * {@link VertragPreisAnfrage} bzw. {@link VertragPreisAntwort}.
  *
- * @param gueltigAb ab diesem Tag gilt der Preis; leer nur beim ersten Eintrag (= ab Vertragsbeginn)
+ * @param gueltigAb ab diesem Tag gilt der Preis; beim ersten Eintrag der Vertragsbeginn
  */
 @Embeddable
 record VertragPreis(
