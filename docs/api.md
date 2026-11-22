@@ -732,7 +732,7 @@ speichern → **200** (ohne `Location`):
   | Feld | `null`, wenn |
   |---|---|
   | `betrag` (aktueller Preis) | kein `beginn` oder keine vollständige Preiszeile |
-  | `preise` (wie [Preise](#preise) der Antwort, so wie sie nach dem Speichern wären; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
+  | `preise` (wie [Preise](#preise) der Antwort, so wie sie nach dem Speichern wären; für die Etiketten der Preisliste im Formular und den Hinweis auf die `neu`-Stufen) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
   | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |
