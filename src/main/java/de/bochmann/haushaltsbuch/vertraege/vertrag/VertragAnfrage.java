@@ -49,7 +49,7 @@ record VertragAnfrage(
 		@Size(max = 200) @Nullable String bezeichnung,
 		@NotNull UUID kategorieId,
 		@Size(max = 100) @Nullable String vertragsnummer,
-		@NotEmpty @Size(max = 100) @GueltigAbEindeutig @GleicheWaehrung
+		@NotEmpty @Size(max = Preisangabe.HOECHSTENS) @GueltigAbEindeutig @GleicheWaehrung
 		List<@NotNull @Valid VertragPreisAnfrage> preise,
 		@NotNull Zahlweise zahlweise,
 		@Nullable Zahlungsweg zahlungsweg,

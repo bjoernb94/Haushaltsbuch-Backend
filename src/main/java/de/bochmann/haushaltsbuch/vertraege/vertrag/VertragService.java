@@ -52,8 +52,9 @@ class VertragService {
 	 */
 	@Transactional
 	VertragAntwort anlegen(VertragAnfrage anfrage) {
-		var vertrag = repository.save(new Vertrag(anfrage, kategorie(anfrage.kategorieId())));
-		return VertragAntwort.aus(vertrag, berechnung());
+		var berechnung = berechnung();
+		var vertrag = repository.save(new Vertrag(anfrage, kategorie(anfrage.kategorieId()), berechnung));
+		return VertragAntwort.aus(vertrag, berechnung);
 	}
 
 	/**
@@ -66,7 +67,7 @@ class VertragService {
 	}
 
 	/**
-	 * Ersetzt alle Angaben des Vertrags.
+	 * Ersetzt alle Angaben des Vertrags und legt fällige Stufen der Preissteigerung an (siehe {@link Vertrag#setzen}).
 	 *
 	 * @throws NichtGefundenException wie bei {@link #abrufen}
 	 * @throws KonfliktException wenn {@code version} veraltet ist, also inzwischen jemand anderes geändert hat
@@ -76,10 +77,11 @@ class VertragService {
 	VertragAntwort aendern(UUID id, VertragAenderung aenderung) {
 		var vertrag = vertrag(id);
 		vertrag.pruefeVersion(aenderung.version());
-		vertrag.setzen(aenderung, kategorie(aenderung.kategorieId()));
+		var berechnung = berechnung();
+		vertrag.setzen(aenderung, kategorie(aenderung.kategorieId()), berechnung);
 		// Hibernate erhöht die Version erst beim Schreiben; die Antwort braucht schon die neue.
 		repository.flush();
-		return VertragAntwort.aus(vertrag, berechnung());
+		return VertragAntwort.aus(vertrag, berechnung);
 	}
 
 	/** Alle Verträge des Haushalts in der {@link #REIHENFOLGE} der Vertragsliste; ohne Paging (überschaubar viele). */
@@ -103,10 +105,14 @@ class VertragService {
 		return VertragsuebersichtAntwort.aus(auflisten(berechnung), berechnung.heute().getYear());
 	}
 
-	/** Die berechneten Werte zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte Verträge. */
+	/**
+	 * Die berechneten Werte zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte
+	 * Verträge, mit den Preisen, wie sie nach dem Speichern wären (samt den Stufen, die das Speichern anlegt).
+	 */
 	VertragVorschauAntwort vorschau(VertragVorschauAnfrage anfrage) {
-		var grundlage = anfrage.grundlage();
-		return VertragVorschauAntwort.aus(berechnung().werte(grundlage), grundlage);
+		var berechnung = berechnung();
+		var grundlage = berechnung.wieGespeichert(anfrage.grundlage());
+		return VertragVorschauAntwort.aus(berechnung.werte(grundlage), grundlage, anfrage);
 	}
 
 	/**

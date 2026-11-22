@@ -397,6 +397,8 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
 - **Anteil:** geteilte Verträge mit 50&nbsp;% und 33,3&nbsp;% sowie einer mit 100&nbsp;% (zählt wie ohne Anteil).
 - **Einmalkosten:** im laufenden Jahr, im Vorjahr und im nächsten Jahr (zählen nicht zu `einmalkostenImJahr`),
   einmal bei einem geteilten Vertrag.
+- **Vergangene Erhöhungen:** ein Vertrag seit fünf Jahren mit jährlich +2&nbsp;%; das Speichern legt fünf
+  automatische Preise an (100 → 110,40&nbsp;€), die Prognose rechnet darauf weiter (#159).
 - **Preissteigerung:** in Prozent und als Betrag, in allen Rhythmen, mit vergangener „nächster Erhöhung“, bei einem
   geteilten Vertrag und zusammen mit einer angekündigten Erhöhung der Preisliste (`ANGEKUENDIGT` vor `PROGNOSE`, die
   Prognose rechnet vom angekündigten Preis weiter); bei einem gekündigten Vertrag (Prognose nur bis zum Ende), einem

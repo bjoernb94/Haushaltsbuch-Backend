@@ -71,6 +71,8 @@ class Fall:
     preis_arten: list | None = None
     # Erwarteter betrag (aktueller Preis); None prüft ihn nicht.
     aktueller_preis: Decimal | None = None
+    # So viele Einträge in preise hat das Backend beim Speichern aus der Preissteigerung angelegt (automatisch).
+    automatische: int = 0
 
     @property
     def erwarteter_status(self):
@@ -266,6 +268,9 @@ def pruefe_berechnung(fall, anfrage, antwort):
     preis_arten = [preis["art"] for preis in antwort["preise"]]
     if preis_arten != (fall.preis_arten or ["AKTUELL"]):
         fehler.append(f"Preiszeilen {preis_arten} statt {fall.preis_arten or ['AKTUELL']}")
+    automatische = sum(1 for preis in antwort["preise"] if preis["automatisch"])
+    if automatische != fall.automatische:
+        fehler.append(f"{automatische} automatische Preise statt {fall.automatische}")
     if fall.aktueller_preis is not None and Decimal(str(antwort["betrag"]["wert"])) != fall.aktueller_preis:
         fehler.append(f"betrag {antwort['betrag']['wert']} statt {fall.aktueller_preis}")
     if berechnet["vertragsende"] != vertragsende(anfrage):
@@ -378,7 +383,7 @@ def plus_monate(tag, monate):
 
 def termine(anker, monate, nach):
     """Die drei Termine der Prognose: vom Anker aus im Rhythmus, nur die nach dem Tag „nach“ (Garantie, letzter Preis
-    oder gestern)."""
+    oder heute; ein Termin bis heute ist fällig und wird beim Speichern als Preis angelegt)."""
     k = 0
     while plus_monate(anker, k * monate) <= nach:
         k += 1
@@ -426,6 +431,9 @@ def faelle_alles(heute):
 
     def tage(anzahl):
         return heute + timedelta(days=anzahl)
+
+    # Fünf Jahre und zehn Tage zurück: fünf vergangene jährliche Erhöhungen, die letzte vor zehn Tagen.
+    seit_fuenf_jahren = plus_monate(heute, -60) - timedelta(days=10)
 
     return [
         # Kündigungsart KUENDIGEN_BIS; mehr als fünf, damit die Übersicht kürzt.
@@ -547,13 +555,23 @@ def faelle_alles(heute):
                      "preissteigerung": {"art": "PROZENT", "prozent": 3, "betrag": None, "rhythmus": "ZWEIJAEHRLICH",
                                          "naechsteAm": tage(-400).isoformat()}}),
         # Alle Rhythmen; die Termine zählen vom Anker aus.
-        Fall("Preissteigerung – 2 % halbjährlich", "KEINE_LAUFZEIT", prognose_ab=termine(tage(50), 6, nach=tage(-1)),
+        Fall("Preissteigerung – 2 % halbjährlich", "KEINE_LAUFZEIT", prognose_ab=termine(tage(50), 6, nach=tage(0)),
              felder={"preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "HALBJAEHRLICH",
                                          "naechsteAm": tage(50).isoformat()}}),
         Fall("Preissteigerung – 5 € dreijährlich", "KEINE_LAUFZEIT", zahlweise="JAEHRLICH",
-             prognose_ab=termine(tage(200), 36, nach=tage(-1)),
+             prognose_ab=termine(tage(200), 36, nach=tage(0)),
              felder={"preissteigerung": {"art": "BETRAG", "prozent": None, "betrag": {"wert": 5.00, "waehrung": "EUR"},
                                          "rhythmus": "DREIJAEHRLICH", "naechsteAm": tage(200).isoformat()}}),
+        # Vergangene Erhöhungen (#159): Beim Speichern legt das Backend die fälligen Stufen als automatische Preise an
+        # (je Schritt gerundet), die Prognose rechnet auf der letzten weiter.
+        Fall("Preissteigerung – seit fünf Jahren, vergangene Erhöhungen", "KEINE_LAUFZEIT", kategorie="VERSICHERUNG",
+             preis_arten=["FRUEHER"] * 5 + ["AKTUELL"], automatische=5, aktueller_preis=Decimal("110.40"),
+             prognose_ab=termine(plus_monate(seit_fuenf_jahren, 12), 12, nach=heute),
+             prognose_betraege=[Decimal("112.61"), Decimal("114.86"), Decimal("117.16")],
+             felder={"beginn": seit_fuenf_jahren, "preise": [
+                 {"gueltigAb": seit_fuenf_jahren.isoformat(), "betrag": {"wert": 100.00, "waehrung": "EUR"}}],
+                     "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "JAEHRLICH",
+                                         "naechsteAm": plus_monate(seit_fuenf_jahren, 12).isoformat()}}),
         # Angekündigter Preis und Prognose: Die Erhöhung kommt zuerst, der Termin der Regel davor wird übersprungen,
         # die Prognose rechnet vom angekündigten Preis aus weiter (je Schritt auf Cent gerundet).
         Fall("Preissteigerung – mit angekündigter Erhöhung", "KEINE_LAUFZEIT", kategorie="STREAMING_ABOS",
@@ -566,7 +584,7 @@ def faelle_alles(heute):
                      "preissteigerung": {"art": "PROZENT", "prozent": 10, "betrag": None, "rhythmus": "JAEHRLICH",
                                          "naechsteAm": tage(10).isoformat()}}),
         # Preisgarantie: abgelaufen ändert nichts; laufend verschiebt sie die Prognose, auch bei Prozent.
-        Fall("Preisgarantie – abgelaufen", "KEINE_LAUFZEIT", prognose_ab=termine(tage(40), 12, nach=tage(-1)),
+        Fall("Preisgarantie – abgelaufen", "KEINE_LAUFZEIT", prognose_ab=termine(tage(40), 12, nach=tage(0)),
              felder={"preisgarantieBis": tage(-30),
                      "preissteigerung": {"art": "PROZENT", "prozent": 2, "betrag": None, "rhythmus": "JAEHRLICH",
                                          "naechsteAm": tage(40).isoformat()}}),

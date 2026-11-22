@@ -1,12 +1,18 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
-/** Wie ein Eintrag der {@link Preisliste} zum {@link Vertragsberechnung#aktuellerPreis aktuellen Preis} steht. */
+/**
+ * Wie ein gespeicherter Eintrag der {@link Preisliste} zum {@link Vertragsberechnung#aktuellerPreis aktuellen Preis}
+ * steht.
+ */
 public enum Preiszeilenart {
 
 	/** Vor dem aktuellen Eintrag. */
 	FRUEHER,
 
-	/** Der Eintrag des aktuellen Preises; genau einer. */
+	/**
+	 * Der Eintrag des aktuellen Preises; genau einer. Ist der aktuelle Preis eine errechnete Stufe, der Eintrag, auf
+	 * dem sie aufbaut.
+	 */
 	AKTUELL,
 
 	/** Nach dem aktuellen Eintrag, gilt noch innerhalb der Vertragszeit. */

@@ -6,6 +6,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
@@ -31,11 +32,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Vertrag eines Haushalts, z.&nbsp;B. ein Abo oder eine Versicherung. Gespeichert werden nur die
  * Angaben des Nutzers, auch die Preise mit Gültigkeitsdatum; aktueller Betrag, Status, Kosten, Vertragsende
- * und Kündigung berechnet {@link de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung} beim Lesen.
+ * und Kündigung berechnet {@link Vertragsberechnung} beim Lesen. Ausnahme: Beim Speichern legt {@link #setzen} die
+ * fälligen Stufen der Preissteigerung als automatische Preise an (ADR 0022).
  * <p>
  * Angaben, die nicht zum Vertrag passen, leert {@link #setzen}: Ein nicht kündbarer Vertrag hat weder
  * Verlängerung noch Kündigungsfrist; leere Texte werden {@code null}.
@@ -136,22 +139,21 @@ class Vertrag extends FachEntity {
 	protected Vertrag() {
 	}
 
-	Vertrag(Vertragsangaben anfrage, VertragKategorie kategorie) {
-		setzen(anfrage, kategorie);
+	Vertrag(Vertragsangaben anfrage, VertragKategorie kategorie, Vertragsberechnung berechnung) {
+		setzen(anfrage, kategorie, berechnung);
 	}
 
-	/** Übernimmt alle Angaben, beim Anlegen wie beim Ändern ({@code PUT} ersetzt alle Felder). */
-	void setzen(Vertragsangaben anfrage, VertragKategorie kategorie) {
+	/**
+	 * Übernimmt alle Angaben, beim Anlegen wie beim Ändern ({@code PUT} ersetzt alle Felder), und legt die bis heute
+	 * fälligen Stufen der Preissteigerung als automatische Preise an
+	 * ({@link Vertragsberechnung#faelligeStufen}). Eine geänderte Regel wirkt so nur nach vorn: Gespeicherte Stufen
+	 * bleiben, wie sie sind.
+	 */
+	void setzen(Vertragsangaben anfrage, VertragKategorie kategorie, Vertragsberechnung berechnung) {
 		this.anbieter = anfrage.anbieter().strip();
 		this.bezeichnung = text(anfrage.bezeichnung());
 		this.kategorie = kategorie;
 		this.vertragsnummer = text(anfrage.vertragsnummer());
-		var preise = anfrage.preise().stream().map(VertragPreisAnfrage::vertragPreis).sorted(REIHENFOLGE).toList();
-		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
-		if (!getPreise().equals(preise)) {
-			this.preise.clear();
-			this.preise.addAll(preise);
-		}
 		this.preissteigerung = anfrage.preissteigerung() != null ? anfrage.preissteigerung().preissteigerung() : null;
 		this.preisgarantieBis = anfrage.preisgarantieBis();
 		this.erinnerungSonderkuendigung = anfrage.erinnerungSonderkuendigung();
@@ -175,6 +177,18 @@ class Vertrag extends FachEntity {
 		this.kuendigungsfristMonate = daten.kuendigungsfristMonate();
 		this.gekuendigtZum = anfrage.gekuendigtZum();
 		this.notiz = text(anfrage.notiz());
+		// Zuletzt, weil die fälligen Stufen von Regel, Garantie und Vertragsende abhängen.
+		var bisher = getPreise();
+		var angefragt = anfrage.preise().stream().map(preis -> preis.vertragPreis(bisher)).toList();
+		var stufen = berechnung.faelligeStufen(daten(), new Preisliste(angefragt.stream().map(VertragPreis::preis).toList()),
+				preisprognose());
+		var preise = Stream.concat(angefragt.stream(), stufen.stream().map(VertragPreis::stufe)).sorted(REIHENFOLGE)
+				.toList();
+		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
+		if (!bisher.equals(preise)) {
+			this.preise.clear();
+			this.preise.addAll(preise);
+		}
 	}
 
 	private static String text(String wert) {

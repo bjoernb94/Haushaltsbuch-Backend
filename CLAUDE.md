@@ -113,7 +113,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
   the `Clock` bean (Europe/Berlin); timestamps are `Instant`, stored as `TIMESTAMPTZ` in UTC. Test-only migrations
   live in `src/test/resources/db/migration` with versions ≥ 1000.
 - Business endpoints: controllers take and return records (DTOs), never entities. `POST` → 201 + `Location` + body,
-  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business calculations live only in the backend, the SPA only formats (ADR 0010); derived values are computed on read, never stored (ADR 0014). Business entities extend `shared.fachdaten.FachEntity`
+  `PUT` (whole object, no `PATCH`) → 200 + body, `DELETE` → 204; calculations without saving (`POST .../vorschau`) → 200. Business calculations live only in the backend, the SPA only formats (ADR 0010); derived values are computed on read, never stored (ADR 0014; exception: due steps of a price increase are
+  stored as `automatisch` prices on save, ADR 0022). Business entities extend `shared.fachdaten.FachEntity`
   (UUID id, `@Version`, audit columns `angelegt_am/_von`, `geaendert_am/_von` filled by Spring Data auditing via
   `FachdatenConfig`; see `docs/entwicklung.md` for the SQL columns). DTOs expose `version`; on `PUT` call `entity.pruefeVersion(dto.version())`
   before changing fields, on `DELETE` with a required `@RequestParam long version` before deleting (load first so

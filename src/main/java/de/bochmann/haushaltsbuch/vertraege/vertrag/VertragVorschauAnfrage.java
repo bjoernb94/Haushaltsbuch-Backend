@@ -30,7 +30,7 @@ import java.util.List;
 @ErsterPreisAbBeginn
 @GleicheWaehrung
 record VertragVorschauAnfrage(
-		@Size(max = 100) @GueltigAbEindeutig @GleicheWaehrung
+		@Size(max = Preisangabe.HOECHSTENS) @GueltigAbEindeutig @GleicheWaehrung
 		@Nullable List<@Valid VertragVorschauPreis> preise,
 		@Nullable Zahlweise zahlweise,
 		@DecimalMin("1") @DecimalMax("100") @Digits(integer = 3, fraction = 1) @Nullable BigDecimal anteilProzent,
