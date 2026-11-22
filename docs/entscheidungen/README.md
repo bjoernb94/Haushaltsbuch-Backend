@@ -27,6 +27,7 @@ bekommt den Status *ersetzt durch …*.
 | [0019](0019-auslieferung-ueber-nginx.md)             | Auslieferung über nginx auf demselben Origin (Frontend) | angenommen |
 | [0020](0020-design-zuerst.md)                        | Design zuerst: Der Canvas ist maßgeblich (Frontend)     | angenommen |
 | [0021](0021-doku-im-repo.md)                         | Dokumentation im Repo, kein Wiki                        | angenommen |
+| [0022](0022-automatische-preiserhoehungen-speichern.md) | Automatische Preiserhöhungen als Preise speichern     | angenommen |
 
 Vorlage für neue Einträge: Datei `NNNN-kurzname.md` mit den Abschnitten *Kontext*,
 *Entscheidung* und *Folgen*, Status mit Datum und Issue/PR.

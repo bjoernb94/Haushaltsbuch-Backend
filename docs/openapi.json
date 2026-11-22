@@ -953,7 +953,7 @@
       },
       "Preispunktart" : {
         "type" : "string",
-        "enum" : [ "GEZAHLT", "ANGEKUENDIGT", "PROGNOSE" ]
+        "enum" : [ "GEZAHLT", "ERRECHNET", "ANGEKUENDIGT", "PROGNOSE" ]
       },
       "Preiszeilenart" : {
         "type" : "string",
@@ -1127,7 +1127,7 @@
             "items" : {
               "$ref" : "#/components/schemas/VertragPreisAnfrage"
             },
-            "maxItems" : 100,
+            "maxItems" : 1200,
             "minItems" : 0
           },
           "preisgarantieBis" : {
@@ -1234,7 +1234,7 @@
             "items" : {
               "$ref" : "#/components/schemas/VertragPreisAnfrage"
             },
-            "maxItems" : 100,
+            "maxItems" : 1200,
             "minItems" : 0
           },
           "preisgarantieBis" : {
@@ -1291,6 +1291,9 @@
           },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
+          },
+          "betragErrechnet" : {
+            "type" : "boolean"
           },
           "bezeichnung" : {
             "type" : [ "string", "null" ]
@@ -1371,7 +1374,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "betragErrechnet", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1507,6 +1510,9 @@
       "VertragPreisAnfrage" : {
         "type" : "object",
         "properties" : {
+          "automatisch" : {
+            "type" : [ "boolean", "null" ]
+          },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
           },
@@ -1523,6 +1529,9 @@
           "art" : {
             "$ref" : "#/components/schemas/Preiszeilenart"
           },
+          "automatisch" : {
+            "type" : "boolean"
+          },
           "betrag" : {
             "$ref" : "#/components/schemas/Betrag"
           },
@@ -1531,7 +1540,7 @@
             "format" : "date"
           }
         },
-        "required" : [ "art", "betrag", "gueltigAb" ]
+        "required" : [ "art", "automatisch", "betrag", "gueltigAb" ]
       },
       "VertragPreissteigerungAnfrage" : {
         "type" : "object",
@@ -1629,7 +1638,7 @@
             "items" : {
               "$ref" : "#/components/schemas/VertragVorschauPreis"
             },
-            "maxItems" : 100,
+            "maxItems" : 1200,
             "minItems" : 0
           },
           "preisgarantieBis" : {
@@ -1704,7 +1713,7 @@
           "preise" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/VertragPreisAntwort"
+              "$ref" : "#/components/schemas/VertragVorschauPreisAntwort"
             }
           },
           "prognose" : {
@@ -1712,9 +1721,13 @@
             "items" : {
               "$ref" : "#/components/schemas/Prognosepreis"
             }
+          },
+          "vorschlagNaechsteAm" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
           }
         },
-        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preise", "prognose" ]
+        "required" : [ "betrag", "eigenerAnteil", "einmalkosten", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preise", "prognose", "vorschlagNaechsteAm" ]
       },
       "VertragVorschauEigenerAnteil" : {
         "type" : "object",
@@ -1756,6 +1769,9 @@
       "VertragVorschauPreis" : {
         "type" : "object",
         "properties" : {
+          "automatisch" : {
+            "type" : [ "boolean", "null" ]
+          },
           "betrag" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Betrag"
@@ -1768,6 +1784,28 @@
             "format" : "date"
           }
         }
+      },
+      "VertragVorschauPreisAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "$ref" : "#/components/schemas/Preiszeilenart"
+          },
+          "automatisch" : {
+            "type" : "boolean"
+          },
+          "betrag" : {
+            "$ref" : "#/components/schemas/Betrag"
+          },
+          "gueltigAb" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "neu" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "art", "automatisch", "betrag", "gueltigAb", "neu" ]
       },
       "VertragVorschauPreissteigerung" : {
         "type" : "object",

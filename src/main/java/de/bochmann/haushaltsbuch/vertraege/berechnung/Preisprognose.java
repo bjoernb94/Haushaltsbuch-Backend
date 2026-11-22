@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
+import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
@@ -9,22 +10,45 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Die Prognose künftiger Preise aus einer {@link Preissteigerung}; nur berechnet, nie gespeichert.
+ * Was eine {@link Preissteigerung} aus der Preisliste macht: die {@link #faellige fälligen Stufen} bis zu einem Tag
+ * und die {@link #preise Prognose} danach. Gespeichert wird nur die Regel und, beim Speichern des Vertrags, die
+ * fälligen Stufen als automatische Preise (ADR 0022).
  * <p>
- * Sie setzt beim letzten Eintrag der Preisliste an und zählt von {@code naechsteAm} aus im Rhythmus vorwärts.
- * Übersprungen werden Termine bis einschließlich des letzten Eintrags, bis einschließlich {@code garantieBis}, vor
- * heute und nach dem Vertragsende; übersprungene Termine erhöhen nichts. Trägt der Nutzer den echten neuen Preis ein,
- * rechnet die Prognose also von dort weiter.
+ * Die Termine zählen von {@code naechsteAm} aus im Rhythmus; liegt {@code naechsteAm} auf einem Monatsletzten,
+ * bleiben auch die weiteren am Monatsletzten (30.04. → 31.07.). Bis einschließlich {@code garantieBis} erhöht kein
+ * Termin; übersprungene Termine erhöhen nichts. Jeder Schritt wird gerundet, der nächste rechnet mit dem gerundeten
+ * weiter (ADR 0011).
  *
- * @param steigerung ohne Regel gibt es keine Prognose
- * @param garantieBis bis einschließlich dieses Tages erhöht die Prognose nicht
+ * @param steigerung ohne Regel gibt es weder Stufen noch Prognose
+ * @param garantieBis bis einschließlich dieses Tages erhöht kein Termin
  */
 public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable LocalDate garantieBis) {
 
 	public static final Preisprognose KEINE = new Preisprognose(null, null);
 
 	/**
-	 * Die prognostizierten Preise in der Reihenfolge ihrer Termine.
+	 * Die fälligen Stufen bis einschließlich {@code bis}: Sie setzen beim letzten Eintrag bis zu diesem Tag an (dem
+	 * Ausgangseintrag), egal ob eingetragen oder automatisch; spätere, angekündigte Einträge zählen dafür nicht.
+	 * Zwischen früheren Einträgen rechnet die Regel nicht, eine Lücke dort ist gewollt. Leer ohne Regel oder wenn
+	 * alle Einträge erst nach {@code bis} gelten.
+	 *
+	 * @param bis heute bzw. der letzte Tag eines beendeten Vertrags
+	 * @param herkunft {@link Preisherkunft#AUTOMATISCH} beim Speichern, {@link Preisherkunft#ERRECHNET} beim Lesen
+	 */
+	public List<Preis> faellige(Preisliste preise, LocalDate bis, Preisherkunft herkunft) {
+		if (steigerung == null) {
+			return List.of();
+		}
+		return preise.letzterBis(bis)
+				.map(ausgang -> stufen(ausgang.betrag(), ohneGarantie(ausgang.gueltigAb()), bis, Integer.MAX_VALUE,
+						herkunft))
+				.orElse(List.of());
+	}
+
+	/**
+	 * Die prognostizierten Preise nach heute in der Reihenfolge ihrer Termine. Sie setzen beim letzten Eintrag der
+	 * Preisliste an, die also schon um die {@link #faellige fälligen Stufen} bis heute ergänzt sein muss; Termine bis
+	 * einschließlich dieses Eintrags zählen nicht.
 	 *
 	 * @param ende letzter Tag des Vertrags; leer, wenn er nicht endet
 	 * @param bis Termine danach zählen nicht
@@ -34,31 +58,44 @@ public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable Loca
 		if (steigerung == null) {
 			return List.of();
 		}
-		// Der letzte Tag, an dem noch nicht erhöht wird.
-		LocalDate grenze = heute.minusDays(1);
-		LocalDate letzter = preise.letzter().gueltigAb();
-		if (letzter.isAfter(grenze)) {
-			grenze = letzter;
+		Preis letzter = preise.letzter();
+		LocalDate grenze = letzter.gueltigAb().isAfter(heute) ? letzter.gueltigAb() : heute;
+		LocalDate letzterTermin = ende.isPresent() && ende.get().isBefore(bis) ? ende.get() : bis;
+		return stufen(letzter.betrag(), ohneGarantie(grenze), letzterTermin, hoechstens, Preisherkunft.PROGNOSE);
+	}
+
+	/** {@code grenze}, mindestens aber {@code garantieBis}: der letzte Tag, an dem noch nicht erhöht wird. */
+	private LocalDate ohneGarantie(LocalDate grenze) {
+		return garantieBis != null && garantieBis.isAfter(grenze) ? garantieBis : grenze;
+	}
+
+	/** Die Stufen an den Terminen nach {@code grenze} bis einschließlich {@code bis}, ausgehend von {@code preis}. */
+	private List<Preis> stufen(Betrag preis, LocalDate grenze, LocalDate bis, int hoechstens, Preisherkunft herkunft) {
+		long k = ersterTerminNach(grenze);
+		List<Preis> stufen = new ArrayList<>();
+		for (LocalDate termin = termin(k); stufen.size() < hoechstens && !termin.isAfter(bis); termin = termin(++k)) {
+			preis = steigerung.erhoeht(preis);
+			stufen.add(new Preis(termin, preis, herkunft));
 		}
-		if (garantieBis != null && garantieBis.isAfter(grenze)) {
-			grenze = garantieBis;
-		}
-		int schritt = steigerung.rhythmus().monate();
-		LocalDate anker = steigerung.naechsteAm();
-		// Geschätzt und dann vorgezählt, damit weit zurückliegende Anker nicht Schritt für Schritt zählen.
-		long k = Math.max(0, ChronoUnit.MONTHS.between(anker, grenze) / schritt - 1);
-		while (!anker.plusMonths(k * schritt).isAfter(grenze)) {
+		return stufen;
+	}
+
+	/** Der Index des ersten Termins nach {@code grenze}; geschätzt und dann vorgezählt, nicht Schritt für Schritt. */
+	private long ersterTerminNach(LocalDate grenze) {
+		long k = Math.max(0, ChronoUnit.MONTHS.between(steigerung.naechsteAm(), grenze) / schritt() - 1);
+		while (!termin(k).isAfter(grenze)) {
 			k++;
 		}
-		List<Preis> prognose = new ArrayList<>();
-		var preis = preise.letzter().betrag();
-		for (LocalDate termin = anker.plusMonths(k * schritt);
-				prognose.size() < hoechstens && !termin.isAfter(bis) && (ende.isEmpty() || !termin.isAfter(ende.get()));
-				termin = anker.plusMonths(++k * schritt)) {
-			preis = steigerung.erhoeht(preis);
-			prognose.add(new Preis(termin, preis));
-		}
-		return prognose;
+		return k;
+	}
+
+	/** Der {@code k}-te Termin ab {@code naechsteAm}, immer von dort gezählt, damit Monatsenden nicht abrutschen. */
+	private LocalDate termin(long k) {
+		return Vertragsberechnung.plusMonate(steigerung.naechsteAm(), k * schritt());
+	}
+
+	private int schritt() {
+		return steigerung.rhythmus().monate();
 	}
 
 }

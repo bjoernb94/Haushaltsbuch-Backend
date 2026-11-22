@@ -27,6 +27,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,7 +65,7 @@ class VertragServiceTests {
 
 	/** Ein einziger Preis, gültig ab {@code beginn} (dem Vertragsbeginn). */
 	static List<VertragPreisAnfrage> preis(LocalDate beginn, String wert) {
-		return List.of(new VertragPreisAnfrage(beginn, euro(wert)));
+		return List.of(new VertragPreisAnfrage(beginn, euro(wert), null));
 	}
 
 	@Test
@@ -270,9 +271,9 @@ class VertragServiceTests {
 	@Test
 	void rechnetMitDemJeweilsGueltigenPreis() {
 		LocalDate heute = LocalDate.now(clock);
-		var preise = List.of(new VertragPreisAnfrage(heute.plusDays(30), euro("12.00")),
-				new VertragPreisAnfrage(heute.minusYears(1), euro("10.00")),
-				new VertragPreisAnfrage(heute.minusDays(100), euro("11.00")));
+		var preise = List.of(new VertragPreisAnfrage(heute.plusDays(30), euro("12.00"), null),
+				new VertragPreisAnfrage(heute.minusYears(1), euro("10.00"), null),
+				new VertragPreisAnfrage(heute.minusDays(100), euro("11.00"), null));
 
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
 				Zahlweise.MONATLICH, heute.minusYears(1), null)));
@@ -290,8 +291,8 @@ class VertragServiceTests {
 	@Test
 	void vertragInDerZukunftHatDenErstenPreis() {
 		LocalDate heute = LocalDate.now(clock);
-		var preise = List.of(new VertragPreisAnfrage(heute.plusMonths(2), euro("20.00")),
-				new VertragPreisAnfrage(heute.plusMonths(1), euro("15.00")));
+		var preise = List.of(new VertragPreisAnfrage(heute.plusMonths(2), euro("20.00"), null),
+				new VertragPreisAnfrage(heute.plusMonths(1), euro("15.00"), null));
 
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
 				Zahlweise.MONATLICH, heute.plusMonths(1), null)));
@@ -307,8 +308,8 @@ class VertragServiceTests {
 	@Test
 	void beendeterVertragHatDenPreisAmLetztenTag() {
 		LocalDate heute = LocalDate.now(clock);
-		var preise = List.of(new VertragPreisAnfrage(heute.minusMonths(3), euro("10.00")),
-				new VertragPreisAnfrage(heute.minusDays(10), euro("12.00")));
+		var preise = List.of(new VertragPreisAnfrage(heute.minusMonths(3), euro("10.00"), null),
+				new VertragPreisAnfrage(heute.minusDays(10), euro("12.00"), null));
 
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
 				Zahlweise.MONATLICH, heute.minusMonths(3), heute.minusDays(20))));
@@ -324,8 +325,8 @@ class VertragServiceTests {
 	@Test
 	void preiseInAndererReihenfolgeBehaltenVersion() {
 		LocalDate heute = LocalDate.now(clock);
-		var a = new VertragPreisAnfrage(heute.minusYears(1), euro("10.00"));
-		var b = new VertragPreisAnfrage(heute.plusDays(30), euro("12.00"));
+		var a = new VertragPreisAnfrage(heute.minusYears(1), euro("10.00"), null);
+		var b = new VertragPreisAnfrage(heute.plusDays(30), euro("12.00"), null);
 		var angelegt = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), List.of(a, b),
 				Zahlweise.MONATLICH, heute.minusYears(1), null)));
 
@@ -337,7 +338,7 @@ class VertragServiceTests {
 		assertThat(gleich.version()).isZero();
 		assertThat(weniger.version()).isEqualTo(1);
 		assertThat(weniger.preise())
-				.containsExactly(new VertragPreisAntwort(heute.minusYears(1), euro("10.00"), Preiszeilenart.AKTUELL));
+				.containsExactly(new VertragPreisAntwort(heute.minusYears(1), euro("10.00"), Preiszeilenart.AKTUELL, false));
 		assertThat(weniger.berechnet().naechstePreisaenderung()).isNull();
 	}
 
@@ -591,16 +592,16 @@ class VertragServiceTests {
 				a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
 	}
 
-	/** Monatlich 10 € ab heute, jedes Quartal 1 € teurer ab heute: Die Abbuchung heute rechnet schon mit 11 €. */
+	/** Monatlich 10 € seit einem Jahr, jedes Quartal 1 € teurer ab heute: Die Erhöhung heute ist schon fällig. */
 	private VertragAnfrage steigtAbHeute() {
 		LocalDate heute = LocalDate.now(clock);
-		// Seit einem Jahr: Am Beginn selbst erhöht die Prognose nicht (sein Preis ist der Eintrag dort).
 		LocalDate beginn = heute.minusYears(1);
 		return mitSteigerung(mit(anfrage(VERSICHERUNG), preis(beginn, "10.00"), Zahlweise.MONATLICH, beginn, null),
 				new VertragPreissteigerungAnfrage(Steigerungsart.BETRAG, null, euro("1.00"),
 						Erhoehungsrhythmus.VIERTELJAEHRLICH, heute), null, true);
 	}
 
+	/** Ein Termin heute ist fällig: Das Speichern legt ihn als automatischen Preis an, die Prognose beginnt danach. */
 	@Test
 	void rechnetMitDerPrognose() {
 		LocalDate heute = LocalDate.now(clock);
@@ -609,18 +610,179 @@ class VertragServiceTests {
 
 		assertThat(vertrag.preissteigerung()).isEqualTo(new VertragPreissteigerungAntwort(Steigerungsart.BETRAG, null,
 				euro("1.00"), Erhoehungsrhythmus.VIERTELJAEHRLICH, heute));
-		assertThat(vertrag.berechnet().prognose()).containsExactly(new Prognosepreis(heute, euro("11.00")),
-				new Prognosepreis(heute.plusMonths(3), euro("12.00")), new Prognosepreis(heute.plusMonths(6), euro("13.00")));
+		assertThat(vertrag.preise()).containsExactly(
+				new VertragPreisAntwort(heute.minusYears(1), euro("10.00"), Preiszeilenart.FRUEHER, false),
+				new VertragPreisAntwort(heute, euro("11.00"), Preiszeilenart.AKTUELL, true));
+		assertThat(vertrag.betrag()).isEqualTo(euro("11.00"));
+		assertThat(vertrag.betragErrechnet()).isFalse();
+		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("11.00"));
+		assertThat(vertrag.berechnet().prognose()).containsExactly(new Prognosepreis(heute.plusMonths(3), euro("12.00")),
+				new Prognosepreis(heute.plusMonths(6), euro("13.00")), new Prognosepreis(heute.plusMonths(9), euro("14.00")));
 		assertThat(vertrag.berechnet().naechstePreisaenderung())
-				.isEqualTo(new Preisaenderung(heute, euro("11.00"), Preisaenderungsart.PROGNOSE));
-		assertThat(vertrag.berechnet().kostenImJahrMitPrognose()).isTrue();
-		// Bekannter Preis von heute: 10 €, auch pro Monat.
-		assertThat(vertrag.betrag()).isEqualTo(euro("10.00"));
-		assertThat(vertrag.berechnet().kostenProMonat()).isEqualTo(euro("10.00"));
+				.isEqualTo(new Preisaenderung(heute.plusMonths(3), euro("12.00"), Preisaenderungsart.PROGNOSE));
+		// Prognose im Jahr nur, wenn die nächste Erhöhung noch in dieses Jahr fällt.
+		boolean prognoseImJahr = heute.plusMonths(3).getYear() == heute.getYear();
+		assertThat(vertrag.berechnet().kostenImJahrMitPrognose()).isEqualTo(prognoseImJahr);
 		assertThat(vertrag.berechnet().preisverlauf()).extracting(Preispunkt::art).containsExactly(Preispunktart.GEZAHLT,
-				Preispunktart.PROGNOSE, Preispunktart.PROGNOSE, Preispunktart.PROGNOSE);
-		assertThat(HaushaltKontext.fuer(haushalt, service::uebersicht).kostenImJahrMitPrognose()).isTrue();
+				Preispunktart.GEZAHLT, Preispunktart.PROGNOSE, Preispunktart.PROGNOSE, Preispunktart.PROGNOSE);
+		assertThat(HaushaltKontext.fuer(haushalt, service::uebersicht).kostenImJahrMitPrognose()).isEqualTo(prognoseImJahr);
 		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(vertrag.id()))).isEqualTo(vertrag);
+	}
+
+	/** Seit fünf Jahren und zehn Tagen, jährlich +2&nbsp;% ab einem Jahr nach Beginn: fünf fällige Stufen (#159). */
+	private VertragAnfrage seitFuenfJahren() {
+		LocalDate beginn = LocalDate.now(clock).minusYears(5).minusDays(10);
+		return mitSteigerung(mit(anfrage(VERSICHERUNG), preis(beginn, "100.00"), Zahlweise.MONATLICH, beginn, null),
+				new VertragPreissteigerungAnfrage(Steigerungsart.PROZENT, new BigDecimal("2"), null,
+						Erhoehungsrhythmus.JAEHRLICH, beginn.plusYears(1)), null, true);
+	}
+
+	private static List<VertragPreisAnfrage> zurueck(List<VertragPreisAntwort> preise) {
+		return preise.stream().map(p -> new VertragPreisAnfrage(p.gueltigAb(), p.betrag(), p.automatisch())).toList();
+	}
+
+	@Test
+	void legtVergangeneErhoehungenAlsAutomatischePreiseAn() {
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(seitFuenfJahren()));
+		LocalDate beginn = vertrag.beginn();
+
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::gueltigAb, p -> p.betrag().wert().toPlainString(),
+				VertragPreisAntwort::automatisch).containsExactly(
+				tuple(beginn, "100.00", false), tuple(beginn.plusYears(1), "102.00", true),
+				tuple(beginn.plusYears(2), "104.04", true), tuple(beginn.plusYears(3), "106.12", true),
+				tuple(beginn.plusYears(4), "108.24", true), tuple(beginn.plusYears(5), "110.40", true));
+		assertThat(vertrag.betrag()).isEqualTo(euro("110.40"));
+		assertThat(vertrag.betragErrechnet()).isFalse();
+		assertThat(vertrag.berechnet().prognose()).first()
+				.isEqualTo(new Prognosepreis(beginn.plusYears(6), euro("112.61")));
+		assertThat(jdbc.sql("SELECT count(*) FROM vertrag_preis WHERE vertrag_id = ? AND automatisch")
+				.param(vertrag.id()).query(Long.class).single()).isEqualTo(5);
+	}
+
+	/** Unverändert zurückgeschickt bleibt alles, wie es ist, auch die Version. */
+	@Test
+	void aendernBehaeltAutomatischePreise() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+
+		var geaendert = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(vertrag.id(), aenderung(0, mit(a, zurueck(vertrag.preise()), a.zahlweise(),
+						a.beginn(), null))));
+
+		assertThat(geaendert.preise()).isEqualTo(vertrag.preise());
+		assertThat(geaendert.version()).isZero();
+	}
+
+	/** Ein geänderter automatischer Preis ist danach eingetragen; die späteren bleiben, wie sie sind. */
+	@Test
+	void geaenderterAutomatischerPreisIstEingetragen() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		var preise = new ArrayList<>(zurueck(vertrag.preise()));
+		var dritter = preise.get(3);
+		preise.set(3, new VertragPreisAnfrage(dritter.gueltigAb(), euro("107.00"), true));
+
+		var geaendert = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(vertrag.id(), aenderung(0, mit(a, preise, a.zahlweise(), a.beginn(), null))));
+
+		assertThat(geaendert.preise()).extracting(VertragPreisAntwort::automatisch)
+				.containsExactly(false, true, true, false, true, true);
+		assertThat(geaendert.preise().get(3).betrag()).isEqualTo(euro("107.00"));
+		assertThat(geaendert.preise().get(5).betrag()).isEqualTo(euro("110.40"));
+	}
+
+	/** {@code automatisch} für einen Eintrag, den das Backend nicht angelegt hat, wird ein eingetragener Preis. */
+	@Test
+	void unbekannterAutomatischerPreisIstEingetragen() {
+		LocalDate heute = LocalDate.now(clock);
+		var preise = List.of(new VertragPreisAnfrage(heute.minusYears(1), euro("10.00"), true));
+
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(mit(anfrage(VERSICHERUNG), preise,
+				Zahlweise.MONATLICH, heute.minusYears(1), null)));
+
+		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::automatisch).containsExactly(false);
+	}
+
+	/** Eine gelöschte Stufe in der Mitte bleibt eine Lücke; die letzte bis heute legt das Speichern wieder an. */
+	@Test
+	void geloeschteStufeBleibtWeg() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		var ohneMitte = new ArrayList<>(zurueck(vertrag.preise()));
+		ohneMitte.remove(2);
+
+		var luecke = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(vertrag.id(), aenderung(0, mit(a, ohneMitte, a.zahlweise(), a.beginn(), null))));
+
+		assertThat(luecke.preise()).extracting(VertragPreisAntwort::gueltigAb).doesNotContain(vertrag.preise().get(2).gueltigAb())
+				.hasSize(5);
+		var ohneLetzte = new ArrayList<>(zurueck(luecke.preise()));
+		ohneLetzte.removeLast();
+		var wieder = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(luecke.version(), mit(a, ohneLetzte, a.zahlweise(), a.beginn(), null))));
+		assertThat(wieder.preise()).isEqualTo(luecke.preise());
+	}
+
+	/** Eine geänderte Regel wirkt nur nach vorn: Gespeicherte Stufen bleiben, die Prognose rechnet mit der neuen. */
+	@Test
+	void geaenderteRegelWirktNurNachVorn() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		var steigerung = a.preissteigerung();
+		var dreiProzent = mitSteigerung(mit(a, zurueck(vertrag.preise()), a.zahlweise(), a.beginn(), null),
+				new VertragPreissteigerungAnfrage(Steigerungsart.PROZENT, new BigDecimal("3"), null,
+						steigerung.rhythmus(), steigerung.naechsteAm()), null, true);
+
+		var geaendert = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(), aenderung(0, dreiProzent)));
+
+		assertThat(geaendert.preise()).isEqualTo(vertrag.preise());
+		assertThat(geaendert.berechnet().prognose()).first()
+				.isEqualTo(new Prognosepreis(vertrag.beginn().plusYears(6), euro("113.71")));
+	}
+
+	/** Bestehende Verträge ohne gespeicherte Stufen: errechnet beim Lesen, angelegt beim nächsten Speichern. */
+	@Test
+	void errechnetBisZumNaechstenSpeichern() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		jdbc.sql("DELETE FROM vertrag_preis WHERE vertrag_id = ? AND automatisch").param(vertrag.id()).update();
+
+		var gelesen = HaushaltKontext.fuer(haushalt, () -> service.abrufen(vertrag.id()));
+
+		assertThat(gelesen.betrag()).isEqualTo(euro("110.40"));
+		assertThat(gelesen.betragErrechnet()).isTrue();
+		assertThat(gelesen.preise()).singleElement().extracting(VertragPreisAntwort::art).isEqualTo(Preiszeilenart.AKTUELL);
+		assertThat(gelesen.berechnet().preisverlauf()).extracting(Preispunkt::art).containsExactly(Preispunktart.GEZAHLT,
+				Preispunktart.ERRECHNET, Preispunktart.ERRECHNET, Preispunktart.ERRECHNET, Preispunktart.ERRECHNET,
+				Preispunktart.ERRECHNET, Preispunktart.PROGNOSE, Preispunktart.PROGNOSE, Preispunktart.PROGNOSE);
+		assertThat(gelesen.berechnet().kostenImJahrMitPrognose()).isTrue();
+
+		var gespeichert = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(0, mit(a, zurueck(gelesen.preise()), a.zahlweise(), a.beginn(), null))));
+		assertThat(gespeichert.preise()).isEqualTo(vertrag.preise());
+		assertThat(gespeichert.betragErrechnet()).isFalse();
+	}
+
+	/** Die Vorschau zeigt die Stufen, die das Speichern anlegt, und schlägt den Termin vor. */
+	@Test
+	void vorschauMitNeuenStufenUndVorschlag() {
+		var a = seitFuenfJahren();
+
+		var vorschau = service.vorschau(vorschau(a));
+
+		assertThat(vorschau.betrag()).isEqualTo(euro("110.40"));
+		assertThat(vorschau.preise()).extracting(VertragVorschauPreisAntwort::neu)
+				.containsExactly(false, true, true, true, true, true);
+		assertThat(vorschau.preise()).filteredOn(VertragVorschauPreisAntwort::neu)
+				.allMatch(VertragVorschauPreisAntwort::automatisch);
+		assertThat(vorschau.vorschlagNaechsteAm()).isEqualTo(a.beginn().plusYears(1));
+		var monatsende = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
+				null, null, Erhoehungsrhythmus.VIERTELJAEHRLICH, null), null, true, LocalDate.of(2027, 1, 31), null,
+				null, null, null);
+		assertThat(service.vorschau(monatsende).vorschlagNaechsteAm()).isEqualTo(LocalDate.of(2027, 4, 30));
+		var ohneRhythmus = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
+				null, null, null, null), null, true, LocalDate.of(2027, 1, 31), null, null, null, null);
+		assertThat(service.vorschau(ohneRhythmus).vorschlagNaechsteAm()).isNull();
 	}
 
 	@Test
@@ -700,7 +862,7 @@ class VertragServiceTests {
 	private static VertragVorschauAnfrage vorschau(VertragAnfrage a) {
 		var steigerung = a.preissteigerung();
 		return new VertragVorschauAnfrage(
-				a.preise().stream().map(p -> new VertragVorschauPreis(p.gueltigAb(), p.betrag())).toList(),
+				a.preise().stream().map(p -> new VertragVorschauPreis(p.gueltigAb(), p.betrag(), null)).toList(),
 				a.zahlweise(), a.anteilProzent(),
 				a.einmalkosten().stream()
 						.map(e -> new VertragVorschauEinmalkosten(e.bezeichnung(), e.betrag(), e.faelligAm())).toList(),
@@ -710,15 +872,23 @@ class VertragServiceTests {
 				a.kuendigungsfristMonate(), a.gekuendigtZum());
 	}
 
-	/** Was die Vorschau für den gespeicherten Vertrag {@code v} zeigen muss. */
+	/**
+	 * Was die Vorschau für den gespeicherten Vertrag {@code v} zeigen muss, angelegt ohne automatische Preise: Die
+	 * automatischen hat das Speichern angelegt, in der Vorschau sind sie {@code neu}.
+	 */
 	private static VertragVorschauAntwort wieGespeichert(VertragAntwort v) {
 		var berechnet = v.berechnet();
-		return new VertragVorschauAntwort(v.betrag(), v.preise(), berechnet.kostenProMonat(),
+		var steigerung = v.preissteigerung();
+		return new VertragVorschauAntwort(v.betrag(), v.preise().stream()
+				.map(p -> new VertragVorschauPreisAntwort(p.gueltigAb(), p.betrag(), p.art(), p.automatisch(),
+						p.automatisch()))
+				.toList(), berechnet.kostenProMonat(),
 				berechnet.eigenerAnteil() == null ? null
 						: new VertragVorschauAntwort.VertragVorschauEigenerAnteil(berechnet.eigenerAnteil().betrag(),
 								berechnet.eigenerAnteil().kostenProMonat()),
 				berechnet.naechstePreisaenderung(), berechnet.prognose(),
-				v.einmalkosten().isEmpty() ? null : berechnet.einmalkosten(), berechnet.kuendigung());
+				v.einmalkosten().isEmpty() ? null : berechnet.einmalkosten(), berechnet.kuendigung(),
+				steigerung == null ? null : steigerung.rhythmus().nach(v.beginn()));
 	}
 
 	/** Dieselbe Berechnung: Für vollständige Angaben zeigt die Vorschau, was der gespeicherte Vertrag berechnet. */
@@ -736,8 +906,8 @@ class VertragServiceTests {
 				a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), false, a.beginn(),
 				a.laufzeitende(), a.verlaengerung(), 3, null, a.notiz());
 		// Alles zusammen: mehrere Preise, Anteil, Einmalkosten, Preissteigerung mit Garantie.
-		var preise = List.of(new VertragPreisAnfrage(heute.minusMonths(5), euro("10.00")),
-				new VertragPreisAnfrage(heute.plusDays(40), euro("11.00")));
+		var preise = List.of(new VertragPreisAnfrage(heute.minusMonths(5), euro("10.00"), null),
+				new VertragPreisAnfrage(heute.plusDays(40), euro("11.00"), null));
 		var voll = mitSteigerung(mitEinmalkosten(mitAnteil(mit(anfrage(VERSICHERUNG), preise, Zahlweise.MONATLICH,
 						heute.minusMonths(5), null), "33.3"), einmal("Router", "99.99", heute)),
 				new VertragPreissteigerungAnfrage(Steigerungsart.PROZENT, new BigDecimal("2.5"), null,
@@ -761,14 +931,14 @@ class VertragServiceTests {
 
 		assertThat(vorschau.kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
 		assertThat(vorschau).isEqualTo(new VertragVorschauAntwort(null, List.of(), null, null, null, List.of(), null,
-				vorschau.kuendigung()));
+				vorschau.kuendigung(), null));
 	}
 
 	/** Was fehlt, bleibt leer; der Rest wird trotzdem berechnet. */
 	@Test
 	void vorschauMitTeilweisenAngaben() {
 		LocalDate heute = LocalDate.now(clock);
-		var preis = List.of(new VertragVorschauPreis(heute, euro("10.00")));
+		var preis = List.of(new VertragVorschauPreis(heute, euro("10.00"), null));
 		var ohneBeginn = new VertragVorschauAnfrage(preis, Zahlweise.MONATLICH, new BigDecimal("50"), null, null,
 				null, true, null, null, null, null, null);
 		var ohneZahlweise = new VertragVorschauAnfrage(preis, null, new BigDecimal("50"), null,
@@ -794,8 +964,8 @@ class VertragServiceTests {
 	@Test
 	void vorschauIgnoriertUnvollstaendigeZeilen() {
 		LocalDate heute = LocalDate.now(clock);
-		var preise = List.of(new VertragVorschauPreis(heute, euro("10.00")), new VertragVorschauPreis(heute.plusDays(5), null),
-				new VertragVorschauPreis(null, euro("11.00")));
+		var preise = List.of(new VertragVorschauPreis(heute, euro("10.00"), null), new VertragVorschauPreis(heute.plusDays(5), null, null),
+				new VertragVorschauPreis(null, euro("11.00"), null));
 		var einmalkosten = List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), null),
 				new VertragVorschauEinmalkosten(" ", euro("5.00"), heute),
 				new VertragVorschauEinmalkosten("Anschluss", euro("49.00"), heute));
@@ -807,7 +977,8 @@ class VertragServiceTests {
 				null, einmalkosten, steigerung, null, true, heute, null, null, null, null));
 
 		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
-		assertThat(vorschau.preise()).containsExactly(new VertragPreisAntwort(heute, euro("10.00"), Preiszeilenart.AKTUELL));
+		assertThat(vorschau.preise())
+				.containsExactly(new VertragVorschauPreisAntwort(heute, euro("10.00"), Preiszeilenart.AKTUELL, false, false));
 		assertThat(vorschau.naechstePreisaenderung()).isNull();
 		assertThat(vorschau.prognose()).isEmpty();
 		assertThat(vorschau.einmalkosten()).isEqualTo(euro("49.00"));
@@ -819,7 +990,7 @@ class VertragServiceTests {
 		var nurEinmalkosten = new VertragVorschauAnfrage(null, null, null,
 				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, true,
 				null, null, null, null, null);
-		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"))), null,
+		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"), null)), null,
 				null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, true, null, null,
 				null, null, null);
 

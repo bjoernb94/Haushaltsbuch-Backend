@@ -22,7 +22,9 @@ import java.util.UUID;
  * den berechneten in {@code berechnet}. Die gespeicherten Angaben schickt die SPA beim Ändern
  * unverändert zurück; {@code berechnet} nie. {@code betrag} ist berechnet (der heute gültige Preis aus
  * {@code preise}, bei einem beendeten Vertrag der an seinem letzten Tag gültige; der Eintrag hat {@code art}
- * {@code AKTUELL}) und wird beim Ändern ignoriert, ebenso {@code art}.
+ * {@code AKTUELL}) und wird beim Ändern ignoriert, ebenso {@code art} und {@code betragErrechnet}. Ist seit dem
+ * letzten Speichern eine Stufe der Preissteigerung fällig geworden, ist {@code betrag} diese
+ * ({@code betragErrechnet}); {@code preise} enthält nur Gespeichertes.
  */
 record VertragAntwort(
 		UUID id,
@@ -32,6 +34,7 @@ record VertragAntwort(
 		VertragKategorieAntwort kategorie,
 		@Nullable String vertragsnummer,
 		Betrag betrag,
+		boolean betragErrechnet,
 		List<VertragPreisAntwort> preise,
 		Zahlweise zahlweise,
 		@Nullable Zahlungsweg zahlungsweg,
@@ -111,7 +114,7 @@ record VertragAntwort(
 				werte.kuendigung());
 		return new VertragAntwort(vertrag.getId(), vertrag.getVersion(), vertrag.getAnbieter(),
 				vertrag.getBezeichnung(), VertragKategorieAntwort.aus(vertrag.getKategorie()), vertrag.getVertragsnummer(),
-				werte.betrag(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getZahlungsweg(),
+				werte.betrag(), werte.betragErrechnet(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getZahlungsweg(),
 				vertrag.getAnteilProzent(),
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
 				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(),

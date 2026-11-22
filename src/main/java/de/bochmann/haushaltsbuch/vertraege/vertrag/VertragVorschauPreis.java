@@ -11,8 +11,11 @@ import java.time.LocalDate;
 /**
  * Eine Preiszeile der Vorschau: geprüft wie {@link VertragPreisAnfrage}, aber ohne Pflicht. Ohne Datum oder Betrag
  * ignoriert die Vorschau die Zeile.
+ *
+ * @param automatisch wie in {@link VertragPreisAnfrage}; die Vorschau übernimmt es ungeprüft
  */
 record VertragVorschauPreis(
 		@PlausiblesDatum @Nullable LocalDate gueltigAb,
-		@Valid @PositiverBetrag @Nullable Betrag betrag) implements Preisangabe {
+		@Valid @PositiverBetrag @Nullable Betrag betrag,
+		@Nullable Boolean automatisch) implements Preisangabe {
 }
