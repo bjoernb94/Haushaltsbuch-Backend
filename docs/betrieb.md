@@ -1,6 +1,6 @@
 # Betrieb
 
-Lokale Umgebung mit Docker Compose, Betrieb per Compose aus den Images, Einrichtung von Keycloak,
+Lokale Umgebung mit Docker Compose, Betrieb per Compose aus den Images und Update, Einrichtung von Keycloak,
 Konfiguration, prod und Systemstatus.
 Zum Starten des Backends siehe [README](../README.md#starten).
 
@@ -66,18 +66,37 @@ Erreichbar ist nur das Frontend; Backend, Keycloak und PostgreSQL bleiben im int
 Keycloak-Admin-Oberfläche ist nicht veröffentlicht, ein Konto sperren oder löschen geht über
 `podman compose exec keycloak /opt/keycloak/bin/kcadm.sh …` mit dem Bootstrap-Admin `admin` und
 `KEYCLOAK_ADMIN_PASSWORD`. `KEYCLOAK_CLIENT_SECRET` wirkt nur beim ersten Start (Realm-Import); die Daten
-liegen im Volume `postgres-data`. Ein Update heißt: neues Paket, `.env` und `instanz.json` übernehmen,
-`podman compose up -d`. Startet dabei PostgreSQL neu (neues Image), Keycloak aber nicht, danach
-`podman compose restart keycloak`: Keycloak hält sonst die beendeten Verbindungen im Pool, und die ersten
-Anmeldungen und Registrierungen scheitern mit 500, bis alle einmal verworfen sind. Das Backend prüft seine
-Verbindungen vor der Benutzung und braucht das nicht. Dasselbe gilt für die lokale Umgebung aus `compose.yaml`.
-Vor einem Update die Datenbank sichern (`podman compose exec postgres pg_dumpall -U haushaltsbuch > sicherung.sql`):
-Keycloak migriert sein Schema beim Start, zurück auf die alte Version geht danach nicht mehr.
+liegen im Volume `postgres-data`.
 
-**Update von v0.1.0:** Mit Keycloak 26.8.2 braucht die Registrierung den Client-Scope `kc-admin-api`. Der
-Realm-Import trägt ihn nur in neuen Instanzen ein; in einer bestehenden nach dem `podman compose up -d` den Schritt
-[Scope `kc-admin-api` nachtragen](#scope-kc-admin-api-nachtragen) ausführen. Bis dahin scheitert jede Registrierung
-(500, im Log des Backends `invalid_scope`); Anmeldungen bestehender Konten gehen weiter.
+### Update
+
+Gilt für jedes Release. Was ein Release darüber hinaus von Hand braucht (z.&nbsp;B. eine Einstellung in Keycloak),
+steht in seinen Release Notes; wer Versionen überspringt, führt die Schritte aller übersprungenen Releases aus.
+
+1. **Release Notes lesen**, auch die der übersprungenen Releases.
+2. **Datenbank sichern**, im Verzeichnis des bisherigen Pakets:
+   `podman compose exec postgres pg_dumpall -U haushaltsbuch > sicherung.sql`. Das sichert die App-Datenbank und
+   die von Keycloak. Beide migrieren ihr Schema beim Start (das Backend mit Flyway, Keycloak selbst); zurück auf die
+   alte Version geht danach nur über diese Sicherung.
+3. **Neues Paket entpacken** und `.env` und `instanz.json` aus dem bisherigen Verzeichnis hineinkopieren. Ein
+   eigenes Verzeichnis je Version ist kein Problem: `compose.yaml` legt den Projektnamen `haushaltsbuch` fest,
+   Compose nutzt also dasselbe Volume `postgres-data`.
+4. **`.env` mit der neuen `.env.beispiel` vergleichen** und neue Variablen ergänzen. Fehlt eine Pflichtangabe,
+   bricht Compose mit einer Meldung ab; neue optionale fallen sonst nicht auf.
+5. **Images holen und starten:** `podman compose pull`, dann `podman compose up -d` (oder `docker compose …`).
+   Compose startet nur die Container mit neuem Image neu; mit `pull` vorher ist die Anwendung kürzer weg. Backend
+   und Frontend gehören zusammen, das Paket startet beide in derselben Version.
+6. **Keycloak neu starten, wenn PostgreSQL neu gestartet ist** (neues Image), Keycloak aber nicht:
+   `podman compose restart keycloak`. Keycloak hält sonst die beendeten Verbindungen im Pool, und die ersten
+   Anmeldungen und Registrierungen scheitern mit 500, bis alle einmal verworfen sind. Das Backend prüft seine
+   Verbindungen vor der Benutzung und braucht das nicht. Dasselbe gilt für die lokale Umgebung aus `compose.yaml`.
+7. **Prüfen:** `curl http://<Rechner>:8080/actuator/info` zeigt die neue Version, die Anmeldeseite den
+   [Systemstatus](#systemstatus). Startet das Backend nicht, steht der Grund in `podman compose logs backend`, meist
+   eine Migration, die bewusst abbricht, statt Daten still zu korrigieren.
+
+Nur bei neuen Instanzen wirken der Realm-Import (`keycloak/import/`, auch `KEYCLOAK_CLIENT_SECRET`) und das
+Init-Skript der Datenbank (`postgres/init/`). Ändert ein Release sie, braucht eine bestehende Instanz einen Schritt
+von Hand, und der steht in den Release Notes.
 
 ## Keycloak einrichten
 
@@ -158,7 +177,8 @@ lehnt Keycloak sie daher ohne HTTPS ab.
 
 ### Scope `kc-admin-api` nachtragen
 
-Für eine bestehende Instanz nach dem Update auf Keycloak 26.8.2 (Schritt 6 oben, ohne Admin-Konsole). Im Verzeichnis
+Für eine bestehende Instanz nach dem Update von v0.1.0 auf Keycloak 26.8.2 (Schritt 6 oben, ohne Admin-Konsole):
+Ohne den Scope scheitert jede Registrierung (500, im Log des Backends `invalid_scope`), Anmeldungen gehen weiter. Im Verzeichnis
 des Betriebspakets; `KEYCLOAK_ADMIN_PASSWORD` steht nur in der `.env`, deshalb zuerst einlesen. In der lokalen
 Umgebung im Repo ohne `.env`, das Passwort ist dort `admin`.
 
