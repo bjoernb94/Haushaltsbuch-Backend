@@ -9,6 +9,8 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 
+import org.jspecify.annotations.Nullable;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +35,14 @@ interface Berechnungsangaben {
 	Steigerungsangabe preissteigerung();
 
 	LocalDate preisgarantieBis();
+
+	/**
+	 * Wie in der Antwort; nur die Vorschau bekommt ihn (die SPA schickt ihn unverändert zurück), beim Speichern zählt
+	 * der gespeicherte Wert. Leer bei einem neuen Vertrag.
+	 */
+	default @Nullable LocalDate preissteigerungBetrachtetBis() {
+		return null;
+	}
 
 	Boolean kuendbar();
 
@@ -66,7 +76,8 @@ interface Berechnungsangaben {
 				.filter(Objects::nonNull).filter(Preisangabe::vollstaendig).<Preis>map(Preisangabe::preis).toList();
 		List<? extends Einmalkostenangabe> einmalkosten = einmalkosten() == null ? List.of() : einmalkosten();
 		return new Berechnungsgrundlage(daten(), preise.isEmpty() ? null : new Preisliste(preise),
-				new Preisprognose(preissteigerung() == null ? null : preissteigerung().regel(), preisgarantieBis()),
+				new Preisprognose(preissteigerung() == null ? null : preissteigerung().regel(), preisgarantieBis(),
+						preissteigerungBetrachtetBis()),
 				Anteil.aus(anteilProzent()),
 				einmalkosten.stream().filter(Objects::nonNull).filter(Einmalkostenangabe::vollstaendig)
 						.map(Einmalkostenangabe::einmalkostenFuerBerechnung).toList());

@@ -24,7 +24,8 @@ import java.util.UUID;
  * {@code preise}, bei einem beendeten Vertrag der an seinem letzten Tag gültige; der Eintrag hat {@code art}
  * {@code AKTUELL}) und wird beim Ändern ignoriert, ebenso {@code art} und {@code betragErrechnet}. Ist seit dem
  * letzten Speichern eine Stufe der Preissteigerung fällig geworden, ist {@code betrag} diese
- * ({@code betragErrechnet}); {@code preise} enthält nur Gespeichertes.
+ * ({@code betragErrechnet}); {@code preise} enthält nur Gespeichertes. {@code preissteigerungBetrachtetBis} schickt
+ * die SPA unverändert an die Vorschau, damit sie gelöschte Stufen nicht wieder anlegt; beim Ändern wird er ignoriert.
  */
 record VertragAntwort(
 		UUID id,
@@ -42,6 +43,7 @@ record VertragAntwort(
 		List<VertragEinmalkostenAntwort> einmalkosten,
 		@Nullable VertragPreissteigerungAntwort preissteigerung,
 		@Nullable LocalDate preisgarantieBis,
+		@Nullable LocalDate preissteigerungBetrachtetBis,
 		boolean erinnerungSonderkuendigung,
 		boolean kuendbar,
 		LocalDate beginn,
@@ -117,7 +119,7 @@ record VertragAntwort(
 				werte.betrag(), werte.betragErrechnet(), werte.preise().stream().map(VertragPreisAntwort::aus).toList(), vertrag.getZahlweise(), vertrag.getZahlungsweg(),
 				vertrag.getAnteilProzent(),
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
-				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(),
+				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(), vertrag.getPreissteigerungBetrachtetBis(),
 				vertrag.isErinnerungSonderkuendigung(), vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
 				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(), berechnet);
 	}

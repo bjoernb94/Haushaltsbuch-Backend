@@ -77,6 +77,14 @@ class Vertrag extends FachEntity {
 	@Column(name = "preisgarantie_bis")
 	private LocalDate preisgarantieBis;
 
+	/**
+	 * Bis zu diesem Tag hat das Speichern die Termine der Preissteigerung betrachtet und fällige Stufen angelegt; ein
+	 * Termin bis dahin entsteht nie wieder, auch wenn der Nutzer seinen Preis gelöscht hat (#162). Wird nur mit Regel
+	 * gesetzt und nur nach hinten verschoben; {@code null}, wenn noch nie mit Regel gespeichert.
+	 */
+	@Column(name = "preissteigerung_betrachtet_bis")
+	private LocalDate preissteigerungBetrachtetBis;
+
 	/** Wird in v0.2 nur gespeichert und angezeigt; die Erinnerung selbst kommt mit den zentralen Meldungen. */
 	@Column(name = "erinnerung_sonderkuendigung", nullable = false)
 	private boolean erinnerungSonderkuendigung;
@@ -147,7 +155,7 @@ class Vertrag extends FachEntity {
 	 * Übernimmt alle Angaben, beim Anlegen wie beim Ändern ({@code PUT} ersetzt alle Felder), und legt die bis heute
 	 * fälligen Stufen der Preissteigerung als automatische Preise an
 	 * ({@link Vertragsberechnung#faelligeStufen}). Eine geänderte Regel wirkt so nur nach vorn: Gespeicherte Stufen
-	 * bleiben, wie sie sind.
+	 * bleiben, wie sie sind, und Termine bis {@link #preissteigerungBetrachtetBis} entstehen nicht neu.
 	 */
 	void setzen(Vertragsangaben anfrage, VertragKategorie kategorie, Vertragsberechnung berechnung) {
 		this.anbieter = anfrage.anbieter().strip();
@@ -184,6 +192,10 @@ class Vertrag extends FachEntity {
 				preisprognose());
 		var preise = Stream.concat(angefragt.stream(), stufen.stream().map(VertragPreis::stufe)).sorted(REIHENFOLGE)
 				.toList();
+		if (preissteigerung != null) {
+			this.preissteigerungBetrachtetBis = preisprognose().betrachtetBis(berechnung.faelligBis(daten()))
+					.betrachtetBis();
+		}
 		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
 		if (!bisher.equals(preise)) {
 			this.preise.clear();
@@ -235,6 +247,10 @@ class Vertrag extends FachEntity {
 		return preisgarantieBis;
 	}
 
+	LocalDate getPreissteigerungBetrachtetBis() {
+		return preissteigerungBetrachtetBis;
+	}
+
 	boolean isErinnerungSonderkuendigung() {
 		return erinnerungSonderkuendigung;
 	}
@@ -247,7 +263,8 @@ class Vertrag extends FachEntity {
 
 	/** Steigerungsregel und Garantie für die Berechnung. */
 	Preisprognose preisprognose() {
-		return new Preisprognose(preissteigerung != null ? preissteigerung.preissteigerung() : null, preisgarantieBis);
+		return new Preisprognose(preissteigerung != null ? preissteigerung.preissteigerung() : null, preisgarantieBis,
+				preissteigerungBetrachtetBis);
 	}
 
 	Zahlweise getZahlweise() {

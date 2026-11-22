@@ -137,8 +137,16 @@ public class Vertragsberechnung {
 	}
 
 	/**
-	 * Die Grundlage, wie sie nach dem Speichern wäre: die Preise ergänzt um die {@link #faelligeStufen}. Für die
-	 * Vorschau, damit sie zeigt, was das Speichern anlegt.
+	 * Bis zu diesem Tag betrachtet das Speichern die Termine der Preissteigerung ({@link #faelligeStufen}): heute, bei
+	 * einem beendeten Vertrag sein letzter Tag. Gespeichert als {@link Preisprognose#betrachtetBis}.
+	 */
+	public LocalDate faelligBis(Vertragsdaten vertrag) {
+		return preisstichtag(vertrag);
+	}
+
+	/**
+	 * Die Grundlage, wie sie nach dem Speichern wäre: die Preise ergänzt um die {@link #faelligeStufen}, die Termine
+	 * bis {@link #faelligBis} betrachtet. Für die Vorschau, damit sie zeigt, was das Speichern anlegt.
 	 */
 	public Berechnungsgrundlage wieGespeichert(Berechnungsgrundlage grundlage) {
 		if (grundlage.preise() == null) {
@@ -146,7 +154,9 @@ public class Vertragsberechnung {
 		}
 		var preise = grundlage.preise()
 				.mit(faelligeStufen(grundlage.daten(), grundlage.preise(), grundlage.prognose()));
-		return new Berechnungsgrundlage(grundlage.daten(), preise, grundlage.prognose(), grundlage.anteil(),
+		var prognose = grundlage.prognose().steigerung() == null ? grundlage.prognose()
+				: grundlage.prognose().betrachtetBis(faelligBis(grundlage.daten()));
+		return new Berechnungsgrundlage(grundlage.daten(), preise, prognose, grundlage.anteil(),
 				grundlage.einmalkosten());
 	}
 

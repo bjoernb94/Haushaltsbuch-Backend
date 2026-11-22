@@ -30,4 +30,7 @@ Versionskonflikt (ADR [0012](0012-konflikterkennung-per-version.md)) treffen. Da
   Rechenregeln stehen in `docs/api.md` (Preissteigerung, fällige Stufen).
 - Ob ein Eintrag automatisch bleibt, prüft das Backend gegen den gespeicherten Stand, nicht die SPA.
 - Bestehende Verträge werden nicht migriert: Ihre Stufen sind bis zum nächsten Speichern errechnet.
+- Ein gelöschter automatischer Preis heißt „an diesem Termin keine Erhöhung“. Damit er nicht beim nächsten Speichern
+  wieder entsteht, merkt sich der Vertrag, bis wann die Termine betrachtet sind (`preissteigerung_betrachtet_bis`,
+  [#162](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/162)); die SPA schickt den Wert an die Vorschau.
 - Es gibt zwei Wege zum selben Wert (gespeichert oder errechnet); `Preisprognose#faellige` rechnet beide gleich.
