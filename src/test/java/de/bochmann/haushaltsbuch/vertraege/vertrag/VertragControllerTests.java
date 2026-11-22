@@ -102,6 +102,8 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.preise[0].gueltigAb").value(seitEinemJahr()))
 				.andExpect(jsonPath("$.preise[0].betrag.wert").value(13.99))
 				.andExpect(jsonPath("$.preise[0].art").value("AKTUELL"))
+				.andExpect(jsonPath("$.preise[0].automatisch").value(false))
+				.andExpect(jsonPath("$.betragErrechnet").value(false))
 				// Beginn im Vorjahr: zwölf Abbuchungen im Jahr.
 				.andExpect(jsonPath("$.berechnet.kostenImJahr.wert").value(167.88))
 				.andExpect(jsonPath("$.berechnet.jahr").value(heute.getYear()))
@@ -680,12 +682,12 @@ class VertragControllerTests {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[0].feld").value("preise"))
 				.andExpect(jsonPath("$.felder[0].code").value("NotEmpty"));
-		// 101 Einträge; dass alle dasselbe Datum haben, meldet zusätzlich GueltigAbEindeutig.
+		// Ein Eintrag zu viel; dass alle dasselbe Datum haben, meldet zusätzlich GueltigAbEindeutig.
 		mockMvc.perform(anlegen(abo("10.00", null, null, 0).replaceFirst("\"preise\": \\[.*?\\],",
-						"\"preise\": [" + String.join(",", Collections.nCopies(101, preis)) + "],")))
+						"\"preise\": [" + String.join(",", Collections.nCopies(Preisangabe.HOECHSTENS + 1, preis)) + "],")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.felder[?(@.feld == 'preise')].code").value("Size"))
-				.andExpect(jsonPath("$.felder[?(@.feld == 'preise')].parameter.max").value(100));
+				.andExpect(jsonPath("$.felder[?(@.feld == 'preise')].parameter.max").value(Preisangabe.HOECHSTENS));
 	}
 
 	/** Ohne Grenze gäbe es einen Überlauf beim Weiterzählen bzw. Postgres könnte nicht speichern: 500 statt 400. */
@@ -735,8 +737,13 @@ class VertragControllerTests {
 				.andExpect(jsonPath("$.eigenerAnteil.kostenProMonat.wert").value(7.00))
 				.andExpect(jsonPath("$.prognose", hasSize(0)))
 				.andExpect(jsonPath("$.einmalkosten").doesNotExist())
+				.andExpect(jsonPath("$.preise", hasSize(1)))
+				.andExpect(jsonPath("$.preise[0].neu").value(false))
+				.andExpect(jsonPath("$.vorschlagNaechsteAm").doesNotExist())
 				.andReturn().getResponse().getContentAsString();
-		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.preise", "$.preise"},
+		for (var paar : new String[][] {{"$.betrag", "$.betrag"}, {"$.preise[0].gueltigAb", "$.preise[0].gueltigAb"},
+				{"$.preise[0].betrag", "$.preise[0].betrag"}, {"$.preise[0].art", "$.preise[0].art"},
+				{"$.preise[0].automatisch", "$.preise[0].automatisch"},
 				{"$.kostenProMonat", "$.berechnet.kostenProMonat"},
 				{"$.naechstePreisaenderung", "$.berechnet.naechstePreisaenderung"},
 				{"$.kuendigung", "$.berechnet.kuendigung"}}) {

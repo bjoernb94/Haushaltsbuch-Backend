@@ -324,13 +324,13 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `bezeichnung` | nein | höchstens 200 Zeichen; leer = die SPA zeigt den Anbieter |
 | `kategorieId` | ja | Standardkategorie oder eigene des Haushalts, sonst Feldfehler `Unbekannt` |
 | `vertragsnummer` | nein | höchstens 100 Zeichen |
-| `preise` | ja | 1–100 Einträge `{ gueltigAb, betrag }` in beliebiger Reihenfolge, siehe [Preise](#preise) |
+| `preise` | ja | 1–1200 Einträge `{ gueltigAb, betrag, automatisch }` in beliebiger Reihenfolge, siehe [Preise](#preise) |
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
 | `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
 | `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
 | `einmalkosten` | ja | 0–100 Einträge `{ bezeichnung, betrag, faelligAm }` in beliebiger Reihenfolge, leer `[]`; siehe [Einmalkosten](#einmalkosten) |
 | `preissteigerung` | nein | „Preis steigt regelmäßig“, `null` wenn nicht; siehe [Preissteigerung](#preissteigerung) |
-| `preisgarantieBis` | nein | bis einschließlich dieses Tages rechnet die Prognose keine Erhöhung ein; auch ohne `preissteigerung` erlaubt (dann nur gespeichert) |
+| `preisgarantieBis` | nein | bis einschließlich dieses Tages erhöht die [Preissteigerung](#preissteigerung) nicht, auch vergangene Termine nicht; auch ohne `preissteigerung` erlaubt (dann nur gespeichert) |
 | `erinnerungSonderkuendigung` | ja | „Vor jeder Preiserhöhung daran erinnern“, im Formular standardmäßig `true`. Wird vorerst nur gespeichert, die Erinnerung selbst kommt mit den zentralen Meldungen ([Frontend #49](https://github.com/bjoernb94/Haushaltsbuch-Frontend/issues/49)) |
 | `kuendbar` | ja | `false` z.&nbsp;B. für den Rundfunkbeitrag: `verlaengerung` und `kuendigungsfristMonate` werden nicht gespeichert, `beginn` und `laufzeitende` bleiben (z.&nbsp;B. „seit 2013“) |
 | `beginn` | ja | Vertragsbeginn und **Anker des Zahlungsrhythmus**: ab diesem Tag wird im Takt der Zahlweise abgebucht (wann der Anbieter genau abbucht, erfasst der Nutzer nicht); liegt er nach heute, ist der Vertrag `NICHT_BEGONNEN` |
@@ -352,11 +352,19 @@ von seinem `gueltigAb` bis zum nächsten Eintrag.
 
 `betrag` in der [Antwort](#antwort) ist der **aktuelle Preis**: der heute gültige, bei einem beendeten Vertrag der
 an seinem letzten Tag gültige (ein Eintrag nach dem Vertragsende wurde nie gezahlt); beginnt der Vertrag erst in
-der Zukunft, der erste Eintrag.
+der Zukunft, der erste Eintrag. Ist seit dem letzten Speichern eine Stufe der Preissteigerung fällig geworden, ist
+es diese (`betragErrechnet`, siehe [Fällige Stufen](#faellige-stufen)).
+
+`automatisch` (`true`/`false`, fehlt = `false`) kennzeichnet einen Eintrag, den das Backend aus der
+[Preissteigerung](#preissteigerung) angelegt hat. Die SPA schickt ihn beim Ändern unverändert zurück; ob er bleibt,
+entscheidet das Backend: nur wenn es einen gespeicherten automatischen Eintrag mit gleichem `gueltigAb` und gleichem
+`betrag` gibt. Ein geänderter Eintrag (oder einer, den das Backend nicht kennt) wird als eingetragener Preis
+gespeichert, ohne Fehler. Sonst sind automatische Einträge normale Preise: Der Nutzer kann sie ändern und löschen,
+und es gelten dieselben Regeln (z.&nbsp;B. `PreisNichtVorBeginn`, wenn der Beginn hinter sie verschoben wird).
 
 | Regel | Feldfehler (an `preise[i]…`, `i` = Position in der Anfrage) |
 |---|---|
-| mindestens ein, höchstens 100 Einträge | `NotEmpty` bzw. `Size` an `preise` |
+| mindestens ein, höchstens 1200 Einträge (genug für automatische Stufen, vierteljährlich von 1900 bis 2199) | `NotEmpty` bzw. `Size` an `preise` |
 | `gueltigAb` bei jedem Eintrag | `NotNull` an `preise[i].gueltigAb` |
 | kein `gueltigAb` doppelt (die spätere Wiederholung ist der Fehler) | `GueltigAbEindeutig` an `preise[i].gueltigAb` |
 | kein `gueltigAb` vor `beginn`, auch wenn der Beginn später nach hinten verschoben wird | `PreisNichtVorBeginn` an `preise[i].gueltigAb` |
@@ -370,7 +378,7 @@ Dazu wie bei jedem Datum `PlausiblesDatum` an `preise[i].gueltigAb`. Die Antwort
 | `art` | Eintrag |
 |---|---|
 | `FRUEHER` | vor dem aktuellen |
-| `AKTUELL` | genau einer: der, aus dem `betrag` stammt |
+| `AKTUELL` | genau einer: der, aus dem `betrag` stammt (ist `betrag` errechnet, der, auf dem er aufbaut) |
 | `ANGEKUENDIGT` | nach dem aktuellen, beginnt spätestens am letzten Vertragstag |
 | `NACH_ENDE` | beginnt nach dem letzten Vertragstag (`gekuendigtZum` bzw. Laufzeitende ohne Verlängerung, das frühere), gilt also nie |
 
@@ -400,7 +408,30 @@ Dazu `PlausiblesDatum` an `einmalkosten[i].faelligAm`. Die Antwort liefert `einm
 #### Preissteigerung
 
 Die Regel, nach der ein Vertrag regelmäßig teurer wird: `{ art, prozent, betrag, rhythmus, naechsteAm }`. Daraus
-rechnet das Backend eine **Prognose** (siehe [Antwort](#antwort)), gespeichert wird nur die Regel.
+legt das Backend beim Speichern die **fälligen Stufen** als Preise an und rechnet eine **Prognose** (siehe
+[Antwort](#antwort)).
+
+- **Termine:** von `naechsteAm` aus im Rhythmus, immer von dort gezählt; liegt `naechsteAm` auf einem Monatsletzten,
+  bleiben auch die weiteren am Monatsletzten (30.04. vierteljährlich → 31.07., 31.10., 31.01.). Termine bis
+  einschließlich `preisgarantieBis` erhöhen nicht, übersprungene Termine erhöhen nichts.
+- **Schritte:** Jeder Schritt wird kaufmännisch auf Cent gerundet, der nächste rechnet mit dem gerundeten Preis
+  weiter ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)): 100&nbsp;€ + 2,5&nbsp;% =
+  102,50&nbsp;€, + 2,5&nbsp;% = 105,06&nbsp;€.
+- <a id="faellige-stufen"></a>**Fällige Stufen:** Beim Anlegen und Ändern legt das Backend jeden Termin bis
+  einschließlich heute (bei einem beendeten Vertrag bis zu seinem letzten Tag) als Preis mit `automatisch: true` an
+  ([ADR 0022](entscheidungen/0022-automatische-preiserhoehungen-speichern.md)). Die Stufen setzen beim letzten
+  Eintrag bis heute an (dem Ausgangseintrag, eingetragen oder automatisch) und beginnen am ersten Termin danach.
+  Angekündigte Einträge zählen dafür nicht: Bei einem Vertrag ab 2021 mit einem angekündigten Preis 2027 entstehen
+  die Stufen bis heute trotzdem. Zwischen zwei Einträgen vor heute rechnet die Regel nicht; eine Lücke dort ist
+  gewollt (z.&nbsp;B. eine gelöschte Stufe). Nur die letzte Stufe bis heute legt das nächste Speichern wieder an, wenn
+  man sie löscht, weil sie dann wieder nach dem Ausgangseintrag fällig ist.
+- **Regel geändert oder entfernt:** wirkt nur nach vorn. Gespeicherte Einträge, auch automatische, bleiben; neue
+  Stufen rechnen mit der neuen Regel ab dem Ausgangseintrag.
+- **Seit dem letzten Speichern fällig:** Eine Stufe, die erst nach dem Speichern fällig wird (oder bei Verträgen,
+  die vor 0.2.2 gespeichert wurden), legt erst das nächste Speichern an. Bis dahin rechnet das Backend sie beim
+  Lesen ein: `betrag`, `kostenProMonat`, `kostenImJahr` und `eigenerAnteil` rechnen mit ihr, `betragErrechnet` ist
+  `true`, im `preisverlauf` steht sie als `ERRECHNET`. In `preise` steht sie nicht (dort nur Gespeichertes, die SPA
+  schickt `preise` beim Ändern zurück); `AKTUELL` ist dann der gespeicherte Eintrag, auf dem sie aufbaut.
 
 | Feld | Pflicht | Werte und Regeln |
 |---|---|---|
@@ -408,7 +439,7 @@ rechnet das Backend eine **Prognose** (siehe [Antwort](#antwort)), gespeichert w
 | `prozent` | bei `PROZENT` | größer 0, höchstens 100, höchstens zwei Nachkommastellen (z.&nbsp;B. `2.75`); die Antwort liefert zwei (`2.50`) |
 | `betrag` | bei `BETRAG` | größer 0, in derselben Währung wie der erste Preis |
 | `rhythmus` | ja | `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH`, `ZWEIJAEHRLICH`, `DREIJAEHRLICH` |
-| `naechsteAm` | ja | Datum der nächsten Erhöhung; Anker im Rhythmus wie `beginn` für die Abbuchungen, darf in der Vergangenheit liegen |
+| `naechsteAm` | ja | Datum der nächsten (bzw. ersten) Erhöhung; Anker im Rhythmus wie `beginn` für die Abbuchungen, darf in der Vergangenheit liegen. Die [Vorschau](#vorschau) schlägt `beginn` plus einen Rhythmus vor (`vorschlagNaechsteAm`) |
 
 | Regel | Feldfehler (an `preissteigerung.…`) |
 |---|---|
@@ -423,15 +454,18 @@ Dazu `PlausiblesDatum` an `naechsteAm` und an `preisgarantieBis`.
 
 Die Antwort enthält die gespeicherten Felder wie oben, die Kategorie als Objekt (wie bei den
 Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den aktuellen Preis (siehe
-[Preise](#preise)). `betrag` ist berechnet und wird beim Ändern ignoriert.
+[Preise](#preise)) mit `betragErrechnet` (`true`, wenn er eine seit dem letzten Speichern fällige Stufe ist, siehe
+[Fällige Stufen](#faellige-stufen); die SPA zeigt dann „errechnet“). Beide sind berechnet und werden beim Ändern
+ignoriert.
 Was das Backend sonst berechnet, steht in `berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern
 nicht zurückgeschickt:
 
 ```json
 "betrag": { "wert": 586.80, "waehrung": "EUR" },
+"betragErrechnet": false,
 "preise": [
-  { "gueltigAb": "2023-01-01", "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "FRUEHER" },
-  { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "art": "AKTUELL" }
+  { "gueltigAb": "2023-01-01", "betrag": { "wert": 549.00, "waehrung": "EUR" }, "art": "FRUEHER", "automatisch": false },
+  { "gueltigAb": "2026-01-01", "betrag": { "wert": 586.80, "waehrung": "EUR" }, "art": "AKTUELL", "automatisch": false }
 ],
 "berechnet": {
   "status": "AKTIV",
@@ -478,10 +512,12 @@ nicht zurückgeschickt:
   Abgebucht wird ab `beginn` im Takt der Zahlweise (1, 3, 6 oder 12 Monate), immer vom Beginn aus gezählt (Beginn
   31.01. monatlich: 28.02., 31.03.), auch schon erfolgte Abbuchungen und die eines noch nicht begonnenen Vertrags,
   nicht nach `vertragsende` (eine Abbuchung genau an diesem Tag zählt noch; ein stornierter Vertrag hat keine).
-  Ohne Abbuchungen im Jahr 0. Ab einem Termin der [Prognose](#prognose) rechnet eine Abbuchung mit dem
-  prognostizierten Preis; dafür zählen alle Termine im Jahr, nicht nur die drei aus `prognose`.
-- **`kostenImJahrMitPrognose`:** `true`, wenn eine Abbuchung in `kostenImJahr` mit einem prognostizierten Preis
-  rechnet; die SPA zeigt dann „inkl. Prognose“.
+  Ohne Abbuchungen im Jahr 0. Eine Abbuchung nach einer errechneten Stufe rechnet mit ihr; ab einem Termin der
+  [Prognose](#prognose) mit dem prognostizierten Preis, dafür zählen alle Termine im Jahr, nicht nur die drei aus
+  `prognose`.
+- **`kostenImJahrMitPrognose`:** `true`, wenn eine Abbuchung in `kostenImJahr` mit einem nicht gespeicherten Preis
+  rechnet, einem prognostizierten oder einem [errechneten](#faellige-stufen); die SPA zeigt dann „inkl. Prognose“.
+  Gespeicherte automatische Preise zählen nicht dazu.
 - **`eigenerAnteil`:** `{ betrag, kostenProMonat, kostenImJahr }`, der eigene Anteil an `betrag` (je Abbuchung,
   für „Dein Anteil: 50&nbsp;% von 586,80&nbsp;€ = 293,40&nbsp;€ jährlich“), `kostenProMonat` und `kostenImJahr` bei
   einem `anteilProzent` unter 100; sonst `null` (dann sind die vollen Kosten der eigene Anteil). Der Anteil wird
@@ -495,19 +531,20 @@ nicht zurückgeschickt:
 - **`naechstePreisaenderung`:** `{ ab, betrag, art }`, der Eintrag der Preisliste nach dem heute gültigen, `art`
   `ANGEKUENDIGT`. Beginnt der Vertrag erst in der Zukunft, ist der erste Eintrag keine Änderung (er ist schon
   `betrag`). Sonst der erste Preis der [Prognose](#prognose) mit `art` `PROGNOSE`; ein angekündigter Eintrag kommt
-  immer zuerst, weil die Prognose erst danach beginnt. `null`, wenn keine bekannt ist, der Vertrag beendet oder
+  immer zuerst, weil die Prognose erst danach beginnt. Eine errechnete Stufe ist keine Änderung, sie ist schon
+  `betrag`. `null`, wenn keine bekannt ist, der Vertrag beendet oder
   storniert ist oder der Eintrag nach dem Vertragsende liegt.
 - <a id="prognose"></a>**`prognose`:** die nächsten drei Preise `{ ab, betrag }` aus der
-  [Preissteigerung](#preissteigerung); leer ohne Regel oder bei einem beendeten oder stornierten Vertrag. Sie setzt beim letzten
-  Eintrag der Preisliste an und zählt von `naechsteAm` aus im Rhythmus vorwärts. Übersprungen werden Termine bis
-  einschließlich des `gueltigAb` des letzten Eintrags, bis einschließlich `preisgarantieBis`, vor heute und nach dem
-  Vertragsende; übersprungene Termine erhöhen nichts. Jeder Schritt wird kaufmännisch auf Cent gerundet, der
-  nächste rechnet mit dem gerundeten Preis weiter ([ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)):
-  100&nbsp;€ + 2,5&nbsp;% = 102,50&nbsp;€, + 2,5&nbsp;% = 105,06&nbsp;€. Trägt der Nutzer den echten neuen Preis
-  ein, rechnet die Prognose von dort weiter. `betrag` und `kostenProMonat` bleiben der bekannte Preis von heute.
+  [Preissteigerung](#preissteigerung) nach heute; leer ohne Regel oder bei einem beendeten oder stornierten Vertrag.
+  Sie setzt beim letzten Eintrag der Preisliste an, samt den [errechneten Stufen](#faellige-stufen) bis heute
+  (ein Termin heute ist schon fällig, nicht Prognose). Übersprungen werden Termine bis einschließlich des
+  `gueltigAb` dieses Eintrags, bis einschließlich `preisgarantieBis` und nach dem Vertragsende; Termine und Rundung
+  wie unter [Preissteigerung](#preissteigerung). Trägt der Nutzer den echten neuen Preis ein, rechnet die Prognose von
+  dort weiter. `betrag` und `kostenProMonat` rechnen nicht mit der Prognose.
 - **`preisverlauf`:** die Punkte für das Diagramm `{ ab, betrag, art }`, sortiert nach `ab`: die Einträge der
-  [Preisliste](#preise) (`FRUEHER` und `AKTUELL` als `GEZAHLT`, `ANGEKUENDIGT` als `ANGEKUENDIGT`, `NACH_ENDE`
-  fallen weg) und die drei aus `prognose` (`PROGNOSE`). Die SPA zeichnet nur.
+  [Preisliste](#preise) (`FRUEHER` und `AKTUELL` als `GEZAHLT`, auch automatische; `ANGEKUENDIGT` als
+  `ANGEKUENDIGT`; `NACH_ENDE` fallen weg), die seit dem letzten Speichern fälligen Stufen (`ERRECHNET`, siehe
+  [Fällige Stufen](#faellige-stufen)) und die drei aus `prognose` (`PROGNOSE`). Die SPA zeichnet nur.
 - **Kündigung:** `art` ist die erste passende Zeile:
 
   | Bedingung | `art` | Daten |
@@ -655,13 +692,14 @@ speichern → **200** (ohne `Location`):
 ```json
 {
   "betrag": { "wert": 13.99, "waehrung": "EUR" },
-  "preise": [{ "gueltigAb": "2024-11-22", "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL" }],
+  "preise": [{ "gueltigAb": "2024-11-22", "betrag": { "wert": 13.99, "waehrung": "EUR" }, "art": "AKTUELL", "automatisch": false, "neu": false }],
   "kostenProMonat": { "wert": 13.99, "waehrung": "EUR" },
   "eigenerAnteil": { "betrag": { "wert": 7.00, "waehrung": "EUR" }, "kostenProMonat": { "wert": 7.00, "waehrung": "EUR" } },
   "naechstePreisaenderung": null,
   "prognose": [],
   "einmalkosten": null,
-  "kuendigung": { "art": "MONATLICH_KUENDBAR", "kuendigenBis": "2026-11-22", "zum": "2026-11-22", "fristMonate": 0, "dringend": false }
+  "kuendigung": { "art": "MONATLICH_KUENDBAR", "kuendigenBis": "2026-11-22", "zum": "2026-11-22", "fristMonate": 0, "dringend": false },
+  "vorschlagNaechsteAm": null
 }
 ```
 
@@ -685,7 +723,7 @@ speichern → **200** (ohne `Location`):
   | Feld | `null`, wenn |
   |---|---|
   | `betrag` (aktueller Preis) | kein `beginn` oder keine vollständige Preiszeile |
-  | `preise` (wie [Preise](#preise) der Antwort; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
+  | `preise` (wie [Preise](#preise) der Antwort, so wie sie nach dem Speichern wären; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
   | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |
@@ -693,6 +731,14 @@ speichern → **200** (ohne `Location`):
   | `prognose` | nie; leere Liste ohne oder mit unvollständiger Preissteigerung |
   | `einmalkosten` (Summe) | keine vollständige Zeile; ohne Preis in der Währung der Einmalkosten |
   | `kuendigung` | nie; ohne Angaben z.&nbsp;B. `KEINE_LAUFZEIT`, bei `kuendbar: false` zählen Verlängerung und Frist wie beim Speichern nicht |
+
+  | `vorschlagNaechsteAm` (Vorschlag für `preissteigerung.naechsteAm`: `beginn` plus einen `rhythmus`, ein Monatsletzter bleibt einer: 31.01. vierteljährlich → 30.04.) | kein `beginn` oder kein `preissteigerung.rhythmus` |
+
+  **Preise wie nach dem Speichern:** Die Vorschau ergänzt die [fälligen Stufen](#faellige-stufen), die das Speichern
+  anlegen würde, mit `automatisch: true` und `neu: true` (`neu` gibt es nur in der Vorschau); `betrag` usw. rechnen
+  mit ihnen. Die SPA schickt die `neu`-Zeilen beim Speichern nicht mit, das Backend legt sie selbst an. Bei den
+  übrigen Zeilen übernimmt die Vorschau `automatisch` aus der Anfrage ungeprüft. Ein `betragErrechnet` gibt es in
+  der Vorschau nicht, weil sie den Stand nach dem Speichern zeigt.
 
   `kostenImJahr`, `preisverlauf` und der Anteil am Jahr stehen nicht in der Vorschau. Das Objekt kann später weitere
   Werte bekommen; die SPA liest nur, was sie braucht.

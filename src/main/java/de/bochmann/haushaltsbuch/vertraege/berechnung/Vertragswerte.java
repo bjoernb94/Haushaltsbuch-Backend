@@ -12,7 +12,8 @@ import java.util.List;
  * kennt (z.&nbsp;B. kein Vertragsende).
  *
  * @param betrag der {@link Vertragsberechnung#aktuellerPreis aktuelle Preis}; braucht einen Preis
- * @param preise die Preisliste mit dem Eintrag von {@code betrag}; ohne Preis leer
+ * @param betragErrechnet ob {@code betrag} eine seit dem letzten Speichern fällige Stufe der Preissteigerung ist
+ * @param preise die gespeicherte Preisliste mit dem Eintrag von {@code betrag}; ohne Preis leer
  * @param kostenProMonat braucht Preis und Zahlweise
  * @param kostenImJahr braucht Preis, Zahlweise und {@code beginn}
  * @param eigenerAnteilBetrag Anteil an {@code betrag}; nur bei einem Anteil unter 100&nbsp;% und mit Preis
@@ -25,6 +26,7 @@ import java.util.List;
 public record Vertragswerte(
 		Vertragsstatus status,
 		@Nullable Betrag betrag,
+		boolean betragErrechnet,
 		List<Preiszeile> preise,
 		@Nullable Betrag kostenProMonat,
 		@Nullable Betrag kostenImJahr,

@@ -31,7 +31,18 @@ public final class Preisliste {
 
 	/** Der Preis, der an {@code datum} gilt; vor dem ersten Eintrag der erste. */
 	public Betrag am(LocalDate datum) {
-		return preise.get(index(datum)).betrag();
+		return eintragAm(datum).betrag();
+	}
+
+	/** Der Eintrag, der an {@code datum} gilt; vor dem ersten Eintrag der erste. */
+	public Preis eintragAm(LocalDate datum) {
+		return preise.get(index(datum));
+	}
+
+	/** Der letzte Eintrag mit {@code gueltigAb} bis einschließlich {@code datum}; leer, wenn alle später gelten. */
+	public Optional<Preis> letzterBis(LocalDate datum) {
+		Preis preis = eintragAm(datum);
+		return preis.gueltigAb().isAfter(datum) ? Optional.empty() : Optional.of(preis);
 	}
 
 	/**
@@ -74,7 +85,7 @@ public final class Preisliste {
 		return preise.getLast();
 	}
 
-	/** Diese Liste ergänzt um {@code weitere} Einträge, z.&nbsp;B. die prognostizierten. */
+	/** Diese Liste ergänzt um {@code weitere} Einträge, z.&nbsp;B. die errechneten oder prognostizierten. */
 	public Preisliste mit(List<Preis> weitere) {
 		return weitere.isEmpty() ? this : new Preisliste(Stream.concat(preise.stream(), weitere.stream()).toList());
 	}

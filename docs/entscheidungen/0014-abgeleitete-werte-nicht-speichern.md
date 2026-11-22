@@ -2,7 +2,8 @@
 
 **Status:** angenommen, 2026-11-01, nachgetragen mit
 [#122](https://github.com/bjoernb94/Haushaltsbuch-Backend/issues/122) (ergänzt ADR
-[0010](0010-berechnungen-nur-im-backend.md))
+[0010](0010-berechnungen-nur-im-backend.md)); Ausnahme für fällige Preiserhöhungen in ADR
+[0022](0022-automatische-preiserhoehungen-speichern.md)
 
 ## Kontext
 
