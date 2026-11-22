@@ -87,6 +87,9 @@ Betrieb per Compose ([Betrieb per Compose](docs/betrieb.md#betrieb-per-compose))
 1. Version per Pull Request anheben: `<version>` in der `pom.xml` und die beiden Image-Versionen in
    `betrieb/compose.yaml`.
 2. Nach dem Merge auf `main` taggen: `git tag v0.2.0 && git push origin v0.2.0`.
+3. Braucht eine bestehende Instanz beim Update einen Schritt von Hand (z.&nbsp;B. in Keycloak), ihn danach in die
+   Release Notes eintragen (`gh release edit v0.2.0 --notes-file …`); die allgemeinen Schritte stehen unter
+   [Update](docs/betrieb.md#update).
 
 Backend und Frontend zählen gleich hoch; das Backend wird zuerst veröffentlicht. Solange die Hauptversion 0
 ist, ist jedes Release eine Vorabversion (Pre-release) und das Image bekommt nur die Tags `0.2.0` und `0.2`;
