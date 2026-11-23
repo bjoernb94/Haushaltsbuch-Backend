@@ -24,6 +24,8 @@ import java.util.List;
  * sie ohne Preise, weil der erste ab dem Beginn gilt. Unvollständige Zeilen (Preis ohne Datum oder Betrag,
  * Einmalkosten ohne Bezeichnung, Betrag oder Fälligkeit, Preissteigerung ohne alle Angaben) ignoriert die Vorschau.
  * Ungültige Werte lehnt sie ab wie das Speichern, damit sie nichts für Werte zeigt, die sich nicht speichern lassen.
+ *
+ * @param preissteigerungBetrachtetBis aus der Antwort des gespeicherten Vertrags, unverändert; leer bei einem neuen
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
@@ -37,6 +39,7 @@ record VertragVorschauAnfrage(
 		@Size(max = 100) @Nullable List<@Valid VertragVorschauEinmalkosten> einmalkosten,
 		@Valid @Nullable VertragVorschauPreissteigerung preissteigerung,
 		@PlausiblesDatum @Nullable LocalDate preisgarantieBis,
+		@PlausiblesDatum @Nullable LocalDate preissteigerungBetrachtetBis,
 		@NotNull Boolean kuendbar,
 		@PlausiblesDatum @Nullable LocalDate beginn,
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,

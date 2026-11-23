@@ -691,6 +691,60 @@ class VertragsberechnungTests {
 			assertThat(werte.preise()).filteredOn(Preiszeile::automatisch).hasSize(5);
 		}
 
+		/** Bis zum 22.11.2026 betrachtet, also schon gespeichert: Gelöschte Stufen entstehen nicht neu (#162). */
+		private static final Preisprognose BETRACHTET = ZWEI_PROZENT.betrachtetBis(d("2026-11-22"));
+
+		/** Fall A: Die neueste Stufe gelöscht; die Prognose rechnet vom letzten verbliebenen Eintrag weiter. */
+		@Test
+		void geloeschteNeuesteStufeBleibtWeg() {
+			var ohne2026 = ab2021(automatisch("2022-03-01", "102.00"), automatisch("2023-03-01", "104.04"),
+					automatisch("2024-03-01", "106.12"), automatisch("2025-03-01", "108.24"));
+
+			assertThat(am22November.faelligeStufen(AB_2021, ohne2026, BETRACHTET)).isEmpty();
+			var werte = werte(AB_2021, ohne2026, BETRACHTET);
+			assertThat(werte.betrag()).isEqualTo(euro("108.24"));
+			assertThat(werte.betragErrechnet()).isFalse();
+			assertThat(werte.preisverlauf()).extracting(Preispunkt::art).doesNotContain(Preispunktart.ERRECHNET);
+			assertThat(werte.prognose()).first().isEqualTo(new Prognosepreis(d("2027-03-01"), euro("110.40")));
+		}
+
+		/** Fall C: alle automatischen gelöscht; nur der eingetragene Preis bleibt. */
+		@Test
+		void alleGeloeschtenStufenBleibenWeg() {
+			assertThat(am22November.faelligeStufen(AB_2021, ab2021(), BETRACHTET)).isEmpty();
+			var werte = werte(AB_2021, ab2021(), BETRACHTET);
+			assertThat(werte.betrag()).isEqualTo(euro("100.00"));
+			assertThat(werte.betragErrechnet()).isFalse();
+		}
+
+		/** Ein Jahr später ist nur der neue Termin fällig, die gelöschten davor bleiben weg. */
+		@Test
+		void nachDemBetrachtetenTagWiederFaellig() {
+			var einJahrSpaeter = new Vertragsberechnung(d("2027-11-22"));
+			var ohne2026 = ab2021(automatisch("2022-03-01", "102.00"), automatisch("2023-03-01", "104.04"),
+					automatisch("2024-03-01", "106.12"), automatisch("2025-03-01", "108.24"));
+
+			assertThat(einJahrSpaeter.faelligeStufen(AB_2021, ohne2026, BETRACHTET))
+					.containsExactly(automatisch("2027-03-01", "110.40"));
+			assertThat(einJahrSpaeter.aktuellerPreis(AB_2021, ohne2026, BETRACHTET)).isEqualTo(euro("110.40"));
+		}
+
+		/** Nur nach hinten: Ein früherer Tag ändert nichts. */
+		@Test
+		void betrachtetBisWirdNurSpaeter() {
+			assertThat(BETRACHTET.betrachtetBis(d("2024-12-31")).betrachtetBis()).isEqualTo(d("2026-11-22"));
+			assertThat(ZWEI_PROZENT.betrachtetBis(d("2024-12-31")).betrachtetBis()).isEqualTo(d("2024-12-31"));
+		}
+
+		/** Die Vorschau rechnet wie nach dem Speichern, also bis heute betrachtet. */
+		@Test
+		void wieGespeichertIstBetrachtet() {
+			var grundlage = am22November.wieGespeichert(
+					new Berechnungsgrundlage(AB_2021, ab2021(), ZWEI_PROZENT, Anteil.GANZ, List.of()));
+
+			assertThat(grundlage.prognose().betrachtetBis()).isEqualTo(d("2026-11-22"));
+		}
+
 		@Test
 		void vorschlagEinRhythmusNachDemBeginn() {
 			assertThat(Erhoehungsrhythmus.JAEHRLICH.nach(d("2021-03-01"))).isEqualTo(d("2022-03-01"));

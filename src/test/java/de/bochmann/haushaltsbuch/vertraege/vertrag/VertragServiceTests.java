@@ -703,7 +703,7 @@ class VertragServiceTests {
 		assertThat(vertrag.preise()).extracting(VertragPreisAntwort::automatisch).containsExactly(false);
 	}
 
-	/** Eine gelöschte Stufe in der Mitte bleibt eine Lücke; die letzte bis heute legt das Speichern wieder an. */
+	/** Eine gelöschte Stufe in der Mitte bleibt eine Lücke; die übrigen bleiben, wie sie sind. */
 	@Test
 	void geloeschteStufeBleibtWeg() {
 		var a = seitFuenfJahren();
@@ -716,11 +716,7 @@ class VertragServiceTests {
 
 		assertThat(luecke.preise()).extracting(VertragPreisAntwort::gueltigAb).doesNotContain(vertrag.preise().get(2).gueltigAb())
 				.hasSize(5);
-		var ohneLetzte = new ArrayList<>(zurueck(luecke.preise()));
-		ohneLetzte.removeLast();
-		var wieder = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
-				aenderung(luecke.version(), mit(a, ohneLetzte, a.zahlweise(), a.beginn(), null))));
-		assertThat(wieder.preise()).isEqualTo(luecke.preise());
+		assertThat(luecke.betrag()).isEqualTo(euro("110.40"));
 	}
 
 	/** Eine geänderte Regel wirkt nur nach vorn: Gespeicherte Stufen bleiben, die Prognose rechnet mit der neuen. */
@@ -746,6 +742,7 @@ class VertragServiceTests {
 		var a = seitFuenfJahren();
 		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
 		jdbc.sql("DELETE FROM vertrag_preis WHERE vertrag_id = ? AND automatisch").param(vertrag.id()).update();
+		jdbc.sql("UPDATE vertrag SET preissteigerung_betrachtet_bis = NULL WHERE id = ?").param(vertrag.id()).update();
 
 		var gelesen = HaushaltKontext.fuer(haushalt, () -> service.abrufen(vertrag.id()));
 
@@ -763,6 +760,83 @@ class VertragServiceTests {
 		assertThat(gespeichert.betragErrechnet()).isFalse();
 	}
 
+	/** Speichern ohne die neueste bzw. ohne alle automatischen Stufen: Sie entstehen nicht neu (#162). */
+	@Test
+	void geloeschteStufenEntstehenNichtNeu() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		assertThat(vertrag.preissteigerungBetrachtetBis()).isEqualTo(LocalDate.now(clock));
+		var ohneNeueste = new ArrayList<>(zurueck(vertrag.preise()));
+		ohneNeueste.removeLast();
+
+		var fallA = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(0, mit(a, ohneNeueste, a.zahlweise(), a.beginn(), null))));
+
+		assertThat(fallA.preise()).hasSize(5);
+		assertThat(fallA.betrag()).isEqualTo(euro("108.24"));
+		assertThat(fallA.betragErrechnet()).isFalse();
+		assertThat(fallA.berechnet().preisverlauf()).extracting(Preispunkt::art).doesNotContain(Preispunktart.ERRECHNET);
+		assertThat(fallA.berechnet().prognose()).first()
+				.isEqualTo(new Prognosepreis(vertrag.beginn().plusYears(6), euro("110.40")));
+
+		var fallC = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(fallA.version(), mit(a, zurueck(fallA.preise()).subList(0, 1), a.zahlweise(), a.beginn(),
+						null))));
+
+		assertThat(fallC.preise()).singleElement().extracting(VertragPreisAntwort::automatisch).isEqualTo(false);
+		assertThat(fallC.betrag()).isEqualTo(euro("100.00"));
+		assertThat(fallC.betragErrechnet()).isFalse();
+		assertThat(HaushaltKontext.fuer(haushalt, () -> service.abrufen(vertrag.id()))).isEqualTo(fallC);
+	}
+
+	/** Mit {@code preissteigerungBetrachtetBis} aus der Antwort zeigt die Vorschau gelöschte Stufen nicht als neu. */
+	@Test
+	void vorschauLegtGeloeschteStufenNichtNeuAn() {
+		var a = seitFuenfJahren();
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(a));
+		var ohneNeueste = mit(a, zurueck(vertrag.preise()).subList(0, 5), a.zahlweise(), a.beginn(), null);
+		var anfrage = vorschau(ohneNeueste);
+		var mitBetrachtet = new VertragVorschauAnfrage(anfrage.preise(), anfrage.zahlweise(), anfrage.anteilProzent(),
+				anfrage.einmalkosten(), anfrage.preissteigerung(), anfrage.preisgarantieBis(),
+				vertrag.preissteigerungBetrachtetBis(), anfrage.kuendbar(), anfrage.beginn(), anfrage.laufzeitende(),
+				anfrage.verlaengerung(), anfrage.kuendigungsfristMonate(), anfrage.gekuendigtZum());
+
+		var vorschau = service.vorschau(mitBetrachtet);
+		var gespeichert = HaushaltKontext.fuer(haushalt,
+				() -> service.aendern(vertrag.id(), aenderung(0, ohneNeueste)));
+
+		assertThat(vorschau.preise()).noneMatch(VertragVorschauPreisAntwort::neu).hasSize(5);
+		assertThat(vorschau.betrag()).isEqualTo(gespeichert.betrag());
+		assertThat(vorschau.preise()).extracting(VertragVorschauPreisAntwort::gueltigAb)
+				.isEqualTo(gespeichert.preise().stream().map(VertragPreisAntwort::gueltigAb).toList());
+		// Ohne den Wert (wie bei einem neuen Vertrag) wäre die gelöschte Stufe neu.
+		assertThat(service.vorschau(anfrage).preise()).filteredOn(VertragVorschauPreisAntwort::neu).hasSize(1);
+	}
+
+	/**
+	 * Ohne Regel gespeichert bleibt nichts betrachtet: Bekommt der Vertrag später eine Regel, entstehen alle Stufen
+	 * seit Beginn. Aus- und wieder eingeschaltet entstehen gelöschte Stufen dagegen nicht neu.
+	 */
+	@Test
+	void regelSpaeterEingeschaltetOderAusUndAn() {
+		var a = seitFuenfJahren();
+		var ohneRegel = mitSteigerung(a, null, null, true);
+		var vertrag = HaushaltKontext.fuer(haushalt, () -> service.anlegen(ohneRegel));
+		assertThat(vertrag.preissteigerungBetrachtetBis()).isNull();
+
+		var mitRegel = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(), aenderung(0, a)));
+		assertThat(mitRegel.preise()).hasSize(6);
+
+		var aus = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(mitRegel.version(), mit(ohneRegel, zurueck(mitRegel.preise()).subList(0, 1), a.zahlweise(),
+						a.beginn(), null))));
+		var wiederAn = HaushaltKontext.fuer(haushalt, () -> service.aendern(vertrag.id(),
+				aenderung(aus.version(), mit(a, zurueck(aus.preise()), a.zahlweise(), a.beginn(), null))));
+
+		assertThat(aus.preissteigerungBetrachtetBis()).isEqualTo(LocalDate.now(clock));
+		assertThat(wiederAn.preise()).hasSize(1);
+	}
+
 	/** Die Vorschau zeigt die Stufen, die das Speichern anlegt, und schlägt den Termin vor. */
 	@Test
 	void vorschauMitNeuenStufenUndVorschlag() {
@@ -777,11 +851,11 @@ class VertragServiceTests {
 				.allMatch(VertragVorschauPreisAntwort::automatisch);
 		assertThat(vorschau.vorschlagNaechsteAm()).isEqualTo(a.beginn().plusYears(1));
 		var monatsende = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
-				null, null, Erhoehungsrhythmus.VIERTELJAEHRLICH, null), null, true, LocalDate.of(2027, 1, 31), null,
+				null, null, Erhoehungsrhythmus.VIERTELJAEHRLICH, null), null, null, true, LocalDate.of(2027, 1, 31), null,
 				null, null, null);
 		assertThat(service.vorschau(monatsende).vorschlagNaechsteAm()).isEqualTo(LocalDate.of(2027, 4, 30));
 		var ohneRhythmus = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
-				null, null, null, null), null, true, LocalDate.of(2027, 1, 31), null, null, null, null);
+				null, null, null, null), null, null, true, LocalDate.of(2027, 1, 31), null, null, null, null);
 		assertThat(service.vorschau(ohneRhythmus).vorschlagNaechsteAm()).isNull();
 	}
 
@@ -868,7 +942,7 @@ class VertragServiceTests {
 						.map(e -> new VertragVorschauEinmalkosten(e.bezeichnung(), e.betrag(), e.faelligAm())).toList(),
 				steigerung == null ? null : new VertragVorschauPreissteigerung(steigerung.art(), steigerung.prozent(),
 						steigerung.betrag(), steigerung.rhythmus(), steigerung.naechsteAm()),
-				a.preisgarantieBis(), a.kuendbar(), a.beginn(), a.laufzeitende(), a.verlaengerung(),
+				a.preisgarantieBis(), null, a.kuendbar(), a.beginn(), a.laufzeitende(), a.verlaengerung(),
 				a.kuendigungsfristMonate(), a.gekuendigtZum());
 	}
 
@@ -925,7 +999,7 @@ class VertragServiceTests {
 
 	@Test
 	void vorschauMitFehlendenWerten() {
-		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, true, null, null, null, null, null);
+		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, null, true, null, null, null, null, null);
 
 		var vorschau = service.vorschau(leer);
 
@@ -940,9 +1014,9 @@ class VertragServiceTests {
 		LocalDate heute = LocalDate.now(clock);
 		var preis = List.of(new VertragVorschauPreis(heute, euro("10.00"), null));
 		var ohneBeginn = new VertragVorschauAnfrage(preis, Zahlweise.MONATLICH, new BigDecimal("50"), null, null,
-				null, true, null, null, null, null, null);
+				null, null, true, null, null, null, null, null);
 		var ohneZahlweise = new VertragVorschauAnfrage(preis, null, new BigDecimal("50"), null,
-				null, null, true, heute, null, null, null, null);
+				null, null, null, true, heute, null, null, null, null);
 
 		var ohneBeginnVorschau = service.vorschau(ohneBeginn);
 		var ohneZahlweiseVorschau = service.vorschau(ohneZahlweise);
@@ -974,7 +1048,7 @@ class VertragServiceTests {
 				Erhoehungsrhythmus.JAEHRLICH, heute);
 
 		var vorschau = service.vorschau(new VertragVorschauAnfrage(preise, Zahlweise.MONATLICH,
-				null, einmalkosten, steigerung, null, true, heute, null, null, null, null));
+				null, einmalkosten, steigerung, null, null, true, heute, null, null, null, null));
 
 		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
 		assertThat(vorschau.preise())
@@ -988,10 +1062,10 @@ class VertragServiceTests {
 	@Test
 	void vorschauEinmalkostenOhnePreis() {
 		var nurEinmalkosten = new VertragVorschauAnfrage(null, null, null,
-				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, true,
+				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, null, true,
 				null, null, null, null, null);
 		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"), null)), null,
-				null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, true, null, null,
+				null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, null, true, null, null,
 				null, null, null);
 
 		assertThat(service.vorschau(nurEinmalkosten).einmalkosten()).isEqualTo(euro("99.99"));

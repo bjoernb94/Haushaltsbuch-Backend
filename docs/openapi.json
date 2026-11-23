@@ -1349,6 +1349,10 @@
               "type" : "null"
             } ]
           },
+          "preissteigerungBetrachtetBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1374,7 +1378,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "betragErrechnet", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "betragErrechnet", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "preissteigerungBetrachtetBis", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
@@ -1651,6 +1655,10 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "preissteigerungBetrachtetBis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
           },
           "verlaengerung" : {
             "oneOf" : [ {

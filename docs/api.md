@@ -423,10 +423,17 @@ legt das Backend beim Speichern die **fälligen Stufen** als Preise an und rechn
   Eintrag bis heute an (dem Ausgangseintrag, eingetragen oder automatisch) und beginnen am ersten Termin danach.
   Angekündigte Einträge zählen dafür nicht: Bei einem Vertrag ab 2021 mit einem angekündigten Preis 2027 entstehen
   die Stufen bis heute trotzdem. Zwischen zwei Einträgen vor heute rechnet die Regel nicht; eine Lücke dort ist
-  gewollt (z.&nbsp;B. eine gelöschte Stufe). Nur die letzte Stufe bis heute legt das nächste Speichern wieder an, wenn
-  man sie löscht, weil sie dann wieder nach dem Ausgangseintrag fällig ist.
+  gewollt.
+- <a id="betrachtet-bis"></a>**Gelöschte Stufen bleiben gelöscht:** Jedes Speichern mit Regel merkt sich in
+  `preissteigerungBetrachtetBis` den Tag, bis zu dem es die Termine betrachtet hat (heute, bei einem beendeten Vertrag
+  sein letzter Tag; der Wert wird nur später). Ein Termin bis dahin entsteht nie wieder, auch nicht die neueste Stufe
+  oder alle, wenn der Nutzer sie gelöscht hat: Löschen heißt „an diesem Termin keine Erhöhung“, die Prognose rechnet
+  vom letzten verbliebenen Eintrag weiter. Ohne Regel bleibt der Wert, wie er ist; ein Vertrag, der erst später eine
+  Regel bekommt, erhält also alle Stufen seit Beginn, aus- und wieder eingeschaltet dagegen keine gelöschten.
 - **Regel geändert oder entfernt:** wirkt nur nach vorn. Gespeicherte Einträge, auch automatische, bleiben; neue
-  Stufen rechnen mit der neuen Regel ab dem Ausgangseintrag.
+  Stufen rechnen mit der neuen Regel ab dem Ausgangseintrag, nur an Terminen nach `preissteigerungBetrachtetBis`.
+  Dasselbe gilt, wenn `naechsteAm`, der Beginn oder `preisgarantieBis` nachträglich geändert werden: Termine, die schon
+  betrachtet waren (auch solche, die damals in der Garantie lagen), entstehen nicht nachträglich.
 - **Seit dem letzten Speichern fällig:** Eine Stufe, die erst nach dem Speichern fällig wird (oder bei Verträgen,
   die vor 0.2.2 gespeichert wurden), legt erst das nächste Speichern an. Bis dahin rechnet das Backend sie beim
   Lesen ein: `betrag`, `kostenProMonat`, `kostenImJahr` und `eigenerAnteil` rechnen mit ihr, `betragErrechnet` ist
@@ -456,7 +463,8 @@ Die Antwort enthält die gespeicherten Felder wie oben, die Kategorie als Objekt
 Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den aktuellen Preis (siehe
 [Preise](#preise)) mit `betragErrechnet` (`true`, wenn er eine seit dem letzten Speichern fällige Stufe ist, siehe
 [Fällige Stufen](#faellige-stufen); die SPA zeigt dann „errechnet“). Beide sind berechnet und werden beim Ändern
-ignoriert.
+ignoriert, ebenso `preissteigerungBetrachtetBis` (Datum oder `null`, siehe
+[Gelöschte Stufen bleiben gelöscht](#betrachtet-bis)); den schickt die SPA nur an die [Vorschau](#vorschau).
 Was das Backend sonst berechnet, steht in `berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern
 nicht zurückgeschickt:
 
@@ -704,12 +712,13 @@ speichern → **200** (ohne `Location`):
 ```
 
 - **Anfrage:** die Formularwerte `preise`, `zahlweise`, `anteilProzent`, `einmalkosten`,
-  `preissteigerung`, `preisgarantieBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
+  `preissteigerung`, `preisgarantieBis`, `preissteigerungBetrachtetBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
   `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
   Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen, auch
   `beginn` (ohne Beginn ist der Status `AKTIV`, und ohne Laufzeitende ist kein Vertragsende bestimmbar). Ohne
   `beginn` rechnet die Vorschau ohne Preise, weil der früheste ab dem Beginn gilt und spätere sonst rückwirkend
-  gälten.
+  gälten. `preissteigerungBetrachtetBis` übernimmt die SPA beim Bearbeiten unverändert aus der Antwort, bei einem
+  neuen Vertrag `null`; sonst zeigte die Vorschau gelöschte Stufen wieder als `neu`.
 - **Fehlende Werte sind kein Fehler:** Fehlt eine Angabe, ist jeder Wert `null`, der sie braucht (die SPA zeigt
   „Noch offen“); die übrigen werden trotzdem berechnet. **Unvollständige Zeilen** ignoriert die Vorschau: eine
   Preiszeile ohne `gueltigAb` oder `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne
@@ -723,7 +732,7 @@ speichern → **200** (ohne `Location`):
   | Feld | `null`, wenn |
   |---|---|
   | `betrag` (aktueller Preis) | kein `beginn` oder keine vollständige Preiszeile |
-  | `preise` (wie [Preise](#preise) der Antwort, so wie sie nach dem Speichern wären; für den Preisverlauf als Text im Formular) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
+  | `preise` (wie [Preise](#preise) der Antwort, so wie sie nach dem Speichern wären; für die Etiketten der Preisliste im Formular und den Hinweis auf die `neu`-Stufen) | nie; leere Liste ohne `beginn` oder vollständige Preiszeile, unvollständige Zeilen fehlen |
   | `kostenProMonat` | kein Preis oder keine `zahlweise` |
   | `eigenerAnteil` (`{ betrag, kostenProMonat }`; den Anteil am Jahr zeigt das Formular nicht) | kein Preis oder kein Anteil unter 100&nbsp;% |
   | `eigenerAnteil.kostenProMonat` | keine `zahlweise` |

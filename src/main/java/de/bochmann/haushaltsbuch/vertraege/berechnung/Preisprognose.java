@@ -21,16 +21,31 @@ import java.util.Optional;
  *
  * @param steigerung ohne Regel gibt es weder Stufen noch Prognose
  * @param garantieBis bis einschließlich dieses Tages erhöht kein Termin
+ * @param betrachtetBis bis einschließlich dieses Tages hat das Speichern die Termine schon betrachtet und fällige
+ *        Stufen angelegt; ein Termin bis dahin wird nie wieder fällig, auch wenn der Nutzer seinen Preis gelöscht hat
+ *        (#162). Leer, wenn noch nie mit Regel gespeichert
  */
-public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable LocalDate garantieBis) {
+public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable LocalDate garantieBis,
+		@Nullable LocalDate betrachtetBis) {
 
-	public static final Preisprognose KEINE = new Preisprognose(null, null);
+	public static final Preisprognose KEINE = new Preisprognose(null, null, null);
+
+	/** Noch nie gespeichert. */
+	public Preisprognose(@Nullable Preissteigerung steigerung, @Nullable LocalDate garantieBis) {
+		this(steigerung, garantieBis, null);
+	}
+
+	/** Diese Prognose, nachdem das Speichern die Termine bis einschließlich {@code tag} betrachtet hat. */
+	public Preisprognose betrachtetBis(LocalDate tag) {
+		return new Preisprognose(steigerung, garantieBis, spaeter(betrachtetBis, tag));
+	}
 
 	/**
 	 * Die fälligen Stufen bis einschließlich {@code bis}: Sie setzen beim letzten Eintrag bis zu diesem Tag an (dem
 	 * Ausgangseintrag), egal ob eingetragen oder automatisch; spätere, angekündigte Einträge zählen dafür nicht.
-	 * Zwischen früheren Einträgen rechnet die Regel nicht, eine Lücke dort ist gewollt. Leer ohne Regel oder wenn
-	 * alle Einträge erst nach {@code bis} gelten.
+	 * Termine bis einschließlich {@code betrachtetBis} sind nie fällig: Eine gelöschte Stufe bleibt gelöscht, auch die
+	 * letzte. Zwischen früheren Einträgen rechnet die Regel nicht, eine Lücke dort ist gewollt. Leer ohne Regel oder
+	 * wenn alle Einträge erst nach {@code bis} gelten.
 	 *
 	 * @param bis heute bzw. der letzte Tag eines beendeten Vertrags
 	 * @param herkunft {@link Preisherkunft#AUTOMATISCH} beim Speichern, {@link Preisherkunft#ERRECHNET} beim Lesen
@@ -40,8 +55,8 @@ public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable Loca
 			return List.of();
 		}
 		return preise.letzterBis(bis)
-				.map(ausgang -> stufen(ausgang.betrag(), ohneGarantie(ausgang.gueltigAb()), bis, Integer.MAX_VALUE,
-						herkunft))
+				.map(ausgang -> stufen(ausgang.betrag(), ohneGarantie(spaeter(betrachtetBis, ausgang.gueltigAb())), bis,
+						Integer.MAX_VALUE, herkunft))
 				.orElse(List.of());
 	}
 
@@ -66,7 +81,12 @@ public record Preisprognose(@Nullable Preissteigerung steigerung, @Nullable Loca
 
 	/** {@code grenze}, mindestens aber {@code garantieBis}: der letzte Tag, an dem noch nicht erhöht wird. */
 	private LocalDate ohneGarantie(LocalDate grenze) {
-		return garantieBis != null && garantieBis.isAfter(grenze) ? garantieBis : grenze;
+		return spaeter(garantieBis, grenze);
+	}
+
+	/** Der spätere der beiden Tage; {@code tag}, wenn {@code vielleicht} leer ist. */
+	private static LocalDate spaeter(@Nullable LocalDate vielleicht, LocalDate tag) {
+		return vielleicht != null && vielleicht.isAfter(tag) ? vielleicht : tag;
 	}
 
 	/** Die Stufen an den Terminen nach {@code grenze} bis einschließlich {@code bis}, ausgehend von {@code preis}. */

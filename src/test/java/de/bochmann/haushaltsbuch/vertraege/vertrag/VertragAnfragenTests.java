@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -52,6 +53,9 @@ class VertragAnfragenTests {
 	private static void pruefeWieBeimAnlegen(Class<? extends Record> vorschau, Class<? extends Record> anlegen)
 			throws Exception {
 		for (var feld : vorschau.getRecordComponents()) {
+			if (NUR_VORSCHAU.contains(feld.getName())) {
+				continue;
+			}
 			var original = anlegen.getMethod(feld.getName());
 			var erwartet = Arrays.stream(original.getAnnotations())
 					.filter(a -> feld.getName().equals("kuendbar") || !PFLICHT.contains(a.annotationType()))
@@ -64,6 +68,20 @@ class VertragAnfragenTests {
 			assertThat(feld.getGenericType().getTypeName()).as(feld.getName()).isEqualTo(typ);
 			assertThat(feld.getAccessor().getAnnotations()).as(feld.getName()).containsExactlyElementsOf(erwartet);
 		}
+	}
+
+	/**
+	 * Gibt es beim Anlegen nicht: Beim Speichern zählt der gespeicherte Wert, die Vorschau bekommt ihn aus der Antwort
+	 * (#162). Geprüft wird er wie jedes Datum.
+	 */
+	private static final Set<String> NUR_VORSCHAU = Set.of("preissteigerungBetrachtetBis");
+
+	@Test
+	void nurInDerVorschau() throws Exception {
+		assertThat(VertragVorschauAnfrage.class.getMethod("preissteigerungBetrachtetBis").getAnnotations())
+				.anyMatch(a -> a.annotationType() == PlausiblesDatum.class);
+		assertThat(VertragAnfrage.class.getRecordComponents()).extracting(RecordComponent::getName)
+				.doesNotContainAnyElementsOf(NUR_VORSCHAU);
 	}
 
 	private static final Set<Class<?>> PFLICHT = Set.of(NotNull.class, NotEmpty.class, NotBlank.class);
