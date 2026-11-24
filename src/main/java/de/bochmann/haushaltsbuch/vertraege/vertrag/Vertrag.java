@@ -1,10 +1,12 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
+import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechungsart;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
@@ -31,7 +33,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
@@ -39,6 +43,9 @@ import java.util.stream.Stream;
  * Angaben des Nutzers, auch die Preise mit Gültigkeitsdatum; aktueller Betrag, Status, Kosten, Vertragsende
  * und Kündigung berechnet {@link Vertragsberechnung} beim Lesen. Ausnahme: Beim Speichern legt {@link #setzen} die
  * fälligen Stufen der Preissteigerung als automatische Preise an (ADR 0022).
+ * <p>
+ * Unterbrechungen (ADR 0023) entstehen nur bei der {@link #wiederaufnehmen Wiederaufnahme}; beim Ändern lassen sie
+ * sich nur entfernen ({@link #unterbrechungenBehalten}).
  * <p>
  * Angaben, die nicht zum Vertrag passen, leert {@link #setzen}: Ein nicht kündbarer Vertrag hat weder
  * Verlängerung noch Kündigungsfrist; leere Texte werden {@code null}.
@@ -135,6 +142,18 @@ class Vertrag extends FachEntity {
 	@Column(name = "notiz", length = 1000)
 	private String notiz;
 
+	/**
+	 * Wie {@link #preise} ohne eigene {@code haushalt_id}; die {@code version} des Vertrags deckt sie mit ab.
+	 * Nachgeladen wie {@link #einmalkosten}.
+	 */
+	@ElementCollection
+	@CollectionTable(name = "vertrag_unterbrechung", joinColumns = @JoinColumn(name = "vertrag_id"))
+	@Fetch(FetchMode.SUBSELECT)
+	private List<VertragUnterbrechung> unterbrechungen = new ArrayList<>();
+
+	private static final Comparator<VertragUnterbrechung> UNTERBRECHUNG_REIHENFOLGE = Comparator
+			.comparing(VertragUnterbrechung::von);
+
 	private static final Comparator<VertragPreis> REIHENFOLGE = Comparator.comparing(VertragPreis::preis,
 			Preisliste.REIHENFOLGE);
 
@@ -187,11 +206,64 @@ class Vertrag extends FachEntity {
 		this.notiz = text(anfrage.notiz());
 		// Zuletzt, weil die fälligen Stufen von Regel, Garantie und Vertragsende abhängen.
 		var bisher = getPreise();
-		var angefragt = anfrage.preise().stream().map(preis -> preis.vertragPreis(bisher)).toList();
-		var stufen = berechnung.faelligeStufen(daten(), new Preisliste(angefragt.stream().map(VertragPreis::preis).toList()),
-				preisprognose());
-		var preise = Stream.concat(angefragt.stream(), stufen.stream().map(VertragPreis::stufe)).sorted(REIHENFOLGE)
+		preiseSpeichern(anfrage.preise().stream().map(preis -> preis.vertragPreis(bisher)).toList(), berechnung);
+	}
+
+	/**
+	 * Behält nur die Unterbrechungen mit diesen IDs (beim Ändern, vor {@link #setzen}); die übrigen fallen weg, und
+	 * der Vertrag zählt dort als durchgehend gelaufen.
+	 *
+	 * @return die IDs, die der Vertrag nicht hat (unbekannt oder von einem anderen Vertrag)
+	 */
+	List<UUID> unterbrechungenBehalten(Collection<UUID> ids) {
+		var unbekannt = ids.stream()
+				.filter(id -> unterbrechungen.stream().noneMatch(unterbrechung -> unterbrechung.id().equals(id)))
 				.toList();
+		if (unbekannt.isEmpty()) {
+			// Nur bei einer Änderung, sonst erhöht Hibernate die Version ohne Grund.
+			unterbrechungen.removeIf(unterbrechung -> !ids.contains(unterbrechung.id()));
+		}
+		return unbekannt;
+	}
+
+	/**
+	 * Nimmt den gekündigten oder beendeten Vertrag am {@code datum} wieder auf (ADR 0023): Die Zeit nach dem
+	 * {@code vertragsende} bis davor wird eine Unterbrechung (ohne Lücke keine), die Kündigung fällt weg, Laufzeit und
+	 * Verlängerung gelten ab dann neu, ein neuer Betrag wird ein eingetragener Preis ab {@code datum} und ersetzt eine
+	 * automatische Stufe an diesem Tag. Fällige Stufen legt es an wie {@link #setzen}. Geprüft hat der Service.
+	 *
+	 * @param vertragsende der letzte Tag vor der Wiederaufnahme, siehe {@link Vertragsberechnung#vertragsende}
+	 * @param laufzeitende wie beim Ändern auch bei nicht kündbaren Verträgen gespeichert
+	 * @param verlaengerung bei nicht kündbaren Verträgen ignoriert
+	 * @param kuendigungsfristMonate bei nicht kündbaren Verträgen ignoriert
+	 * @param betrag leer, wenn sich der Preis nicht ändert
+	 */
+	void wiederaufnehmen(LocalDate datum, LocalDate vertragsende, LocalDate laufzeitende, Verlaengerung verlaengerung,
+			Integer kuendigungsfristMonate, Betrag betrag, Vertragsberechnung berechnung) {
+		// Die bis zum Vertragsende fälligen Stufen zuerst, damit der neue Betrag sie nicht überdeckt.
+		var preise = new ArrayList<>(mitFaelligenStufen(getPreise(), berechnung));
+		if (vertragsende.plusDays(1).isBefore(datum)) {
+			unterbrechungen.add(VertragUnterbrechung.neu(vertragsende.plusDays(1), datum.minusDays(1),
+					Unterbrechungsart.KUENDIGUNG));
+		}
+		this.gekuendigtZum = null;
+		this.laufzeitende = laufzeitende;
+		this.verlaengerung = kuendbar ? verlaengerung : null;
+		this.kuendigungsfristMonate = kuendbar ? kuendigungsfristMonate : null;
+		if (betrag != null) {
+			preise.removeIf(preis -> preis.automatisch() && preis.gueltigAb().equals(datum));
+			preise.add(new VertragPreis(datum, betrag, false));
+		}
+		preiseSpeichern(preise, berechnung);
+	}
+
+	/**
+	 * Speichert die Preise samt den bis heute fälligen Stufen ({@link Vertragsberechnung#faelligeStufen}) und merkt
+	 * sich, bis wann die Termine betrachtet sind.
+	 */
+	private void preiseSpeichern(List<VertragPreis> angefragt, Vertragsberechnung berechnung) {
+		var bisher = getPreise();
+		var preise = mitFaelligenStufen(angefragt, berechnung);
 		if (preissteigerung != null) {
 			this.preissteigerungBetrachtetBis = preisprognose().betrachtetBis(berechnung.faelligBis(daten()))
 					.betrachtetBis();
@@ -203,6 +275,13 @@ class Vertrag extends FachEntity {
 		}
 	}
 
+	/** Die Preise ergänzt um die fälligen Stufen, sortiert. */
+	private List<VertragPreis> mitFaelligenStufen(List<VertragPreis> preise, Vertragsberechnung berechnung) {
+		var stufen = berechnung.faelligeStufen(daten(), new Preisliste(preise.stream().map(VertragPreis::preis).toList()),
+				preisprognose());
+		return Stream.concat(preise.stream(), stufen.stream().map(VertragPreis::stufe)).sorted(REIHENFOLGE).toList();
+	}
+
 	private static String text(String wert) {
 		return wert == null || wert.isBlank() ? null : wert.strip();
 	}
@@ -210,7 +289,13 @@ class Vertrag extends FachEntity {
 	/** Die Angaben für die Berechnung. */
 	Vertragsdaten daten() {
 		return new Vertragsdaten(zahlweise, kuendbar, beginn, laufzeitende, verlaengerung,
-				kuendigungsfristMonate, gekuendigtZum);
+				kuendigungsfristMonate, gekuendigtZum,
+				unterbrechungen.stream().map(VertragUnterbrechung::unterbrechung).toList());
+	}
+
+	/** Sortiert nach {@code von}. */
+	List<VertragUnterbrechung> getUnterbrechungen() {
+		return unterbrechungen.stream().sorted(UNTERBRECHUNG_REIHENFOLGE).toList();
 	}
 
 	String getAnbieter() {

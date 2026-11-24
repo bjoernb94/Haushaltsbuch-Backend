@@ -8,6 +8,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Prognosepreis;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Wiederaufnahmetermin;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieAntwort;
 import org.jspecify.annotations.Nullable;
@@ -26,6 +27,9 @@ import java.util.UUID;
  * letzten Speichern eine Stufe der Preissteigerung fällig geworden, ist {@code betrag} diese
  * ({@code betragErrechnet}); {@code preise} enthält nur Gespeichertes. {@code preissteigerungBetrachtetBis} schickt
  * die SPA unverändert an die Vorschau, damit sie gelöschte Stufen nicht wieder anlegt; beim Ändern wird er ignoriert.
+ *
+ * @param unterbrechungen sortiert nach {@code von}; die SPA schickt beim Ändern die IDs der verbleibenden als
+ *        {@code unterbrechungIds}, an die Vorschau die verbleibenden selbst
  */
 record VertragAntwort(
 		UUID id,
@@ -52,6 +56,7 @@ record VertragAntwort(
 		@Nullable Integer kuendigungsfristMonate,
 		@Nullable LocalDate gekuendigtZum,
 		@Nullable String notiz,
+		List<VertragUnterbrechungAntwort> unterbrechungen,
 		VertragBerechnet berechnet) {
 
 	/**
@@ -67,6 +72,9 @@ record VertragAntwort(
 	 * @param einmalkosten Summe aller Einmalkosten, unabhängig vom Jahr und mit dem vollen Betrag; ohne Einträge 0
 	 * @param vertragsende der letzte Vertragstag ({@code gekuendigtZum} bzw. Laufzeitende ohne Verlängerung, das
 	 *        frühere); leer bei offenem Ende
+	 * @param aktuellerBeginn Beginn der letzten Phase: nach einer Unterbrechung der Tag der Wiederaufnahme, sonst
+	 *        {@code beginn}; ab ihm zählen Laufzeit und Verlängerung
+	 * @param wiederaufnahme wann sich der Vertrag wieder aufnehmen lässt; leer, wenn nicht (nur gekündigt oder beendet)
 	 * @param naechstePreisaenderung der nächste Eintrag nach dem heute gültigen, sonst der erste der Prognose; leer,
 	 *        wenn keiner bekannt ist
 	 * @param prognose die nächsten drei Preise aus der Preissteigerung; leer ohne Regel
@@ -81,6 +89,8 @@ record VertragAntwort(
 			@Nullable VertragEigenerAnteil eigenerAnteil,
 			Betrag einmalkosten,
 			@Nullable LocalDate vertragsende,
+			LocalDate aktuellerBeginn,
+			@Nullable Wiederaufnahmetermin wiederaufnahme,
 			@Nullable Preisaenderung naechstePreisaenderung,
 			List<Prognosepreis> prognose,
 			List<Preispunkt> preisverlauf,
@@ -110,6 +120,8 @@ record VertragAntwort(
 						: null,
 				werte.einmalkosten(),
 				werte.vertragsende(),
+				werte.aktuellerBeginn(),
+				werte.wiederaufnahme(),
 				werte.naechstePreisaenderung(),
 				werte.prognose(),
 				werte.preisverlauf(),
@@ -121,7 +133,8 @@ record VertragAntwort(
 				vertrag.getEinmalkosten().stream().map(VertragEinmalkostenAntwort::aus).toList(),
 				VertragPreissteigerungAntwort.aus(vertrag.getPreissteigerung()), vertrag.getPreisgarantieBis(), vertrag.getPreissteigerungBetrachtetBis(),
 				vertrag.isErinnerungSonderkuendigung(), vertrag.isKuendbar(), vertrag.getBeginn(), vertrag.getLaufzeitende(), vertrag.getVerlaengerung(),
-				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(), berechnet);
+				vertrag.getKuendigungsfristMonate(), vertrag.getGekuendigtZum(), vertrag.getNotiz(),
+				vertrag.getUnterbrechungen().stream().map(VertragUnterbrechungAntwort::aus).toList(), berechnet);
 	}
 
 }

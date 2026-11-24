@@ -24,7 +24,12 @@ import java.util.UUID;
  * Angaben des Formulars „Vertrag bearbeiten“: alle Felder wie in {@link VertragAnfrage} (dort ihre
  * Bedeutung) plus die {@code version} aus der Antwort, gegen die der Service prüft, ob inzwischen
  * jemand anderes geändert hat. Ein eigenes Schema, damit {@code version} in der OpenAPI Pflicht ist
- * und beim Anlegen nicht auftaucht; die Feldliste muss mit {@link VertragAnfrage} übereinstimmen.
+ * und beim Anlegen nicht auftaucht; die Feldliste muss mit {@link VertragAnfrage} übereinstimmen. Dazu kommen
+ * am Ende {@code unterbrechungIds}.
+ *
+ * @param unterbrechungIds die IDs der Unterbrechungen, die bleiben sollen (auch leer); fehlende werden gelöscht.
+ *        Pflicht, damit ein {@code PUT} ohne das Feld sie nicht still löscht. Neue entstehen nur über die
+ *        Wiederaufnahme
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
@@ -51,5 +56,6 @@ record VertragAenderung(
 		@Nullable Verlaengerung verlaengerung,
 		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,
 		@PlausiblesDatum @Nullable LocalDate gekuendigtZum,
-		@Size(max = 1000) @Nullable String notiz) implements Vertragsangaben {
+		@Size(max = 1000) @Nullable String notiz,
+		@NotNull List<@NotNull UUID> unterbrechungIds) implements Vertragsangaben {
 }

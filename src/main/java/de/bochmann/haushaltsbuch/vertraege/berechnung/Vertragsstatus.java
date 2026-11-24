@@ -11,6 +11,12 @@ public enum Vertragsstatus {
 	/** Gekündigt, läuft aber noch bis zum Kündigungsdatum. */
 	GEKUENDIGT,
 
+	/**
+	 * Heute in einer {@link Unterbrechung}: gekündigt und zu einem späteren Tag wieder aufgenommen. Zählt wie ein
+	 * beendeter Vertrag nicht als laufend.
+	 */
+	UNTERBROCHEN,
+
 	BEENDET,
 
 	/** Gekündigt zu einem Tag vor dem Beginn: läuft nie, Einmalkosten können trotzdem anfallen. */

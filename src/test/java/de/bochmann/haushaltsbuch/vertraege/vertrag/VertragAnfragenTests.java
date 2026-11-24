@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.List;
@@ -17,13 +18,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Die Anfragen der Verträge (Anlegen, Ändern, Vorschau) haben dieselben Felder und Prüfungen. */
 class VertragAnfragenTests {
 
-	/** Die Felder von {@link VertragAenderung} stehen doppelt; sie dürfen nicht auseinanderlaufen. */
+	/**
+	 * Die Felder von {@link VertragAenderung} stehen doppelt; sie dürfen nicht auseinanderlaufen. Dazu kommen
+	 * {@code version} vorn und {@code unterbrechungIds} hinten (Unterbrechungen gibt es erst nach dem Anlegen).
+	 */
 	@Test
 	void felderWieBeimAnlegenPlusVersion() {
 		List<String> aenderung = beschreibung(VertragAenderung.class);
 
 		assertThat(aenderung.getFirst()).startsWith("version java.lang.Long [@jakarta.validation.constraints.NotNull");
-		assertThat(aenderung.subList(1, aenderung.size())).containsExactlyElementsOf(beschreibung(VertragAnfrage.class));
+		assertThat(aenderung.getLast()).startsWith("unterbrechungIds java.util.List<java.util.UUID> [@jakarta.validation.constraints.NotNull");
+		assertThat(aenderung.subList(1, aenderung.size() - 1)).containsExactlyElementsOf(beschreibung(VertragAnfrage.class));
 		assertThat(VertragAenderung.class.getAnnotations()).isEqualTo(VertragAnfrage.class.getAnnotations());
 	}
 
@@ -38,7 +43,12 @@ class VertragAnfragenTests {
 		pruefeWieBeimAnlegen(VertragVorschauPreis.class, VertragPreisAnfrage.class);
 		pruefeWieBeimAnlegen(VertragVorschauEinmalkosten.class, VertragEinmalkostenAnfrage.class);
 		pruefeWieBeimAnlegen(VertragVorschauPreissteigerung.class, VertragPreissteigerungAnfrage.class);
-		assertThat(VertragVorschauAnfrage.class.getAnnotations()).isEqualTo(VertragAnfrage.class.getAnnotations());
+		// Dazu die Regeln zu den Unterbrechungen, die beim Ändern der Service gegen die gespeicherten prüft.
+		assertThat(VertragVorschauAnfrage.class.getAnnotations()).startsWith(VertragAnfrage.class.getAnnotations());
+		assertThat(Arrays.stream(VertragVorschauAnfrage.class.getAnnotations()).skip(VertragAnfrage.class.getAnnotations().length)
+				.map(Annotation::annotationType).toList())
+				.containsExactly(BeginnVorUnterbrechung.class, KuendigungNachUnterbrechung.class,
+						LaufzeitendeNachAktuellemBeginn.class);
 		// Eine Regel ohne passenden Wert ist in der Vorschau nur unvollständig, nicht ungültig.
 		assertThat(VertragVorschauPreissteigerung.class.getAnnotations()).isEmpty();
 		assertThat(VertragPreissteigerungAnfrage.class.getAnnotations()).singleElement().isInstanceOf(PassenderWert.class);
@@ -72,13 +82,17 @@ class VertragAnfragenTests {
 
 	/**
 	 * Gibt es beim Anlegen nicht: Beim Speichern zählt der gespeicherte Wert, die Vorschau bekommt ihn aus der Antwort
-	 * (#162). Geprüft wird er wie jedes Datum.
+	 * (#162, bei den Unterbrechungen #166). Geprüft wird er wie jedes Datum.
 	 */
-	private static final Set<String> NUR_VORSCHAU = Set.of("preissteigerungBetrachtetBis");
+	private static final Set<String> NUR_VORSCHAU = Set.of("preissteigerungBetrachtetBis", "unterbrechungen");
 
 	@Test
 	void nurInDerVorschau() throws Exception {
 		assertThat(VertragVorschauAnfrage.class.getMethod("preissteigerungBetrachtetBis").getAnnotations())
+				.anyMatch(a -> a.annotationType() == PlausiblesDatum.class);
+		assertThat(VertragVorschauAnfrage.class.getMethod("unterbrechungen").getAnnotations())
+				.anyMatch(a -> a.annotationType() == UnterbrechungenGetrennt.class);
+		assertThat(VertragVorschauUnterbrechung.class.getMethod("von").getAnnotations())
 				.anyMatch(a -> a.annotationType() == PlausiblesDatum.class);
 		assertThat(VertragAnfrage.class.getRecordComponents()).extracting(RecordComponent::getName)
 				.doesNotContainAnyElementsOf(NUR_VORSCHAU);

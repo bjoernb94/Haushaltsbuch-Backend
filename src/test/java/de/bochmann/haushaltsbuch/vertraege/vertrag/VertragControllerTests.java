@@ -438,7 +438,7 @@ class VertragControllerTests {
 
 	/** Die Angaben des Abos aus {@link #abo} als Änderung: {@code version} und andere Werte. */
 	private String aenderung(Object version, String betrag) {
-		return abo(betrag, null, null, 0).replaceFirst("\\{", "{\"version\": " + version + ", ");
+		return abo(betrag, null, null, 0).replaceFirst("\\{", "{\"version\": " + version + ", \"unterbrechungIds\": [], ");
 	}
 
 	private MockHttpServletRequestBuilder aendern(String id, String body) {
@@ -468,7 +468,8 @@ class VertragControllerTests {
 	void ignoriertMitgeschickteFelderDerAntwort() throws Exception {
 		String angelegt = angelegt();
 		String id = JsonPath.read(angelegt, "$.id");
-		String zurueck = angelegt.replaceFirst("\\{", "{\"kategorieId\": \"" + VertragServiceTests.VERSICHERUNG + "\", ")
+		String zurueck = angelegt.replaceFirst("\\{", "{\"kategorieId\": \"" + VertragServiceTests.VERSICHERUNG
+						+ "\", \"unterbrechungIds\": [], ")
 				.replace("\"Streamingdienst\"", "\"Videodienst\"");
 
 		mockMvc.perform(aendern(id, zurueck))
@@ -491,7 +492,7 @@ class VertragControllerTests {
 	void aendernOhneVersionUngueltig() throws Exception {
 		String id = JsonPath.read(angelegt(), "$.id");
 
-		mockMvc.perform(aendern(id, abo("20.00", null, null, 0)))
+		mockMvc.perform(aendern(id, abo("20.00", null, null, 0).replaceFirst("\\{", "{\"unterbrechungIds\": [], ")))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
 				.andExpect(jsonPath("$.felder[0].feld").value("version"))
@@ -860,6 +861,126 @@ class VertragControllerTests {
 						.content(abo("13.99", null, null, 0)))
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value("KEIN_ZUGRIFF"));
+	}
+
+	/** {@link #abo} seit einem Jahr, gekündigt zum Tag vor einem Monat. */
+	private String beendetesAbo() throws Exception {
+		return mockMvc.perform(anlegen(abo("13.99", null, null, 0).replace("\"gekuendigtZum\": null",
+						"\"gekuendigtZum\": " + json(heute.minusMonths(1).toString()))))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.berechnet.status").value("BEENDET"))
+				.andExpect(jsonPath("$.berechnet.wiederaufnahme.fruehestens").value(heute.minusMonths(1).plusDays(1).toString()))
+				.andExpect(jsonPath("$.berechnet.wiederaufnahme.vorschlag").value(heute.toString()))
+				.andExpect(jsonPath("$.unterbrechungen", hasSize(0)))
+				.andReturn().getResponse().getContentAsString();
+	}
+
+	private MockHttpServletRequestBuilder wiederaufnehmen(String id, String body) {
+		return post("/api/vertraege/{id}/wiederaufnahme", id).with(csrf()).with(haushalt.anmeldung())
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(body);
+	}
+
+	private static String wiederaufnahme(Object version, String datum, String betrag) {
+		return """
+				{"version": %s, "datum": %s, "laufzeitende": null, "verlaengerung": "ZAHLUNGSINTERVALL",
+				 "kuendigungsfristMonate": 0, "betrag": %s}
+				""".formatted(version, json(datum), betrag == null ? "null" : "{\"wert\": " + betrag + ", \"waehrung\": \"EUR\"}");
+	}
+
+	@Test
+	void nimmtVertragWiederAuf() throws Exception {
+		String id = JsonPath.read(beendetesAbo(), "$.id");
+
+		String antwort = mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(0, heute.toString(), "14.99")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version").value(1))
+				.andExpect(jsonPath("$.gekuendigtZum").doesNotExist())
+				.andExpect(jsonPath("$.betrag.wert").value(14.99))
+				.andExpect(jsonPath("$.unterbrechungen", hasSize(1)))
+				.andExpect(jsonPath("$.unterbrechungen[0].von").value(heute.minusMonths(1).plusDays(1).toString()))
+				.andExpect(jsonPath("$.unterbrechungen[0].bis").value(heute.minusDays(1).toString()))
+				.andExpect(jsonPath("$.unterbrechungen[0].art").value("KUENDIGUNG"))
+				.andExpect(jsonPath("$.berechnet.status").value("AKTIV"))
+				.andExpect(jsonPath("$.berechnet.aktuellerBeginn").value(heute.toString()))
+				.andExpect(jsonPath("$.berechnet.wiederaufnahme").doesNotExist())
+				.andReturn().getResponse().getContentAsString();
+
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(content().json(antwort, true));
+	}
+
+	@Test
+	void wiederaufnahmeFehler() throws Exception {
+		String id = JsonPath.read(beendetesAbo(), "$.id");
+
+		mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(0, heute.minusMonths(1).toString(), null)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("VALIDIERUNG"))
+				.andExpect(jsonPath("$.felder[0].feld").value("datum"))
+				.andExpect(jsonPath("$.felder[0].code").value("NachVertragsende"))
+				.andExpect(jsonPath("$.felder[0].parameter.vertragsende").value(heute.minusMonths(1).toString()));
+		mockMvc.perform(wiederaufnehmen(id, "{\"datum\": null}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[*].feld").value(containsInAnyOrder("version", "datum")));
+		mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(5, heute.toString(), null)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("KONFLIKT"));
+		mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(0, heute.toString(), null))).andExpect(status().isOk());
+		// Jetzt läuft er wieder.
+		mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(1, heute.plusDays(1).toString(), null)))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code").value("WIEDERAUFNAHME_NICHT_MOEGLICH"));
+	}
+
+	/** Pflicht-Test zur Trennung der Haushalte: Einen fremden Vertrag kann niemand wieder aufnehmen. */
+	@Test
+	void vertragEinesAnderenHaushaltsWiederaufnehmenNichtGefunden() throws Exception {
+		String id = JsonPath.read(beendetesAbo(), "$.id");
+		var fremder = TestHaushalt.anlegen(haushaltService, Komponente.VERTRAGSUEBERSICHT);
+
+		mockMvc.perform(post("/api/vertraege/{id}/wiederaufnahme", id).with(csrf()).with(fremder.anmeldung())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(wiederaufnahme(0, heute.toString(), null)))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("NICHT_GEFUNDEN"));
+		mockMvc.perform(get("/api/vertraege/{id}", id).with(haushalt.anmeldung()))
+				.andExpect(jsonPath("$.berechnet.status").value("BEENDET"))
+				.andExpect(jsonPath("$.version").value(0));
+	}
+
+	@Test
+	void unterbrechungUeberPutEntfernen() throws Exception {
+		String id = JsonPath.read(beendetesAbo(), "$.id");
+		mockMvc.perform(wiederaufnehmen(id, wiederaufnahme(0, heute.toString(), null))).andExpect(status().isOk());
+
+		mockMvc.perform(aendern(id, aenderung(1, "13.99").replace("\"unterbrechungIds\": []",
+						"\"unterbrechungIds\": [\"" + UUID.randomUUID() + "\"]")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("unterbrechungIds[0]"))
+				.andExpect(jsonPath("$.felder[0].code").value("Unbekannt"));
+		mockMvc.perform(aendern(id, aenderung(1, "13.99")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.unterbrechungen", hasSize(0)))
+				.andExpect(jsonPath("$.berechnet.aktuellerBeginn").value(seitEinemJahr()));
+	}
+
+	@Test
+	void vorschauMitUnterbrechungen() throws Exception {
+		String unterbrechungen = """
+				"unterbrechungen": [{"von": "2025-03-01", "bis": "2025-03-31", "art": "KUENDIGUNG"},
+				                    {"von": "2025-04-01", "bis": "2025-04-30", "art": "KUENDIGUNG"}]""";
+
+		// Ohne einen Tag Laufzeit dazwischen überschneiden sie sich.
+		mockMvc.perform(vorschau("{\"kuendbar\": true, \"beginn\": \"2025-01-01\", " + unterbrechungen + "}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[0].feld").value("unterbrechungen[1].von"))
+				.andExpect(jsonPath("$.felder[0].code").value("UnterbrechungenGetrennt"));
+		mockMvc.perform(vorschau("{\"kuendbar\": true, \"beginn\": \"2025-03-01\", \"gekuendigtZum\": \"2025-04-30\", "
+						+ unterbrechungen.replace("2025-04-01", "2025-04-02") + "}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.felder[*].code").value(containsInAnyOrder("BeginnVorUnterbrechung",
+						"KuendigungNachUnterbrechung")));
 	}
 
 }

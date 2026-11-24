@@ -86,7 +86,7 @@ schlicht „nicht gefunden“ (404).
   betrifft anonyme Requests (auch die Registrierung, die den Haushalt erst anlegt) und Code ohne
   Request und ohne `fuer(...)`. Registrierte Nutzer haben immer einen Haushalt; nur Konten, die
   direkt in Keycloak angelegt wurden, fallen zur Sicherheit ebenfalls darunter.
-- **Kindtabellen** einer Fach-Entity (`@ElementCollection`, z.&nbsp;B. `vertrag_preis`, `vertrag_einmalkosten`) haben keine eigene
+- **Kindtabellen** einer Fach-Entity (`@ElementCollection`, z.&nbsp;B. `vertrag_preis`, `vertrag_einmalkosten`, `vertrag_unterbrechung`) haben keine eigene
   `haushalt_id`: Hibernate lädt sie nur über ihre Entity, die schon gefiltert ist. Native SQL auf ihnen muss
   über die Tabelle der Entity einschränken.
 - **Nicht gefiltert:** native SQL-Abfragen und Tabellen ohne `FachEntity`. Tabellen mit gemischten
@@ -404,11 +404,14 @@ im dev-Profil). Ein zweites Konto zeigt auch, dass Verträge eines fremden Haush
   Prognose rechnet vom angekündigten Preis weiter); bei einem gekündigten Vertrag (Prognose nur bis zum Ende), einem
   beendeten und einem stornierten (keine Prognose); einmal ohne Erinnerung ans Sonderkündigungsrecht.
 - **Preisgarantie:** laufend bei Steigerung als Betrag und in Prozent, abgelaufen (ändert nichts).
+- **Wiederaufnahme** (#166): über den Sommer gekündigt und wieder aufgenommen (eine Unterbrechung), nahtlos ohne
+  Unterbrechung, wieder ab in 30 Tagen mit neuem Betrag (`UNTERBROCHEN`, `WIEDER_AB`), ein nicht kündbarer nach einer
+  Trennung; dazu ein beendeter nicht kündbarer, der sich wieder aufnehmen lässt.
 
 Für jeden Fall prüft das Skript `art`, `status`, `dringend`, `vertragsende`, die `art` der Preiszeilen, wo
 angegeben `kuendigung.zum`, `kuendigung.kuendigenBis`, den aktuellen `betrag` und `kostenImJahr`,
 `berechnet.einmalkosten`, die Prognosepreise (drei, am Vertragsende weniger) samt nächster Preisänderung (wo
-angegeben mit Terminen und Beträgen) und ob es `eigenerAnteil` gibt, in der Übersicht `hatAnteile`,
+angegeben mit Terminen und Beträgen), ob es `eigenerAnteil` und `wiederaufnahme` gibt und wie viele Unterbrechungen, in der Übersicht `hatAnteile`,
 `hatNichtBegonnene` und `einmalkostenImJahr`, und bricht bei einer Abweichung ab, ebenso wenn eine Feldvariante
 (auch ein Rhythmus der Preissteigerung) fehlt oder ein vorhandenes Konto andere Komponenten hat. Am Ende gibt es je Konto
 eine Tabelle aus. Es läuft nicht in der CI, weil es ein echtes Keycloak braucht.

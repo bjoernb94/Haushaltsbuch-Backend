@@ -21,6 +21,9 @@ public enum Kuendigungsart {
 	/** Bereits gekündigt zum {@code zum}. */
 	GEKUENDIGT,
 
+	/** Heute unterbrochen ({@link Vertragsstatus#UNTERBROCHEN}), wieder aufgenommen zum {@code zum}. */
+	WIEDER_AB,
+
 	BEENDET,
 
 	/** Vor dem Beginn gekündigt, läuft nie. */

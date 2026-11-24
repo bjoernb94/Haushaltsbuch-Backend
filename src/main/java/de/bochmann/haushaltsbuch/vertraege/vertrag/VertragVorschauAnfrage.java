@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
 import jakarta.validation.Valid;
@@ -15,7 +16,9 @@ import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Die Formularwerte für die Vorschau (Zusammenfassung und Statuszeilen). Bedeutung und Prüfungen wie in
@@ -26,11 +29,16 @@ import java.util.List;
  * Ungültige Werte lehnt sie ab wie das Speichern, damit sie nichts für Werte zeigt, die sich nicht speichern lassen.
  *
  * @param preissteigerungBetrachtetBis aus der Antwort des gespeicherten Vertrags, unverändert; leer bei einem neuen
+ * @param unterbrechungen die verbleibenden des gespeicherten Vertrags, ohne die im Formular zum Entfernen markierten;
+ *        leer bei einem neuen. Kündigung und Laufzeit zählen ab der letzten Wiederaufnahme
  */
 @LaufzeitendeNachBeginn
 @PreisNichtVorBeginn
 @ErsterPreisAbBeginn
 @GleicheWaehrung
+@BeginnVorUnterbrechung
+@KuendigungNachUnterbrechung
+@LaufzeitendeNachAktuellemBeginn
 record VertragVorschauAnfrage(
 		@Size(max = Preisangabe.HOECHSTENS) @GueltigAbEindeutig @GleicheWaehrung
 		@Nullable List<@Valid VertragVorschauPreis> preise,
@@ -45,5 +53,17 @@ record VertragVorschauAnfrage(
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,
 		@Nullable Verlaengerung verlaengerung,
 		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,
-		@PlausiblesDatum @Nullable LocalDate gekuendigtZum) implements Berechnungsangaben {
+		@PlausiblesDatum @Nullable LocalDate gekuendigtZum,
+		@Size(max = 100) @UnterbrechungenGetrennt @Nullable List<@Valid VertragVorschauUnterbrechung> unterbrechungen)
+		implements Berechnungsangaben {
+
+	/** Nur die vollständigen, sortiert nach {@code von}. */
+	@Override
+	public List<Unterbrechung> unterbrechungenFuerBerechnung() {
+		return unterbrechungen == null ? List.of() : unterbrechungen.stream().filter(Objects::nonNull)
+				.filter(VertragVorschauUnterbrechung::vollstaendig).map(VertragVorschauUnterbrechung::unterbrechung)
+				.sorted(Comparator.comparing(Unterbrechung::von))
+				.toList();
+	}
+
 }

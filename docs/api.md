@@ -19,6 +19,7 @@ man Endpunkte im Backend baut, steht in [Entwicklung](entwicklung.md).
 | `GET /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag abrufen, siehe [Verträge](#verträge)    |
 | `PUT /api/vertraege/{id}`         | `VERTRAGSUEBERSICHT` | Vertrag ändern, siehe [Verträge](#verträge)     |
 | `DELETE /api/vertraege/{id}`      | `VERTRAGSUEBERSICHT` | Vertrag löschen, siehe [Verträge](#verträge)    |
+| `POST /api/vertraege/{id}/wiederaufnahme` | `VERTRAGSUEBERSICHT` | Gekündigten Vertrag wieder aufnehmen, siehe [Wieder aufnehmen](#wieder-aufnehmen) |
 | `GET /api/vertraege/uebersicht`   | `VERTRAGSUEBERSICHT` | Kennzahlen, siehe [Verträge](#verträge)         |
 | `POST /api/vertraege/vorschau`    | `VERTRAGSUEBERSICHT` | Werte fürs Formular berechnen, siehe [Vorschau](#vorschau) |
 | `/actuator/health`                | öffentlich      | Health Check, inkl. Probes `liveness`/`readiness`|
@@ -190,6 +191,7 @@ enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
 | `NICHT_GEFUNDEN`       | 404    | Unbekannter Pfad oder Datensatz, auch eines fremden Haushalts |
 | `METHODE_NICHT_ERLAUBT`| 405    | HTTP-Methode nicht unterstützt                                |
 | `KONFLIKT`             | 409    | Daten wurden inzwischen geändert (veraltete `version`)        |
+| `WIEDERAUFNAHME_NICHT_MOEGLICH` | 409 | Vertrag ist weder gekündigt noch beendet, siehe [Wieder aufnehmen](#wieder-aufnehmen) |
 | `INTERNER_FEHLER`      | 500    | Unerwarteter Fehler; Details nur im Log                       |
 
 Dazu kommen die Codes der einzelnen Endpunkte (siehe [Anmeldung](#ablauf-für-die-spa) und
@@ -465,6 +467,8 @@ Kategorien) statt `kategorieId`, dazu `id` und `version` sowie `betrag`, den akt
 [Fällige Stufen](#faellige-stufen); die SPA zeigt dann „errechnet“). Beide sind berechnet und werden beim Ändern
 ignoriert, ebenso `preissteigerungBetrachtetBis` (Datum oder `null`, siehe
 [Gelöschte Stufen bleiben gelöscht](#betrachtet-bis)); den schickt die SPA nur an die [Vorschau](#vorschau).
+`unterbrechungen` (`[{ id, von, bis, art }]`, sortiert nach `von`, siehe [Wieder aufnehmen](#wieder-aufnehmen)) ist
+gespeichert, wird beim Ändern aber nicht als Liste zurückgeschickt, sondern über `unterbrechungIds`.
 Was das Backend sonst berechnet, steht in `berechnet`; das hängt vom heutigen Tag ab und wird beim Ändern
 nicht zurückgeschickt:
 
@@ -484,6 +488,8 @@ nicht zurückgeschickt:
   "eigenerAnteil": null,
   "einmalkosten": { "wert": 49.00, "waehrung": "EUR" },
   "vertragsende": null,
+  "aktuellerBeginn": "2023-01-01",
+  "wiederaufnahme": null,
   "naechstePreisaenderung": { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" }, "art": "PROGNOSE" },
   "prognose": [
     { "ab": "2027-01-01", "betrag": { "wert": 601.47, "waehrung": "EUR" } },
@@ -506,6 +512,7 @@ nicht zurückgeschickt:
   |---|---|
   | `gekuendigtZum` vor `beginn` (läuft nie; gekündigt zum Beginn läuft er einen Tag) | `STORNIERT` |
   | `beginn` nach heute, auch wenn schon gekündigt | `NICHT_BEGONNEN` |
+  | heute liegt in einer [Unterbrechung](#wieder-aufnehmen) (Wiederaufnahme in der Zukunft) | `UNTERBROCHEN` |
   | `gekuendigtZum` vorbei, oder kündbar mit Verlängerung `KEINE` und Laufzeitende vorbei | `BEENDET` |
   | `gekuendigtZum` kommt noch | `GEKUENDIGT` |
   | sonst | `AKTIV` |
@@ -513,6 +520,12 @@ nicht zurückgeschickt:
   Verlängerung `KEINE`, bei beiden Daten das frühere; `null` bei offenem Ende (auch bei einem Laufzeitende mit
   Verlängerung). Die SPA zeigt damit „Beginn – Ende“ bei beendeten Verträgen. Abbuchungen, Prognose und Preise nach
   diesem Tag zählen nicht.
+- **`aktuellerBeginn`:** der Beginn der letzten Phase: nach einer [Unterbrechung](#wieder-aufnehmen) der Tag der
+  Wiederaufnahme (`bis` + 1 der letzten), sonst `beginn`. Ab ihm zählen Laufzeit und Verlängerung; die SPA zeigt
+  damit „wieder seit …“.
+- **`wiederaufnahme`:** `{ fruehestens, vorschlag }`, wenn sich der Vertrag [wieder aufnehmen](#wieder-aufnehmen)
+  lässt (Status `GEKUENDIGT` oder `BEENDET` mit `vertragsende`), sonst `null`. `fruehestens` ist `vertragsende` + 1,
+  `vorschlag` `fruehestens` oder heute, was später liegt (Vorbelegung im Dialog).
 - **`kostenProMonat`:** `betrag` ÷ Monate der Zahlweise (gerundet nach
   [ADR 0011](entscheidungen/0011-rundung-von-geldbetraegen.md)); umgerechnet, nicht abgebucht.
 - **`kostenImJahr`:** Summe aller Abbuchungen im Kalenderjahr `jahr` (dem laufenden Jahr laut Backend; die SPA
@@ -520,6 +533,8 @@ nicht zurückgeschickt:
   Abgebucht wird ab `beginn` im Takt der Zahlweise (1, 3, 6 oder 12 Monate), immer vom Beginn aus gezählt (Beginn
   31.01. monatlich: 28.02., 31.03.), auch schon erfolgte Abbuchungen und die eines noch nicht begonnenen Vertrags,
   nicht nach `vertragsende` (eine Abbuchung genau an diesem Tag zählt noch; ein stornierter Vertrag hat keine).
+  In einer [Unterbrechung](#wieder-aufnehmen) wird nichts abgebucht; danach beginnt der Takt neu am Tag der
+  Wiederaufnahme (Beginn 15.01. monatlich, unterbrochen 01.06.–31.08.: bis 15.05., dann 01.09., 01.10. …).
   Ohne Abbuchungen im Jahr 0. Eine Abbuchung nach einer errechneten Stufe rechnet mit ihr; ab einem Termin der
   [Prognose](#prognose) mit dem prognostizierten Preis, dafür zählen alle Termine im Jahr, nicht nur die drei aus
   `prognose`.
@@ -540,10 +555,11 @@ nicht zurückgeschickt:
   `ANGEKUENDIGT`. Beginnt der Vertrag erst in der Zukunft, ist der erste Eintrag keine Änderung (er ist schon
   `betrag`). Sonst der erste Preis der [Prognose](#prognose) mit `art` `PROGNOSE`; ein angekündigter Eintrag kommt
   immer zuerst, weil die Prognose erst danach beginnt. Eine errechnete Stufe ist keine Änderung, sie ist schon
-  `betrag`. `null`, wenn keine bekannt ist, der Vertrag beendet oder
-  storniert ist oder der Eintrag nach dem Vertragsende liegt.
+  `betrag`. `null`, wenn keine bekannt ist, der Vertrag beendet, storniert oder unterbrochen ist oder der Eintrag
+  nach dem Vertragsende liegt.
 - <a id="prognose"></a>**`prognose`:** die nächsten drei Preise `{ ab, betrag }` aus der
-  [Preissteigerung](#preissteigerung) nach heute; leer ohne Regel oder bei einem beendeten oder stornierten Vertrag.
+  [Preissteigerung](#preissteigerung) nach heute; leer ohne Regel oder bei einem beendeten, stornierten oder
+  unterbrochenen Vertrag.
   Sie setzt beim letzten Eintrag der Preisliste an, samt den [errechneten Stufen](#faellige-stufen) bis heute
   (ein Termin heute ist schon fällig, nicht Prognose). Übersprungen werden Termine bis einschließlich des
   `gueltigAb` dieses Eintrags, bis einschließlich `preisgarantieBis` und nach dem Vertragsende; Termine und Rundung
@@ -559,6 +575,7 @@ nicht zurückgeschickt:
   |---|---|---|
   | Status `BEENDET` | `BEENDET` | keine |
   | Status `STORNIERT` | `STORNIERT` | keine |
+  | Status `UNTERBROCHEN` | `WIEDER_AB` | `zum` = Tag der Wiederaufnahme |
   | Status `GEKUENDIGT`, oder `NICHT_BEGONNEN` und schon gekündigt | `GEKUENDIGT` | `zum` = `gekuendigtZum` |
   | nicht kündbar | `NICHT_KUENDBAR` | keine |
   | Verlängerung `KEINE` mit Laufzeitende | `ENDET` | `zum` = Laufzeitende |
@@ -569,7 +586,8 @@ nicht zurückgeschickt:
   Ein noch nicht begonnener Vertrag wird wie ein laufender berechnet (er lässt sich schon kündigen).
   - **Vertragsende** (für `zum`): mit Laufzeitende dieses, so oft um die Verlängerung (Zahlungsintervall, 1 oder
     12 Monate) verlängert, bis `kuendigenBis` nicht in der Vergangenheit liegt; gezählt vom Laufzeitende aus, ein
-    Monatsende bleibt eins. Ohne Laufzeitende endet die erste Laufzeit eine Verlängerung nach `beginn`
+    Monatsende bleibt eins. Ohne Laufzeitende endet die erste Laufzeit eine Verlängerung nach `aktuellerBeginn`
+    (ohne Unterbrechung `beginn`)
     (`ZAHLUNGSINTERVALL` ein Zahlungsintervall, `MONATLICH` ein Monat, `ZWOELF_MONATE` zwölf Monate), jede weitere
     entsprechend später, immer **vom Beginn aus** gezählt: Ende ist der Tag vor dem Beginn-Tag im jeweiligen Monat;
     gibt es den Tag dort nicht, der Monatsletzte (§ 188 Abs. 3 BGB). Beginn 15.03. monatlich → 14.04., 14.05.;
@@ -597,7 +615,8 @@ Paging. Sortiert nach Dringlichkeit der Kündigung (`berechnet.kuendigung.art`):
 | 3 | `KEINE_LAUFZEIT` | – |
 | 4 | `NICHT_KUENDBAR` | – |
 | 5 | `GEKUENDIGT` | `zum` |
-| 6 | `BEENDET` | – |
+| 6 | `WIEDER_AB` (unterbrochen) | `zum` |
+| 7 | `BEENDET` und `STORNIERT` | – |
 
 Ein Vertrag, der in sechs Wochen ohne Kündigung endet, steht also vor einer Kündigungsfrist in zehn
 Monaten. Bei gleichem Rang und Datum entscheidet der angezeigte Name (`bezeichnung`, sonst `anbieter`;
@@ -622,7 +641,21 @@ plus `version` aus der Antwort (Schema `VertragAenderung`) → **200** mit dem V
 Alle Felder werden ersetzt, `preise` und `einmalkosten` als ganze Liste (Konflikte deckt die `version` des Vertrags
 ab). Bei `kuendbar: false` gilt dasselbe Leeren wie beim Anlegen.
 
-Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` (`NotNull`); veraltete
+**Unterbrechungen entfernen:** `unterbrechungIds` (Pflicht, darf leer sein) sind die IDs der
+[Unterbrechungen](#wieder-aufnehmen), die bleiben sollen; fehlende werden gelöscht, in derselben Transaktion und mit
+derselben `version`. Der Vertrag zählt dort dann als durchgehend gelaufen, die beiden Phasen werden eine, mit
+Abbuchungen. Anlegen oder ändern lassen sie sich so nicht, das geht nur über die Wiederaufnahme. Eine Wiederaufnahme
+ganz zurücknehmen heißt: Unterbrechung entfernen und `gekuendigtZum` setzen; ein Datum korrigieren: entfernen,
+Kündigung setzen, erneut wieder aufnehmen. Zu den verbleibenden Unterbrechungen müssen die Angaben passen:
+
+| Regel | Feld | Wann |
+|---|---|---|
+| `Unbekannt` | `unterbrechungIds[i]` | der Vertrag hat keine Unterbrechung mit dieser ID |
+| `BeginnVorUnterbrechung` | `beginn` | `beginn` liegt nicht vor der ersten Unterbrechung |
+| `KuendigungNachUnterbrechung` | `gekuendigtZum` | vor `aktuellerBeginn` (die letzte Phase dauert mindestens einen Tag) |
+| `LaufzeitendeNachAktuellemBeginn` | `laufzeitende` | vor `aktuellerBeginn` |
+
+Fehler: **400** `VALIDIERUNG` wie beim Anlegen, zusätzlich `version` und `unterbrechungIds` (`NotNull`); veraltete
 `version` → **409** `KONFLIKT`; unbekannte ID oder Vertrag eines anderen Haushalts → **404**
 `NICHT_GEFUNDEN`; ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`.
 
@@ -636,6 +669,61 @@ Fehler: veraltete `version` → **409** `KONFLIKT` (der Vertrag bleibt); `versio
 Zahl, ID nicht im UUID-Format → **400** `ANFRAGE_UNGUELTIG`; unbekannte ID oder Vertrag eines anderen
 Haushalts → **404** `NICHT_GEFUNDEN`, auch beim zweiten Löschen derselben ID (die SPA kann das als
 „schon weg“ behandeln und neu laden).
+
+### Wieder aufnehmen
+
+Ein gekündigter oder beendeter Vertrag lässt sich wieder aufnehmen, z.&nbsp;B. ein Streaming-Abo, das über den Sommer
+gekündigt war ([ADR 0023](entscheidungen/0023-unterbrechungen-statt-pausen-status.md)). Statt eines neuen Vertrags
+bleibt es derselbe; die Zeit dazwischen ist eine **Unterbrechung**: Darin wird nichts abgebucht, Preise und
+Erhöhungen gelten nach Kalender weiter (wer nach einer Preiserhöhung wieder einsteigt, zahlt den neuen Preis).
+
+`POST /api/vertraege/{id}/wiederaufnahme` (CSRF-Token nötig, Schema `VertragWiederaufnahme`) → **200** mit dem
+Vertrag wie in der [Antwort](#antwort) (es entsteht kein neuer Vertrag, daher kein 201):
+
+```json
+{ "version": 3, "datum": "2026-09-01", "laufzeitende": null, "verlaengerung": "ZAHLUNGSINTERVALL",
+  "kuendigungsfristMonate": 0, "betrag": { "wert": 13.99, "waehrung": "EUR" } }
+```
+
+| Feld | Pflicht | Bedeutung |
+|---|---|---|
+| `version` | ja | wie beim [Ändern](#vertrag-ändern) |
+| `datum` | ja | erster Tag nach der Unterbrechung; Vorbelegung `berechnet.wiederaufnahme.vorschlag` |
+| `laufzeitende` | nein | neue Mindestlaufzeit, wie beim Ändern auch bei nicht kündbaren Verträgen gespeichert |
+| `verlaengerung` | bei kündbaren | wie beim Anlegen; bei `kuendbar: false` ignoriert |
+| `kuendigungsfristMonate` | nein | 0–24; bei `kuendbar: false` ignoriert |
+| `betrag` | nein | neuer Preis ab `datum`, nur wenn er sich ändert |
+
+**Wirkung:**
+- Liegt zwischen `vertragsende` + 1 und `datum` − 1 mindestens ein Tag, wird das eine Unterbrechung
+  `{ id, von, bis, art: "KUENDIGUNG" }`. Mit `datum` = `berechnet.wiederaufnahme.fruehestens` entsteht keine: Der
+  Vertrag läuft nahtlos im alten Takt weiter, `aktuellerBeginn` bleibt `beginn`.
+- `gekuendigtZum` wird geleert, `laufzeitende`, `verlaengerung` und `kuendigungsfristMonate` werden übernommen; sie
+  zählen ab `aktuellerBeginn`.
+- `betrag` wird ein eingetragener Preis ab `datum`. Ein automatischer Preis an diesem Tag
+  ([ADR 0022](entscheidungen/0022-automatische-preiserhoehungen-speichern.md), schon gespeichert oder in diesem
+  Speichern fällig) wird ersetzt und entsteht nicht wieder ([Gelöschte Stufen bleiben gelöscht](#betrachtet-bis)).
+- [Fällige Stufen](#faellige-stufen) werden gespeichert wie beim Ändern, auch die in der Unterbrechung.
+- Liegt `datum` in der Zukunft, ist der Vertrag bis dahin `UNTERBROCHEN` (Kündigung `WIEDER_AB`) und zählt wie ein
+  beendeter nicht in „Laufende Verträge“ und „Kosten pro Monat“.
+
+**Fehler:**
+- **409** `WIEDERAUFNAHME_NICHT_MOEGLICH`: Status nicht `GEKUENDIGT` oder `BEENDET` oder kein `vertragsende`,
+  z.&nbsp;B. `AKTIV`, `STORNIERT` oder `UNTERBROCHEN` (also genau, wenn `berechnet.wiederaufnahme` `null` ist).
+- **409** `KONFLIKT`: veraltete `version`.
+- **400** `VALIDIERUNG`, `version` und `datum` `NotNull`, `PlausiblesDatum`, `Max` usw. wie üblich, außerdem:
+
+  | Regel | Feld | Wann |
+  |---|---|---|
+  | `NachVertragsende` | `datum` | `datum` ≤ `vertragsende`; `parameter.vertragsende` für den Text |
+  | `NotNull` | `verlaengerung` | fehlt bei einem kündbaren Vertrag |
+  | `LaufzeitendeBeiEnde` | `verlaengerung` | `KEINE` ohne `laufzeitende` |
+  | `LaufzeitendeNachBeginn` | `laufzeitende` | vor `datum` |
+  | `GleicheWaehrung` | `betrag.waehrung` | andere Währung als die Preise |
+  | `GueltigAbEindeutig` | `betrag` | an `datum` gibt es schon einen eingetragenen Preis |
+
+  Die Regeln am gespeicherten Vertrag prüft das Backend nacheinander und meldet den ersten Verstoß.
+- **404** `NICHT_GEFUNDEN`: unbekannte ID oder Vertrag eines anderen Haushalts.
 
 ### Vertragsübersicht
 
@@ -662,7 +750,7 @@ Kopf der Seite „Verträge“, zum heutigen Tag berechnet:
 
 - **Laufend** sind die Verträge mit `berechnet.status` `AKTIV` oder `GEKUENDIGT` (Stand heute): gekündigte zählen
   bis zu ihrem Ende mit, noch nicht begonnene erst ab ihrem Beginn (ein Vertrag ab 01.12. ab dem 01.12.),
-  beendete und stornierte nicht.
+  beendete, unterbrochene und stornierte nicht.
 - **Kosten:** je Währung ein Eintrag, nach Währungscode sortiert. Geteilte Verträge zählen nur mit ihrem
   `anteilProzent`; der Anteil wird je Vertrag ungerundet angewendet und erst die Summe gerundet, die Summe der
   `berechnet.eigenerAnteil` aus der Liste kann daher um einige Cent abweichen.
@@ -713,12 +801,18 @@ speichern → **200** (ohne `Location`):
 
 - **Anfrage:** die Formularwerte `preise`, `zahlweise`, `anteilProzent`, `einmalkosten`,
   `preissteigerung`, `preisgarantieBis`, `preissteigerungBetrachtetBis`, `kuendbar`, `beginn`, `laufzeitende`, `verlaengerung`,
-  `kuendigungsfristMonate` und `gekuendigtZum` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
+  `kuendigungsfristMonate`, `gekuendigtZum` und `unterbrechungen` wie beim [Anlegen](#vertrag-anlegen); weitere Felder ignoriert das
   Backend, die SPA kann also das ganze Formular schicken. `kuendbar` ist Pflicht, alle anderen dürfen fehlen, auch
   `beginn` (ohne Beginn ist der Status `AKTIV`, und ohne Laufzeitende ist kein Vertragsende bestimmbar). Ohne
   `beginn` rechnet die Vorschau ohne Preise, weil der früheste ab dem Beginn gilt und spätere sonst rückwirkend
   gälten. `preissteigerungBetrachtetBis` übernimmt die SPA beim Bearbeiten unverändert aus der Antwort, bei einem
   neuen Vertrag `null`; sonst zeigte die Vorschau gelöschte Stufen wieder als `neu`.
+- **`unterbrechungen`:** `[{ von, bis, art }]` (höchstens 100), beim Bearbeiten die verbleibenden aus der Antwort,
+  ohne die im Formular zum Entfernen markierten; bei einem neuen Vertrag leer oder weggelassen. Nötig, weil Status
+  und Kündigung ab `aktuellerBeginn` zählen. Unvollständige ignoriert die Vorschau. Sie dürfen sich nicht
+  überschneiden, zwischen zweien läuft der Vertrag mindestens einen Tag (`UnterbrechungenGetrennt` an
+  `unterbrechungen[i].von`); dazu dieselben Regeln wie beim [Ändern](#vertrag-ändern) (`BeginnVorUnterbrechung`,
+  `KuendigungNachUnterbrechung`, `LaufzeitendeNachAktuellemBeginn`).
 - **Fehlende Werte sind kein Fehler:** Fehlt eine Angabe, ist jeder Wert `null`, der sie braucht (die SPA zeigt
   „Noch offen“); die übrigen werden trotzdem berechnet. **Unvollständige Zeilen** ignoriert die Vorschau: eine
   Preiszeile ohne `gueltigAb` oder `betrag`, Einmalkosten ohne `bezeichnung`, `betrag` oder `faelligAm`, eine Preissteigerung ohne

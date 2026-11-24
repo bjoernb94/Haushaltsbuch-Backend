@@ -5,6 +5,7 @@ import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preis;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
@@ -44,6 +45,14 @@ interface Berechnungsangaben {
 		return null;
 	}
 
+	/**
+	 * Die Unterbrechungen, mit denen die Berechnung rechnet; nur die Vorschau bekommt sie (die verbleibenden aus dem
+	 * Formular), beim Speichern zählen die gespeicherten. Sortiert nach {@code von}; leer bei einem neuen Vertrag.
+	 */
+	default List<Unterbrechung> unterbrechungenFuerBerechnung() {
+		return List.of();
+	}
+
 	Boolean kuendbar();
 
 	LocalDate beginn();
@@ -63,7 +72,8 @@ interface Berechnungsangaben {
 	default Vertragsdaten daten() {
 		boolean kuendbar = kuendbar();
 		return new Vertragsdaten(zahlweise(), kuendbar, beginn(), laufzeitende(),
-				kuendbar ? verlaengerung() : null, kuendbar ? kuendigungsfristMonate() : null, gekuendigtZum());
+				kuendbar ? verlaengerung() : null, kuendbar ? kuendigungsfristMonate() : null, gekuendigtZum(),
+				unterbrechungenFuerBerechnung());
 	}
 
 	/**

@@ -28,6 +28,7 @@ bekommt den Status *ersetzt durch …*.
 | [0020](0020-design-zuerst.md)                        | Design zuerst: Der Canvas ist maßgeblich (Frontend)     | angenommen |
 | [0021](0021-doku-im-repo.md)                         | Dokumentation im Repo, kein Wiki                        | angenommen |
 | [0022](0022-automatische-preiserhoehungen-speichern.md) | Automatische Preiserhöhungen als Preise speichern     | angenommen |
+| [0023](0023-unterbrechungen-statt-pausen-status.md)  | Unterbrechungen statt Pausen-Status                   | angenommen |
 
 Vorlage für neue Einträge: Datei `NNNN-kurzname.md` mit den Abschnitten *Kontext*,
 *Entscheidung* und *Folgen*, Status mit Datum und Issue/PR.

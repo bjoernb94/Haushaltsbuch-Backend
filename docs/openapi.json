@@ -763,6 +763,87 @@
         } ],
         "tags" : [ "Verträge" ]
       }
+    },
+    "/api/vertraege/{id}/wiederaufnahme" : {
+      "post" : {
+        "operationId" : "vertragWiederaufnehmen",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VertragWiederaufnahme"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VertragAntwort"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Ungültige Anfrage (VALIDIERUNG mit felder, ANFRAGE_UNGUELTIG, z. B. ID kein UUID-Format)."
+          },
+          "401" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht angemeldet (NICHT_ANGEMELDET)."
+          },
+          "403" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Keine Berechtigung, z. B. Komponente nicht gebucht (KEIN_ZUGRIFF), oder CSRF-Token fehlt (CSRF_TOKEN_UNGUELTIG)."
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description" : "Nicht gefunden, auch Daten eines fremden Haushalts (NICHT_GEFUNDEN)."
+          }
+        },
+        "security" : [ {
+          "csrf" : [ ],
+          "session" : [ ]
+        } ],
+        "tags" : [ "Verträge" ]
+      }
     }
   },
   "components" : {
@@ -913,7 +994,7 @@
       },
       "Kuendigungsart" : {
         "type" : "string",
-        "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "BEENDET", "STORNIERT" ]
+        "enum" : [ "KUENDIGEN_BIS", "MONATLICH_KUENDBAR", "ENDET", "KEINE_LAUFZEIT", "NICHT_KUENDBAR", "GEKUENDIGT", "WIEDER_AB", "BEENDET", "STORNIERT" ]
       },
       "Preisaenderung" : {
         "type" : "object",
@@ -1059,6 +1140,10 @@
         "type" : "string",
         "enum" : [ "PROZENT", "BETRAG" ]
       },
+      "Unterbrechungsart" : {
+        "type" : "string",
+        "enum" : [ "KUENDIGUNG" ]
+      },
       "Verlaengerung" : {
         "type" : "string",
         "enum" : [ "ZAHLUNGSINTERVALL", "MONATLICH", "ZWOELF_MONATE", "KEINE" ]
@@ -1141,6 +1226,13 @@
               "type" : "null"
             } ]
           },
+          "unterbrechungIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1168,7 +1260,7 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "anbieter", "beginn", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "version", "zahlweise" ]
+        "required" : [ "anbieter", "beginn", "einmalkosten", "erinnerungSonderkuendigung", "kategorieId", "kuendbar", "preise", "unterbrechungIds", "version", "zahlweise" ]
       },
       "VertragAnfrage" : {
         "type" : "object",
@@ -1353,6 +1445,12 @@
             "type" : [ "string", "null" ],
             "format" : "date"
           },
+          "unterbrechungen" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VertragUnterbrechungAntwort"
+            }
+          },
           "verlaengerung" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/Verlaengerung"
@@ -1378,11 +1476,15 @@
             "$ref" : "#/components/schemas/Zahlweise"
           }
         },
-        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "betragErrechnet", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "preissteigerungBetrachtetBis", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
+        "required" : [ "anbieter", "anteilProzent", "beginn", "berechnet", "betrag", "betragErrechnet", "bezeichnung", "einmalkosten", "erinnerungSonderkuendigung", "gekuendigtZum", "id", "kategorie", "kuendbar", "kuendigungsfristMonate", "laufzeitende", "notiz", "preise", "preisgarantieBis", "preissteigerung", "preissteigerungBetrachtetBis", "unterbrechungen", "verlaengerung", "version", "vertragsnummer", "zahlungsweg", "zahlweise" ]
       },
       "VertragBerechnet" : {
         "type" : "object",
         "properties" : {
+          "aktuellerBeginn" : {
+            "type" : "string",
+            "format" : "date"
+          },
           "eigenerAnteil" : {
             "oneOf" : [ {
               "$ref" : "#/components/schemas/VertragEigenerAnteil"
@@ -1434,9 +1536,16 @@
           "vertragsende" : {
             "type" : [ "string", "null" ],
             "format" : "date"
+          },
+          "wiederaufnahme" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Wiederaufnahmetermin"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
-        "required" : [ "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preisverlauf", "prognose", "status", "vertragsende" ]
+        "required" : [ "aktuellerBeginn", "eigenerAnteil", "einmalkosten", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "kuendigung", "naechstePreisaenderung", "preisverlauf", "prognose", "status", "vertragsende", "wiederaufnahme" ]
       },
       "VertragEigenerAnteil" : {
         "type" : "object",
@@ -1600,6 +1709,27 @@
         },
         "required" : [ "art", "betrag", "naechsteAm", "prozent", "rhythmus" ]
       },
+      "VertragUnterbrechungAntwort" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "$ref" : "#/components/schemas/Unterbrechungsart"
+          },
+          "bis" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "von" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "art", "bis", "id", "von" ]
+      },
       "VertragVorschauAnfrage" : {
         "type" : "object",
         "properties" : {
@@ -1659,6 +1789,14 @@
           "preissteigerungBetrachtetBis" : {
             "type" : [ "string", "null" ],
             "format" : "date"
+          },
+          "unterbrechungen" : {
+            "type" : [ "array", "null" ],
+            "items" : {
+              "$ref" : "#/components/schemas/VertragVorschauUnterbrechung"
+            },
+            "maxItems" : 100,
+            "minItems" : 0
           },
           "verlaengerung" : {
             "oneOf" : [ {
@@ -1850,9 +1988,67 @@
           }
         }
       },
+      "VertragVorschauUnterbrechung" : {
+        "type" : "object",
+        "properties" : {
+          "art" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Unterbrechungsart"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "bis" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "von" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          }
+        }
+      },
+      "VertragWiederaufnahme" : {
+        "type" : "object",
+        "properties" : {
+          "betrag" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Betrag"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "datum" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "kuendigungsfristMonate" : {
+            "type" : [ "integer", "null" ],
+            "format" : "int32",
+            "maximum" : 24,
+            "minimum" : 0
+          },
+          "laufzeitende" : {
+            "type" : [ "string", "null" ],
+            "format" : "date"
+          },
+          "verlaengerung" : {
+            "oneOf" : [ {
+              "$ref" : "#/components/schemas/Verlaengerung"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "datum", "version" ]
+      },
       "Vertragsstatus" : {
         "type" : "string",
-        "enum" : [ "NICHT_BEGONNEN", "AKTIV", "GEKUENDIGT", "BEENDET", "STORNIERT" ]
+        "enum" : [ "NICHT_BEGONNEN", "AKTIV", "GEKUENDIGT", "UNTERBROCHEN", "BEENDET", "STORNIERT" ]
       },
       "VertragsuebersichtAntwort" : {
         "type" : "object",
@@ -1900,6 +2096,20 @@
           }
         },
         "required" : [ "einmalkostenImJahr", "hatAnteile", "hatNichtBegonnene", "jahr", "kostenImJahr", "kostenImJahrMitPrognose", "kostenProMonat", "laufendeVertraege", "naechsteKuendigungsfristen" ]
+      },
+      "Wiederaufnahmetermin" : {
+        "type" : "object",
+        "properties" : {
+          "fruehestens" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "vorschlag" : {
+            "type" : "string",
+            "format" : "date"
+          }
+        },
+        "required" : [ "fruehestens", "vorschlag" ]
       },
       "Zahlungsweg" : {
         "type" : "string",
