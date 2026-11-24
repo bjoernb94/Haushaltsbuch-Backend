@@ -799,7 +799,7 @@ class VertragServiceTests {
 		var mitBetrachtet = new VertragVorschauAnfrage(anfrage.preise(), anfrage.zahlweise(), anfrage.anteilProzent(),
 				anfrage.einmalkosten(), anfrage.preissteigerung(), anfrage.preisgarantieBis(),
 				vertrag.preissteigerungBetrachtetBis(), anfrage.kuendbar(), anfrage.beginn(), anfrage.laufzeitende(),
-				anfrage.verlaengerung(), anfrage.kuendigungsfristMonate(), anfrage.gekuendigtZum());
+				anfrage.verlaengerung(), anfrage.kuendigungsfristMonate(), anfrage.gekuendigtZum(), null);
 
 		var vorschau = service.vorschau(mitBetrachtet);
 		var gespeichert = HaushaltKontext.fuer(haushalt,
@@ -852,10 +852,10 @@ class VertragServiceTests {
 		assertThat(vorschau.vorschlagNaechsteAm()).isEqualTo(a.beginn().plusYears(1));
 		var monatsende = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
 				null, null, Erhoehungsrhythmus.VIERTELJAEHRLICH, null), null, null, true, LocalDate.of(2027, 1, 31), null,
-				null, null, null);
+				null, null, null, null);
 		assertThat(service.vorschau(monatsende).vorschlagNaechsteAm()).isEqualTo(LocalDate.of(2027, 4, 30));
 		var ohneRhythmus = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
-				null, null, null, null), null, null, true, LocalDate.of(2027, 1, 31), null, null, null, null);
+				null, null, null, null), null, null, true, LocalDate.of(2027, 1, 31), null, null, null, null, null);
 		assertThat(service.vorschau(ohneRhythmus).vorschlagNaechsteAm()).isNull();
 	}
 
@@ -943,7 +943,7 @@ class VertragServiceTests {
 				steigerung == null ? null : new VertragVorschauPreissteigerung(steigerung.art(), steigerung.prozent(),
 						steigerung.betrag(), steigerung.rhythmus(), steigerung.naechsteAm()),
 				a.preisgarantieBis(), null, a.kuendbar(), a.beginn(), a.laufzeitende(), a.verlaengerung(),
-				a.kuendigungsfristMonate(), a.gekuendigtZum());
+				a.kuendigungsfristMonate(), a.gekuendigtZum(), null);
 	}
 
 	/**
@@ -999,7 +999,7 @@ class VertragServiceTests {
 
 	@Test
 	void vorschauMitFehlendenWerten() {
-		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, null, true, null, null, null, null, null);
+		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, null, true, null, null, null, null, null, null);
 
 		var vorschau = service.vorschau(leer);
 
@@ -1014,9 +1014,9 @@ class VertragServiceTests {
 		LocalDate heute = LocalDate.now(clock);
 		var preis = List.of(new VertragVorschauPreis(heute, euro("10.00"), null));
 		var ohneBeginn = new VertragVorschauAnfrage(preis, Zahlweise.MONATLICH, new BigDecimal("50"), null, null,
-				null, null, true, null, null, null, null, null);
+				null, null, true, null, null, null, null, null, null);
 		var ohneZahlweise = new VertragVorschauAnfrage(preis, null, new BigDecimal("50"), null,
-				null, null, null, true, heute, null, null, null, null);
+				null, null, null, true, heute, null, null, null, null, null);
 
 		var ohneBeginnVorschau = service.vorschau(ohneBeginn);
 		var ohneZahlweiseVorschau = service.vorschau(ohneZahlweise);
@@ -1048,7 +1048,7 @@ class VertragServiceTests {
 				Erhoehungsrhythmus.JAEHRLICH, heute);
 
 		var vorschau = service.vorschau(new VertragVorschauAnfrage(preise, Zahlweise.MONATLICH,
-				null, einmalkosten, steigerung, null, null, true, heute, null, null, null, null));
+				null, einmalkosten, steigerung, null, null, true, heute, null, null, null, null, null));
 
 		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
 		assertThat(vorschau.preise())
@@ -1063,10 +1063,10 @@ class VertragServiceTests {
 	void vorschauEinmalkostenOhnePreis() {
 		var nurEinmalkosten = new VertragVorschauAnfrage(null, null, null,
 				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, null, true,
-				null, null, null, null, null);
+				null, null, null, null, null, null);
 		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"), null)), null,
 				null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, null, true, null, null,
-				null, null, null);
+				null, null, null, null);
 
 		assertThat(service.vorschau(nurEinmalkosten).einmalkosten()).isEqualTo(euro("99.99"));
 		assertThat(service.vorschau(nurEinmalkosten).betrag()).isNull();
@@ -1077,7 +1077,7 @@ class VertragServiceTests {
 	static VertragAenderung aenderung(long version, VertragAnfrage a) {
 		return new VertragAenderung(version, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
 				a.preise(), a.zahlweise(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(), a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), a.kuendbar(), a.beginn(), a.laufzeitende(),
-				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz());
+				a.verlaengerung(), a.kuendigungsfristMonate(), a.gekuendigtZum(), a.notiz(), List.of());
 	}
 
 	/** Wie {@link #anfrage}, aber monatlich 50 € statt jährlich 586,80 €. */
@@ -1131,7 +1131,7 @@ class VertragServiceTests {
 		var a = anfrage(VERSICHERUNG);
 		var nichtKuendbar = new VertragAenderung(0L, a.anbieter(), a.bezeichnung(), a.kategorieId(), a.vertragsnummer(),
 				a.preise(), a.zahlweise(), a.zahlungsweg(), a.anteilProzent(), a.einmalkosten(), a.preissteigerung(), a.preisgarantieBis(), a.erinnerungSonderkuendigung(), false, a.beginn(), a.laufzeitende(),
-				a.verlaengerung(), a.kuendigungsfristMonate(), null, null);
+				a.verlaengerung(), a.kuendigungsfristMonate(), null, null, List.of());
 
 		var geaendert = HaushaltKontext.fuer(haushalt, () -> service.aendern(angelegt.id(), nichtKuendbar));
 

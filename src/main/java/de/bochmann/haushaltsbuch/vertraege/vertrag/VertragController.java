@@ -1,10 +1,13 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.shared.fehler.Probleme;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -70,6 +73,17 @@ class VertragController {
 	}
 
 	/**
+	 * Nimmt einen gekündigten oder beendeten Vertrag wieder auf; die Zeit dazwischen wird eine Unterbrechung. Ändert
+	 * den Vertrag, legt nichts an, daher 200. Veraltete {@code version}: 409 {@code KONFLIKT}, weder gekündigt noch
+	 * beendet: 409 {@code WIEDERAUFNAHME_NICHT_MOEGLICH}, unbekannte ID oder fremder Vertrag: 404.
+	 */
+	@PostMapping("/{id}/wiederaufnahme")
+	VertragAntwort vertragWiederaufnehmen(@PathVariable UUID id,
+			@Valid @RequestBody VertragWiederaufnahme wiederaufnahme) {
+		return service.wiederaufnehmen(id, wiederaufnahme);
+	}
+
+	/**
 	 * Löscht endgültig; {@code version} wie beim Ändern, damit keine Änderung eines anderen Mitglieds
 	 * unbemerkt mit verschwindet (veraltet: 409). Unbekannte ID oder fremder Vertrag: 404.
 	 */
@@ -77,6 +91,11 @@ class VertragController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	void vertragLoeschen(@PathVariable UUID id, @RequestParam long version) {
 		service.loeschen(id, version);
+	}
+
+	@ExceptionHandler
+	ProblemDetail wiederaufnahmeNichtMoeglich(WiederaufnahmeNichtMoeglichException e) {
+		return Probleme.problem(HttpStatus.CONFLICT, "WIEDERAUFNAHME_NICHT_MOEGLICH", e.getMessage());
 	}
 
 }

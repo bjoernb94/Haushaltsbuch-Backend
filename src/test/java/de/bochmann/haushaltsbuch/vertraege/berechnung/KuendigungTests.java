@@ -31,13 +31,15 @@ class KuendigungTests {
 		var spaeterGekuendigt = mitZum(Kuendigungsart.GEKUENDIGT, LocalDate.of(2027, 3, 31));
 		var gekuendigt = mitZum(Kuendigungsart.GEKUENDIGT, LocalDate.of(2026, 12, 31));
 		var beendet = Kuendigung.ohneDaten(Kuendigungsart.BEENDET, 1);
+		var wiederAb = mitZum(Kuendigungsart.WIEDER_AB, LocalDate.of(2027, 1, 1));
 
-		var sortiert = List.of(beendet, spaeterGekuendigt, gekuendigt, rundfunk, keineLaufzeit, fitness, streaming,
+		var sortiert = List.of(beendet, wiederAb, spaeterGekuendigt, gekuendigt, rundfunk, keineLaufzeit, fitness, streaming,
 				hausrat, handy, kfz).stream().sorted(Kuendigung.NACH_DRINGLICHKEIT).toList();
 
-		// ENDET steht nach Datum zwischen den Kündigungsfristen, nicht dahinter.
+		// ENDET steht nach Datum zwischen den Kündigungsfristen, nicht dahinter; unterbrochene (WIEDER_AB) zwischen
+		// gekündigten und beendeten.
 		assertThat(sortiert).containsExactly(kfz, handy, hausrat, streaming, fitness, keineLaufzeit, rundfunk, gekuendigt,
-				spaeterGekuendigt, beendet);
+				spaeterGekuendigt, wiederAb, beendet);
 	}
 
 }

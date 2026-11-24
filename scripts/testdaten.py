@@ -73,10 +73,19 @@ class Fall:
     aktueller_preis: Decimal | None = None
     # So viele Einträge in preise hat das Backend beim Speichern aus der Preissteigerung angelegt (automatisch).
     automatische: int = 0
+    # Nach dem Anlegen wieder aufnehmen (#166): Felder von VertragWiederaufnahme, mindestens datum; die übrigen wie
+    # beim Anlegen. None: nicht wieder aufnehmen.
+    wiederaufnahme: dict | None = None
+    # So viele Unterbrechungen hat der Vertrag danach.
+    unterbrechungen: int = 0
 
     @property
     def erwarteter_status(self):
-        return self.status or (self.art if self.art in ("GEKUENDIGT", "BEENDET", "STORNIERT") else "AKTIV")
+        if self.status:
+            return self.status
+        if self.art == "WIEDER_AB":
+            return "UNTERBROCHEN"
+        return self.art if self.art in ("GEKUENDIGT", "BEENDET", "STORNIERT") else "AKTIV"
 
 
 @dataclass
@@ -275,6 +284,11 @@ def pruefe_berechnung(fall, anfrage, antwort):
         fehler.append(f"betrag {antwort['betrag']['wert']} statt {fall.aktueller_preis}")
     if berechnet["vertragsende"] != vertragsende(anfrage):
         fehler.append(f"vertragsende {berechnet['vertragsende']} statt {vertragsende(anfrage)}")
+    wieder_aufnehmbar = fall.erwarteter_status in ("GEKUENDIGT", "BEENDET") and vertragsende(anfrage) is not None
+    if (berechnet["wiederaufnahme"] is not None) != wieder_aufnehmbar:
+        fehler.append(f"wiederaufnahme {berechnet['wiederaufnahme']} bei Status {status}")
+    if len(antwort["unterbrechungen"]) != fall.unterbrechungen:
+        fehler.append(f"{len(antwort['unterbrechungen'])} Unterbrechungen statt {fall.unterbrechungen}")
     if fall.kosten_im_jahr is not None and Decimal(str(berechnet["kostenImJahr"]["wert"])) != fall.kosten_im_jahr:
         fehler.append(f"kostenImJahr {berechnet['kostenImJahr']['wert']} statt {fall.kosten_im_jahr}")
     einmalkosten = sum((Decimal(str(eintrag["betrag"]["wert"])) for eintrag in fall.felder.get("einmalkosten", [])),
@@ -313,9 +327,24 @@ def vertraege_anlegen(sitzung, konto, heute):
         anfrage = anfrage_zu(fall, kategorie_ids, heute)
         status, antwort = sitzung.anfrage("POST", "/api/vertraege", anfrage)
         erwarte(status, 201, f"Fall „{fall.anbieter[:60]}“: Anlegen", antwort)
+        if fall.wiederaufnahme:
+            anfrage, antwort = wieder_aufnehmen(sitzung, fall, anfrage, antwort)
         art, vertragsstatus = pruefe_berechnung(fall, anfrage, antwort)
         zeilen.append((fall.anbieter[:50], art, "ja" if fall.dringend else "", vertragsstatus))
     return zeilen
+
+
+def wieder_aufnehmen(sitzung, fall, anfrage, antwort):
+    """Nimmt den angelegten Vertrag wieder auf; gibt die Angaben danach (wie eine Anfrage) und die Antwort zurück."""
+    daten = {"version": antwort["version"], "laufzeitende": None, "verlaengerung": anfrage["verlaengerung"],
+             "kuendigungsfristMonate": anfrage["kuendigungsfristMonate"], "betrag": None} | fall.wiederaufnahme
+    daten = {schluessel: wert.isoformat() if isinstance(wert, date) else wert for schluessel, wert in daten.items()}
+    status, antwort = sitzung.anfrage("POST", f"/api/vertraege/{antwort['id']}/wiederaufnahme", daten)
+    erwarte(status, 200, f"Fall „{fall.anbieter[:60]}“: Wieder aufnehmen", antwort)
+    nachher = anfrage | {"gekuendigtZum": None, "laufzeitende": daten["laufzeitende"]}
+    if anfrage["kuendbar"]:
+        nachher |= {"verlaengerung": daten["verlaengerung"], "kuendigungsfristMonate": daten["kuendigungsfristMonate"]}
+    return nachher, antwort
 
 
 def geteilt(fall):
@@ -504,6 +533,26 @@ def faelle_alles(heute):
         Fall("Beendet – Kündigungsdatum vorbei", "BEENDET", felder={"gekuendigtZum": tage(-1)}),
         Fall("Beendet – Laufzeitende vorbei, Verlängerung KEINE", "BEENDET",
              felder={"laufzeitende": tage(-1), "verlaengerung": "KEINE"}),
+        Fall("Beendet – nicht kündbar, wieder aufnehmbar", "BEENDET", kuendbar=False, kategorie="GEBUEHREN_BEITRAEGE",
+             zahlweise="VIERTELJAEHRLICH", felder={"beginn": tage(-1500), "gekuendigtZum": tage(-200)}),
+        # Wieder aufgenommen (#166): Die Zeit dazwischen ist eine Unterbrechung ohne Abbuchungen.
+        Fall("Wiederaufnahme – über den Sommer gekündigt", "MONATLICH_KUENDBAR", unterbrechungen=1,
+             felder={"beginn": tage(-400), "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 0,
+                     "gekuendigtZum": tage(-120)},
+             wiederaufnahme={"datum": tage(-30)}),
+        Fall("Wiederaufnahme – nahtlos, ohne Unterbrechung", "MONATLICH_KUENDBAR",
+             felder={"beginn": tage(-400), "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 0,
+                     "gekuendigtZum": tage(-60)},
+             wiederaufnahme={"datum": tage(-59)}),
+        Fall("Wiederaufnahme – unterbrochen, wieder ab in 30 Tagen", "WIEDER_AB", zum=tage(30), unterbrechungen=1,
+             preis_arten=["AKTUELL", "ANGEKUENDIGT"],
+             felder={"beginn": tage(-400), "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 0,
+                     "gekuendigtZum": tage(-30)},
+             wiederaufnahme={"datum": tage(30), "betrag": {"wert": 11.99, "waehrung": "EUR"}}),
+        Fall("Wiederaufnahme – nicht kündbar, nach einer Trennung", "NICHT_KUENDBAR", kuendbar=False,
+             kategorie="GEBUEHREN_BEITRAEGE", zahlweise="VIERTELJAEHRLICH", unterbrechungen=1,
+             felder={"beginn": tage(-2000), "gekuendigtZum": tage(-600)},
+             wiederaufnahme={"datum": tage(-60)}),
         # Noch nicht begonnen: zählt nicht pro Monat, lässt sich aber schon kündigen.
         Fall("Noch nicht begonnen – Beginn in 20 Tagen", "KUENDIGEN_BIS", status="NICHT_BEGONNEN",
              felder={"beginn": tage(20), "verlaengerung": "ZWOELF_MONATE", "kuendigungsfristMonate": 1}),

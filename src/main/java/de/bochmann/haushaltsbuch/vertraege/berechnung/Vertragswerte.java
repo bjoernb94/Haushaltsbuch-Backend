@@ -22,6 +22,8 @@ import java.util.List;
  * @param einmalkosten Summe aller Einmalkosten; ohne Einträge 0 in der Währung der Preise, ohne beides leer
  * @param vertragsende letzter Vertragstag ({@code gekuendigtZum} bzw. Laufzeitende ohne Verlängerung, das frühere);
  *        leer bei offenem Ende
+ * @param aktuellerBeginn Beginn der letzten Phase, siehe {@link Vertragsdaten#aktuellerBeginn}; leer ohne Beginn
+ * @param wiederaufnahme siehe {@link Vertragsberechnung#wiederaufnahme}; leer, wenn nicht möglich
  */
 public record Vertragswerte(
 		Vertragsstatus status,
@@ -36,6 +38,8 @@ public record Vertragswerte(
 		@Nullable Betrag eigenerAnteilImJahr,
 		@Nullable Betrag einmalkosten,
 		@Nullable LocalDate vertragsende,
+		@Nullable LocalDate aktuellerBeginn,
+		@Nullable Wiederaufnahmetermin wiederaufnahme,
 		@Nullable Preisaenderung naechstePreisaenderung,
 		List<Prognosepreis> prognose,
 		List<Preispunkt> preisverlauf,

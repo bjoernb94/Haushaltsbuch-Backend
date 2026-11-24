@@ -86,12 +86,14 @@ public class Vertragsberechnung {
 		return new Vertragswerte(status(daten), betrag, betragErrechnet, preiszeilen, kostenProMonat, kostenImJahr, mitPrognose,
 				anteilBetrag, anteilProMonat, anteilImJahr,
 				waehrung != null ? Einmalkosten.summe(einmalkosten, waehrung) : null, ende(daten).orElse(null),
+				daten.aktuellerBeginn(), wiederaufnahme(daten).orElse(null),
 				naechstePreisaenderung, prognosepreise, preisverlauf, kuendigung(daten));
 	}
 
 	/**
 	 * {@link Vertragsstatus#STORNIERT}, wenn das Kündigungsdatum vor dem Beginn liegt (der Vertrag läuft nie);
 	 * {@link Vertragsstatus#NICHT_BEGONNEN}, solange der Beginn noch kommt, auch wenn schon gekündigt;
+	 * {@link Vertragsstatus#UNTERBROCHEN}, wenn heute in einer {@link Unterbrechung} liegt;
 	 * {@link Vertragsstatus#BEENDET}, wenn das Kündigungsdatum vorbei ist oder ein Vertrag ohne Verlängerung sein
 	 * Laufzeitende überschritten hat; {@link Vertragsstatus#GEKUENDIGT}, solange das Kündigungsdatum noch kommt;
 	 * sonst {@link Vertragsstatus#AKTIV}.
@@ -103,6 +105,9 @@ public class Vertragsberechnung {
 		}
 		if (vertrag.beginn() != null && vertrag.beginn().isAfter(heute)) {
 			return Vertragsstatus.NICHT_BEGONNEN;
+		}
+		if (unterbrechungHeute(vertrag).isPresent()) {
+			return Vertragsstatus.UNTERBROCHEN;
 		}
 		if (vertrag.gekuendigtZum() != null) {
 			return vertrag.gekuendigtZum().isBefore(heute) ? Vertragsstatus.BEENDET : Vertragsstatus.GEKUENDIGT;
@@ -201,24 +206,40 @@ public class Vertragsberechnung {
 
 	/**
 	 * Alle Abbuchungen im laufenden Kalenderjahr, auch die schon erfolgten und die eines noch nicht begonnenen
-	 * Vertrags: ab {@code beginn} im Takt der Zahlweise, nicht nach dem Vertragsende (eine Abbuchung genau an diesem
-	 * Tag zählt noch; ein stornierter Vertrag hat keine). Leer, wenn Angaben fehlen.
+	 * Vertrags: je Phase ab ihrem Beginn im Takt der Zahlweise, nicht nach dem Vertragsende (eine Abbuchung genau an
+	 * diesem Tag zählt noch; ein stornierter Vertrag hat keine). In einer {@link Unterbrechung} wird nichts abgebucht,
+	 * danach beginnt der Takt neu. Leer, wenn Angaben fehlen.
 	 */
 	public List<LocalDate> abbuchungenImJahr(Vertragsdaten vertrag) {
 		if (vertrag.zahlweise() == null || vertrag.beginn() == null) {
 			return List.of();
 		}
-		LocalDate von = LocalDate.of(heute.getYear(), 1, 1);
-		LocalDate bis = LocalDate.of(heute.getYear(), 12, 31);
+		LocalDate jahresanfang = LocalDate.of(heute.getYear(), 1, 1);
+		LocalDate jahresende = jahresende();
 		Optional<LocalDate> ende = ende(vertrag);
-		if (ende.isPresent() && ende.get().isBefore(bis)) {
-			bis = ende.get();
+		List<LocalDate> abbuchungen = new ArrayList<>();
+		LocalDate phasenbeginn = vertrag.beginn();
+		for (Unterbrechung unterbrechung : vertrag.unterbrechungen()) {
+			abbuchungen.addAll(abbuchungen(phasenbeginn, unterbrechung.von().minusDays(1), vertrag.zahlweise(),
+					jahresanfang, jahresende));
+			phasenbeginn = unterbrechung.wiederAb();
 		}
-		int schritt = vertrag.zahlweise().monate();
-		LocalDate anker = vertrag.beginn();
-		// Geschätzt und dann vorgezählt; nie vor dem Beginn.
-		long k = Math.max(0, ChronoUnit.MONTHS.between(anker, von) / schritt - 1);
-		while (anker.plusMonths(k * schritt).isBefore(von)) {
+		LocalDate letzterTag = ende.isPresent() && ende.get().isBefore(jahresende) ? ende.get() : jahresende;
+		abbuchungen.addAll(abbuchungen(phasenbeginn, letzterTag, vertrag.zahlweise(), jahresanfang, jahresende));
+		return abbuchungen;
+	}
+
+	/**
+	 * Die Abbuchungen einer Phase ab {@code anker} im Takt der Zahlweise, nur die von {@code jahresanfang} bis
+	 * {@code jahresende} und bis einschließlich {@code phasenende}.
+	 */
+	private static List<LocalDate> abbuchungen(LocalDate anker, LocalDate phasenende, Zahlweise zahlweise,
+			LocalDate jahresanfang, LocalDate jahresende) {
+		LocalDate bis = phasenende.isBefore(jahresende) ? phasenende : jahresende;
+		int schritt = zahlweise.monate();
+		// Geschätzt und dann vorgezählt; nie vor dem Anker.
+		long k = Math.max(0, ChronoUnit.MONTHS.between(anker, jahresanfang) / schritt - 1);
+		while (anker.plusMonths(k * schritt).isBefore(jahresanfang)) {
 			k++;
 		}
 		List<LocalDate> abbuchungen = new ArrayList<>();
@@ -326,10 +347,42 @@ public class Vertragsberechnung {
 		return Optional.ofNullable(ende);
 	}
 
-	/** Beendet oder storniert: Es kommt nichts mehr. */
+	/**
+	 * Der letzte Vertragstag, siehe {@link #ende}; leer, wenn er nicht endet. Für die Wiederaufnahme, die ab dem Tag
+	 * danach rechnet.
+	 */
+	public Optional<LocalDate> vertragsende(Vertragsdaten vertrag) {
+		return ende(vertrag);
+	}
+
+	/**
+	 * Wann sich der Vertrag wieder aufnehmen lässt: nur gekündigt oder beendet und mit Vertragsende, frühestens am Tag
+	 * danach; leer sonst (z.&nbsp;B. storniert, aktiv oder unterbrochen).
+	 */
+	public Optional<Wiederaufnahmetermin> wiederaufnahme(Vertragsdaten vertrag) {
+		var status = status(vertrag);
+		if (status != Vertragsstatus.GEKUENDIGT && status != Vertragsstatus.BEENDET) {
+			return Optional.empty();
+		}
+		return ende(vertrag).map(ende -> {
+			LocalDate fruehestens = ende.plusDays(1);
+			return new Wiederaufnahmetermin(fruehestens, fruehestens.isAfter(heute) ? fruehestens : heute);
+		});
+	}
+
+	/** Die {@link Unterbrechung}, in der heute liegt; leer, wenn der Vertrag heute nicht unterbrochen ist. */
+	private Optional<Unterbrechung> unterbrechungHeute(Vertragsdaten vertrag) {
+		return vertrag.unterbrechungen().stream().filter(unterbrechung -> unterbrechung.enthaelt(heute)).findFirst();
+	}
+
+	/**
+	 * Beendet, storniert oder unterbrochen: Bis auf Weiteres kommt nichts mehr, auch keine Preisänderung (bei einer
+	 * Unterbrechung zeigt die SPA stattdessen „Wieder ab“).
+	 */
 	private boolean vorbei(Vertragsdaten vertrag) {
 		var status = status(vertrag);
-		return status == Vertragsstatus.BEENDET || status == Vertragsstatus.STORNIERT;
+		return status == Vertragsstatus.BEENDET || status == Vertragsstatus.STORNIERT
+				|| status == Vertragsstatus.UNTERBROCHEN;
 	}
 
 	/** Art und Termine der Kündigung; die Regeln stehen in {@code docs/api.md}, Abschnitt Verträge. */
@@ -341,6 +394,10 @@ public class Vertragsberechnung {
 			}
 			case STORNIERT -> {
 				return Kuendigung.ohneDaten(Kuendigungsart.STORNIERT, frist);
+			}
+			case UNTERBROCHEN -> {
+				return new Kuendigung(Kuendigungsart.WIEDER_AB, null, unterbrechungHeute(vertrag).orElseThrow().wiederAb(),
+						frist, false);
 			}
 			case GEKUENDIGT -> {
 				return new Kuendigung(Kuendigungsart.GEKUENDIGT, null, vertrag.gekuendigtZum(), frist, false);
@@ -396,24 +453,25 @@ public class Vertragsberechnung {
 
 	/**
 	 * Das erste Vertragsende, ab dem verlängert wird: das Laufzeitende; ohne Laufzeitende eine Verlängerung nach dem
-	 * Beginn (Zahlungsintervall, ein Monat oder zwölf Monate, siehe {@link #endeNach}). Ohne Verlängerung zählt nur das
-	 * Laufzeitende selbst.
+	 * {@link Vertragsdaten#aktuellerBeginn aktuellen Beginn} (Zahlungsintervall, ein Monat oder zwölf Monate, siehe
+	 * {@link #endeNach}). Ohne Verlängerung zählt nur das Laufzeitende selbst.
 	 */
 	private static LocalDate erstesEnde(Vertragsdaten vertrag) {
 		if (vertrag.laufzeitende() != null) {
 			return vertrag.laufzeitende();
 		}
 		int schritt = verlaengerungMonate(vertrag);
-		return vertrag.beginn() != null && schritt > 0 ? endeNach(vertrag.beginn(), schritt) : null;
+		return vertrag.beginn() != null && schritt > 0 ? endeNach(vertrag.aktuellerBeginn(), schritt) : null;
 	}
 
 	/**
 	 * Das Vertragsende nach {@code k} weiteren Verlängerungen um {@code schritt} Monate: vom Laufzeitende aus (ein
-	 * Monatsende bleibt eins, siehe {@link #plusMonate}), ohne Laufzeitende vom Beginn aus, nicht vom vorigen Ende.
+	 * Monatsende bleibt eins, siehe {@link #plusMonate}), ohne Laufzeitende vom aktuellen Beginn aus, nicht vom vorigen
+	 * Ende.
 	 */
 	private static LocalDate verlaengertesEnde(Vertragsdaten vertrag, long k, int schritt) {
 		return vertrag.laufzeitende() != null ? plusMonate(vertrag.laufzeitende(), k * schritt)
-				: endeNach(vertrag.beginn(), (k + 1) * schritt);
+				: endeNach(vertrag.aktuellerBeginn(), (k + 1) * schritt);
 	}
 
 	/**
