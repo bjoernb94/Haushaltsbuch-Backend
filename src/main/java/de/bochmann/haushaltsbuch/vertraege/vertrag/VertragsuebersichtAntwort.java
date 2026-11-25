@@ -1,12 +1,12 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Einmalkosten;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kosten;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.kosten.Anteil;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.kosten.Einmalkosten;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.kosten.Kosten;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;

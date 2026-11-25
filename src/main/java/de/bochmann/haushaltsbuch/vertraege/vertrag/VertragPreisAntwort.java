@@ -1,8 +1,8 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeile;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preiszeile;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preiszeilenart;
 
 import java.time.LocalDate;
 

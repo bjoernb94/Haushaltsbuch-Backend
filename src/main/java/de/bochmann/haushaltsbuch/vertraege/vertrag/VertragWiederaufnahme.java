@@ -3,7 +3,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.shared.geld.PositiverBetrag;
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

@@ -1,8 +1,14 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.ErsterPreisAbBeginn;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.GleicheWaehrung;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.GueltigAbEindeutig;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.LaufzeitendeNachBeginn;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.PreisNichtVorBeginn;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Preisangabe;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

@@ -5,20 +5,27 @@ import de.bochmann.haushaltsbuch.shared.fachdaten.HaushaltKontext;
 import de.bochmann.haushaltsbuch.shared.fehler.KonfliktException;
 import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Erhoehungsrhythmus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunkt;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunktart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preiszeilenart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Prognosepreis;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Erhoehungsrhythmus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisaenderung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisaenderungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preispunkt;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preispunktart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preiszeilenart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Prognosepreis;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Steigerungsart;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieSchluessel;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauAnfrage;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauAntwort;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauEinmalkosten;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauPreis;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauPreisAntwort;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauPreissteigerung;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauService;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +51,9 @@ class VertragServiceTests {
 
 	@Autowired
 	private VertragService service;
+
+	@Autowired
+	private VertragVorschauService vorschauService;
 
 	@Autowired
 	private VertragRepository repository;
@@ -801,7 +811,7 @@ class VertragServiceTests {
 				vertrag.preissteigerungBetrachtetBis(), anfrage.kuendbar(), anfrage.beginn(), anfrage.laufzeitende(),
 				anfrage.verlaengerung(), anfrage.kuendigungsfristMonate(), anfrage.gekuendigtZum(), null);
 
-		var vorschau = service.vorschau(mitBetrachtet);
+		var vorschau = vorschauService.vorschau(mitBetrachtet);
 		var gespeichert = HaushaltKontext.fuer(haushalt,
 				() -> service.aendern(vertrag.id(), aenderung(0, ohneNeueste)));
 
@@ -810,7 +820,7 @@ class VertragServiceTests {
 		assertThat(vorschau.preise()).extracting(VertragVorschauPreisAntwort::gueltigAb)
 				.isEqualTo(gespeichert.preise().stream().map(VertragPreisAntwort::gueltigAb).toList());
 		// Ohne den Wert (wie bei einem neuen Vertrag) wäre die gelöschte Stufe neu.
-		assertThat(service.vorschau(anfrage).preise()).filteredOn(VertragVorschauPreisAntwort::neu).hasSize(1);
+		assertThat(vorschauService.vorschau(anfrage).preise()).filteredOn(VertragVorschauPreisAntwort::neu).hasSize(1);
 	}
 
 	/**
@@ -842,7 +852,7 @@ class VertragServiceTests {
 	void vorschauMitNeuenStufenUndVorschlag() {
 		var a = seitFuenfJahren();
 
-		var vorschau = service.vorschau(vorschau(a));
+		var vorschau = vorschauService.vorschau(vorschau(a));
 
 		assertThat(vorschau.betrag()).isEqualTo(euro("110.40"));
 		assertThat(vorschau.preise()).extracting(VertragVorschauPreisAntwort::neu)
@@ -853,10 +863,10 @@ class VertragServiceTests {
 		var monatsende = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
 				null, null, Erhoehungsrhythmus.VIERTELJAEHRLICH, null), null, null, true, LocalDate.of(2027, 1, 31), null,
 				null, null, null, null);
-		assertThat(service.vorschau(monatsende).vorschlagNaechsteAm()).isEqualTo(LocalDate.of(2027, 4, 30));
+		assertThat(vorschauService.vorschau(monatsende).vorschlagNaechsteAm()).isEqualTo(LocalDate.of(2027, 4, 30));
 		var ohneRhythmus = new VertragVorschauAnfrage(null, null, null, null, new VertragVorschauPreissteigerung(null,
 				null, null, null, null), null, null, true, LocalDate.of(2027, 1, 31), null, null, null, null, null);
-		assertThat(service.vorschau(ohneRhythmus).vorschlagNaechsteAm()).isNull();
+		assertThat(vorschauService.vorschau(ohneRhythmus).vorschlagNaechsteAm()).isNull();
 	}
 
 	@Test
@@ -990,87 +1000,11 @@ class VertragServiceTests {
 		for (var anfrage : List.of(a, gekuendigt, nichtKuendbar, voll, steigtAbHeute())) {
 			var gespeichert = HaushaltKontext.fuer(haushalt, () -> service.anlegen(anfrage));
 
-			assertThat(service.vorschau(vorschau(anfrage))).isEqualTo(wieGespeichert(gespeichert));
+			assertThat(vorschauService.vorschau(vorschau(anfrage))).isEqualTo(wieGespeichert(gespeichert));
 		}
-		assertThat(service.vorschau(vorschau(nichtKuendbar)).kuendigung().fristMonate()).isNull();
-		assertThat(service.vorschau(vorschau(voll)).prognose()).hasSize(3);
-		assertThat(service.vorschau(vorschau(voll)).eigenerAnteil()).isNotNull();
-	}
-
-	@Test
-	void vorschauMitFehlendenWerten() {
-		var leer = new VertragVorschauAnfrage(null, null, null, null, null, null, null, true, null, null, null, null, null, null);
-
-		var vorschau = service.vorschau(leer);
-
-		assertThat(vorschau.kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
-		assertThat(vorschau).isEqualTo(new VertragVorschauAntwort(null, List.of(), null, null, null, List.of(), null,
-				vorschau.kuendigung(), null));
-	}
-
-	/** Was fehlt, bleibt leer; der Rest wird trotzdem berechnet. */
-	@Test
-	void vorschauMitTeilweisenAngaben() {
-		LocalDate heute = LocalDate.now(clock);
-		var preis = List.of(new VertragVorschauPreis(heute, euro("10.00"), null));
-		var ohneBeginn = new VertragVorschauAnfrage(preis, Zahlweise.MONATLICH, new BigDecimal("50"), null, null,
-				null, null, true, null, null, null, null, null, null);
-		var ohneZahlweise = new VertragVorschauAnfrage(preis, null, new BigDecimal("50"), null,
-				null, null, null, true, heute, null, null, null, null, null);
-
-		var ohneBeginnVorschau = service.vorschau(ohneBeginn);
-		var ohneZahlweiseVorschau = service.vorschau(ohneZahlweise);
-
-		// Ohne Beginn keine Preise: Der erste gilt ab dem Beginn, spätere gälten sonst rückwirkend.
-		assertThat(ohneBeginnVorschau.betrag()).isNull();
-		assertThat(ohneBeginnVorschau.preise()).isEmpty();
-		assertThat(ohneBeginnVorschau.kostenProMonat()).isNull();
-		assertThat(ohneBeginnVorschau.eigenerAnteil()).isNull();
-		assertThat(ohneBeginnVorschau.kuendigung().art()).isEqualTo(Kuendigungsart.KEINE_LAUFZEIT);
-		assertThat(ohneZahlweiseVorschau.betrag()).isEqualTo(euro("10.00"));
-		assertThat(ohneZahlweiseVorschau.kostenProMonat()).isNull();
-		// Der Anteil am Betrag braucht nur Preis und Anteil, der pro Monat zusätzlich die Zahlweise.
-		assertThat(ohneZahlweiseVorschau.eigenerAnteil())
-				.isEqualTo(new VertragVorschauAntwort.VertragVorschauEigenerAnteil(euro("5.00"), null));
-	}
-
-	/** Unvollständige Zeilen ignoriert die Vorschau, statt sie abzulehnen. */
-	@Test
-	void vorschauIgnoriertUnvollstaendigeZeilen() {
-		LocalDate heute = LocalDate.now(clock);
-		var preise = List.of(new VertragVorschauPreis(heute, euro("10.00"), null), new VertragVorschauPreis(heute.plusDays(5), null, null),
-				new VertragVorschauPreis(null, euro("11.00"), null));
-		var einmalkosten = List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), null),
-				new VertragVorschauEinmalkosten(" ", euro("5.00"), heute),
-				new VertragVorschauEinmalkosten("Anschluss", euro("49.00"), heute));
-		// Prozent ohne Prozentsatz; der Betrag gehört zur anderen Art und zählt nicht.
-		var steigerung = new VertragVorschauPreissteigerung(Steigerungsart.PROZENT, null, euro("1.00"),
-				Erhoehungsrhythmus.JAEHRLICH, heute);
-
-		var vorschau = service.vorschau(new VertragVorschauAnfrage(preise, Zahlweise.MONATLICH,
-				null, einmalkosten, steigerung, null, null, true, heute, null, null, null, null, null));
-
-		assertThat(vorschau.betrag()).isEqualTo(euro("10.00"));
-		assertThat(vorschau.preise())
-				.containsExactly(new VertragVorschauPreisAntwort(heute, euro("10.00"), Preiszeilenart.AKTUELL, false, false));
-		assertThat(vorschau.naechstePreisaenderung()).isNull();
-		assertThat(vorschau.prognose()).isEmpty();
-		assertThat(vorschau.einmalkosten()).isEqualTo(euro("49.00"));
-	}
-
-	/** Ohne Preis summieren die Einmalkosten in ihrer eigenen Währung; ohne vollständige Zeile bleiben sie leer. */
-	@Test
-	void vorschauEinmalkostenOhnePreis() {
-		var nurEinmalkosten = new VertragVorschauAnfrage(null, null, null,
-				List.of(new VertragVorschauEinmalkosten("Router", euro("99.99"), LocalDate.now(clock))), null, null, null, true,
-				null, null, null, null, null, null);
-		var nichtsVollstaendig = new VertragVorschauAnfrage(List.of(new VertragVorschauPreis(null, euro("10.00"), null)), null,
-				null, List.of(new VertragVorschauEinmalkosten("Router", null, null)), null, null, null, true, null, null,
-				null, null, null, null);
-
-		assertThat(service.vorschau(nurEinmalkosten).einmalkosten()).isEqualTo(euro("99.99"));
-		assertThat(service.vorschau(nurEinmalkosten).betrag()).isNull();
-		assertThat(service.vorschau(nichtsVollstaendig).einmalkosten()).isNull();
+		assertThat(vorschauService.vorschau(vorschau(nichtKuendbar)).kuendigung().fristMonate()).isNull();
+		assertThat(vorschauService.vorschau(vorschau(voll)).prognose()).hasSize(3);
+		assertThat(vorschauService.vorschau(vorschau(voll)).eigenerAnteil()).isNotNull();
 	}
 
 	/** Die Angaben von {@code anfrage} als Änderung mit {@code version}. */

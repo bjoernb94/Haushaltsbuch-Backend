@@ -1,15 +1,15 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisaenderung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preispunkt;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Prognosepreis;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Wiederaufnahmetermin;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Wiederaufnahmetermin;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisaenderung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preispunkt;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Prognosepreis;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieAntwort;
 import org.jspecify.annotations.Nullable;
 

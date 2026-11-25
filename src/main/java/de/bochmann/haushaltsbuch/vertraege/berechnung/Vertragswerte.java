@@ -1,6 +1,16 @@
 package de.bochmann.haushaltsbuch.vertraege.berechnung;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Laufzeitberechnung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsdaten;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Wiederaufnahmetermin;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisaenderung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisberechnung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preispunkt;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preiszeile;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Prognosepreis;
 import org.jspecify.annotations.Nullable;
 
 import java.time.LocalDate;
@@ -11,7 +21,7 @@ import java.util.List;
  * {@code null}, wenn eine Angabe dafür fehlt; beim gespeicherten Vertrag ist er es nur, wo auch die API {@code null}
  * kennt (z.&nbsp;B. kein Vertragsende).
  *
- * @param betrag der {@link Vertragsberechnung#aktuellerPreis aktuelle Preis}; braucht einen Preis
+ * @param betrag der {@link Preisberechnung#aktuellerPreis aktuelle Preis}; braucht einen Preis
  * @param betragErrechnet ob {@code betrag} eine seit dem letzten Speichern fällige Stufe der Preissteigerung ist
  * @param preise die gespeicherte Preisliste mit dem Eintrag von {@code betrag}; ohne Preis leer
  * @param kostenProMonat braucht Preis und Zahlweise
@@ -23,7 +33,7 @@ import java.util.List;
  * @param vertragsende letzter Vertragstag ({@code gekuendigtZum} bzw. Laufzeitende ohne Verlängerung, das frühere);
  *        leer bei offenem Ende
  * @param aktuellerBeginn Beginn der letzten Phase, siehe {@link Vertragsdaten#aktuellerBeginn}; leer ohne Beginn
- * @param wiederaufnahme siehe {@link Vertragsberechnung#wiederaufnahme}; leer, wenn nicht möglich
+ * @param wiederaufnahme siehe {@link Laufzeitberechnung#wiederaufnahme}; leer, wenn nicht möglich
  */
 public record Vertragswerte(
 		Vertragsstatus status,

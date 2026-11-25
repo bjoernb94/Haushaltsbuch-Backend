@@ -5,14 +5,18 @@ import de.bochmann.haushaltsbuch.shared.fachdaten.HaushaltKontext;
 import de.bochmann.haushaltsbuch.shared.fehler.KonfliktException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Erhoehungsrhythmus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsstatus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Wiederaufnahmetermin;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Wiederaufnahmetermin;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Erhoehungsrhythmus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Steigerungsart;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauAnfrage;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauPreis;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauService;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.vorschau.VertragVorschauUnterbrechung;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +41,9 @@ class VertragWiederaufnahmeTests {
 
 	@Autowired
 	private VertragService service;
+
+	@Autowired
+	private VertragVorschauService vorschauService;
 
 	@Autowired
 	private Clock clock;
@@ -396,8 +403,8 @@ class VertragWiederaufnahmeTests {
 		var mitUnterbrechung = new VertragVorschauAnfrage(ohne.preise(), ohne.zahlweise(), null, null, null, null, null,
 				true, beginn, null, Verlaengerung.ZWOELF_MONATE, 0, null, List.of(unterbrechung));
 
-		assertThat(service.vorschau(ohne).kuendigung().art()).isEqualTo(Kuendigungsart.KUENDIGEN_BIS);
-		var vorschau = service.vorschau(mitUnterbrechung);
+		assertThat(vorschauService.vorschau(ohne).kuendigung().art()).isEqualTo(Kuendigungsart.KUENDIGEN_BIS);
+		var vorschau = vorschauService.vorschau(mitUnterbrechung);
 		assertThat(vorschau.kuendigung().art()).isEqualTo(Kuendigungsart.WIEDER_AB);
 		assertThat(vorschau.kuendigung().zum()).isEqualTo(heute.plusMonths(1));
 		assertThat(vorschau.naechstePreisaenderung()).isNull();

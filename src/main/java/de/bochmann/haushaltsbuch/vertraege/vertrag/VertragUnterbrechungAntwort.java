@@ -1,6 +1,6 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechungsart;
 
 import java.time.LocalDate;
 import java.util.UUID;

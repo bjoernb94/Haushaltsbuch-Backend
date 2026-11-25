@@ -3,6 +3,8 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.shared.geld.PositiverBetrag;
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Einmalkostenangabe;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.GleicheWaehrung;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

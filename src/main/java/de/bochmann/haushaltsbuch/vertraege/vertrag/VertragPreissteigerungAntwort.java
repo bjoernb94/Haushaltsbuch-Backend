@@ -1,8 +1,8 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Erhoehungsrhythmus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Erhoehungsrhythmus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Steigerungsart;
 import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
