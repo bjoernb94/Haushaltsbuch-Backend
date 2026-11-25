@@ -1,13 +1,14 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag.regeln;
 
+import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechung;
 
 import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Die Regeln, damit die Angaben eines Vertrags zu seinen Unterbrechungen passen (ADR 0023). Beim Ändern prüft sie der
- * Service gegen die verbleibenden gespeicherten Unterbrechungen, in der Vorschau die Constraints
+ * Die Regeln, damit die Angaben eines Vertrags zu seinen Unterbrechungen passen (ADR 0023). Beim Ändern prüft sie
+ * {@link #pruefe} gegen die verbleibenden gespeicherten Unterbrechungen, in der Vorschau die Constraints
  * ({@link BeginnVorUnterbrechung}, {@link KuendigungNachUnterbrechung}, {@link LaufzeitendeNachAktuellemBeginn},
  * {@link UnterbrechungenGetrennt}) gegen die mitgeschickten. Ohne Unterbrechungen ist alles erlaubt; dann gelten nur
  * die Regeln am Vertrag wie {@link LaufzeitendeNachBeginn}.
@@ -15,6 +16,27 @@ import java.util.List;
 public final class Unterbrechungsregeln {
 
 	private Unterbrechungsregeln() {
+	}
+
+	/**
+	 * Prüft die Angaben beim Ändern gegen die verbleibenden gespeicherten {@code unterbrechungen}, mit denselben Codes
+	 * wie die Constraints der Vorschau.
+	 *
+	 * @throws UngueltigeEingabeException beim ersten Verstoß
+	 */
+	public static void pruefe(Berechnungsangaben angaben, List<Unterbrechung> unterbrechungen) {
+		if (!beginnVorUnterbrechung(angaben.beginn(), unterbrechungen)) {
+			throw new UngueltigeEingabeException("beginn", "BeginnVorUnterbrechung",
+					"Start %s is not before the first interruption.".formatted(angaben.beginn()));
+		}
+		if (!kuendigungNachUnterbrechung(angaben.gekuendigtZum(), unterbrechungen)) {
+			throw new UngueltigeEingabeException("gekuendigtZum", "KuendigungNachUnterbrechung",
+					"Cancellation %s is before the last resumption.".formatted(angaben.gekuendigtZum()));
+		}
+		if (!laufzeitendeNachAktuellemBeginn(angaben.laufzeitende(), unterbrechungen)) {
+			throw new UngueltigeEingabeException("laufzeitende", "LaufzeitendeNachAktuellemBeginn",
+					"End of term %s is before the last resumption.".formatted(angaben.laufzeitende()));
+		}
 	}
 
 	/** Der Beginn liegt vor der ersten Unterbrechung. */

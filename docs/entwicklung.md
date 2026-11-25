@@ -31,8 +31,9 @@ vertraege
 ├── package-info.java   Modul-Deklaration; im Wurzelpaket nur, was andere Module nutzen dürfen
 ├── vertrag             Vertrag mit seinen Teilen (VertragPreis, VertragUnterbrechung …),
 │   │                   VertragRepository, VertragService, VertragController, Anfragen und Antworten
-│   ├── regeln          Constraints über mehrere Felder (GleicheWaehrung, LaufzeitendeNachBeginn …)
-│   │                   und die Schnittstellen, gegen die sie prüfen (Berechnungsangaben, Preisangabe …)
+│   ├── regeln          Constraints über mehrere Felder (GleicheWaehrung, LaufzeitendeNachBeginn …),
+│   │                   die Schnittstellen, gegen die sie prüfen (Berechnungsangaben, Preisangabe …), und
+│   │                   Regeln gegen den gespeicherten Vertrag (Unterbrechungsregeln, Wiederaufnahmeregeln)
 │   └── vorschau        POST /api/vertraege/vorschau: Controller, Service, Anfrage und Antwort
 ├── kategorie           VertragKategorie, Repository, Service, Controller
 └── berechnung          Vertragsberechnung (Fassade: werte, wieGespeichert), Berechnungsgrundlage,
@@ -40,14 +41,16 @@ vertraege
     ├── laufzeit        Laufzeitberechnung (Status, Vertragsende, Kündigung, Wiederaufnahme),
     │                   Vertragsdaten, Zahlweise, Unterbrechung, Monate …
     ├── preis           Preisberechnung (aktueller Preis, Stufen, Prognose), Preisliste, Preisprognose …
-    └── kosten          Kostenberechnung (Abbuchungen und Kosten im Jahr), Kosten, Anteil, Einmalkosten
+    ├── kosten          Kostenberechnung (Abbuchungen und Kosten im Jahr), Kosten, Anteil, Einmalkosten
+    └── uebersicht      Vertragsuebersicht: Kennzahlen über alle Verträge (Summen je Währung, Fristen)
 ```
 
 - Klassen, die nur im eigenen Unterpaket gebraucht werden, bleiben package-private; was ein anderes
   Unterpaket braucht, ist `public`. Von außerhalb des Moduls sind Unterpakete trotzdem nicht
   erreichbar, das prüft `ModularityTests`.
 - Unterpakete hängen nur in eine Richtung voneinander ab, ohne Zyklen: `vertrag` → `regeln` →
-  `berechnung`, `vorschau` → `regeln`/`berechnung`, in `berechnung` `kosten` → `preis` → `laufzeit`.
+  `berechnung`, `vorschau` → `regeln`/`berechnung`, in `berechnung` `uebersicht` → Wurzel →
+  `kosten` → `preis` → `laufzeit`.
   Das gilt auch für Javadoc: Gegen die Richtung `{@code …}` statt `{@link …}`, sonst braucht es einen Import.
 - Teile eines Aggregats (z.&nbsp;B. `VertragPreis` in `vertrag_preis`) bleiben im Paket der Entity, weil
   sie nur über sie geladen und geändert werden; eigene Pakete hießen, ihre Felder `public` zu machen.
