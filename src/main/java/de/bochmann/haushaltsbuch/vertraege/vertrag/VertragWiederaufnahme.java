@@ -4,6 +4,8 @@ import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.shared.geld.PositiverBetrag;
 import de.bochmann.haushaltsbuch.shared.zeit.PlausiblesDatum;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Wiederaufnahmeangabe;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Wiederaufnahmeregeln;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -15,7 +17,7 @@ import java.time.LocalDate;
 /**
  * Angaben des Dialogs „Wieder aufnehmen“ für einen gekündigten oder beendeten Vertrag. Die Regeln, die den
  * gespeicherten Vertrag brauchen (nach dem Vertragsende, Laufzeit bei kündbaren, gleiche Währung, kein zweiter
- * eingetragener Preis am Tag), prüft der Service; siehe {@code docs/api.md}.
+ * eingetragener Preis am Tag), prüft {@link Wiederaufnahmeregeln}; siehe {@code docs/api.md}.
  *
  * @param version wie beim Ändern
  * @param datum erster Tag nach der Unterbrechung; liegt er direkt nach dem Vertragsende, geht es ohne Unterbrechung
@@ -31,5 +33,5 @@ record VertragWiederaufnahme(
 		@PlausiblesDatum @Nullable LocalDate laufzeitende,
 		@Nullable Verlaengerung verlaengerung,
 		@Min(0) @Max(24) @Nullable Integer kuendigungsfristMonate,
-		@Valid @PositiverBetrag @Nullable Betrag betrag) {
+		@Valid @PositiverBetrag @Nullable Betrag betrag) implements Wiederaufnahmeangabe {
 }
