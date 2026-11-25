@@ -24,6 +24,13 @@ spring:
           time_zone: UTC
   flyway:
     locations: classpath:db/migration
+  # Timeouts für alle ausgehenden HTTP-Aufrufe (bisher nur Keycloak: Token-Endpunkt, Schlüssel des Realms,
+  # Admin API). Antwortet Keycloak nicht rechtzeitig, gibt es 503 KEYCLOAK_NICHT_ERREICHBAR. Der Health-Check
+  # hat eigene 2 s (SystemstatusConfig).
+  http:
+    clients:
+      connect-timeout: 2s
+      read-timeout: 5s
   # Keycloak-Anbindung; die Werte stehen unter haushaltsbuch.keycloak (je Profil).
   security:
     oauth2:

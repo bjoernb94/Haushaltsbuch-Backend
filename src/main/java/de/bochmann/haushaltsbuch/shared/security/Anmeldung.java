@@ -39,6 +39,8 @@ public class Anmeldung {
 
 	/**
 	 * @throws AnmeldungFehlgeschlagenException wenn Keycloak die Anmeldedaten ablehnt
+	 * @throws de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException wenn Keycloak nicht
+	 *         rechtzeitig antwortet
 	 */
 	public void anmelden(String email, String passwort, HttpServletRequest request, HttpServletResponse response) {
 		var anmeldedaten = tokenClient.anmelden(email, passwort);

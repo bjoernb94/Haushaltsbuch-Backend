@@ -81,11 +81,13 @@ Session-Cookie. Es gibt keine Weiterleitung zu Keycloak. Bearer-Tokens nimmt das
   - **403**, `code` `ANMELDUNG_GESPERRT`: Konto deaktiviert oder nach Fehlversuchen vorübergehend gesperrt
   - **403**, `code` `ANMELDUNG_NICHT_EINGERICHTET`: in Keycloak stehen Pflichtschritte aus
   - **400**, `code` `VALIDIERUNG`: Felder fehlen
+  - **503**, `code` `KEYCLOAK_NICHT_ERREICHBAR`: Keycloak antwortet nicht rechtzeitig
 - **Registrierung:** Nach **201** ist der Nutzer direkt angemeldet. Scheitert nur die automatische
   Anmeldung, bleibt es bei 201 und die SPA zeigt die Login-Seite (erkennbar an der 401 beim
   nächsten Aufruf).
 - **Abmeldung:** `POST /api/abmeldung` → **204**. Beendet die Session im Backend und die Sitzung
-  bei Keycloak.
+  bei Keycloak. Ist Keycloak nicht erreichbar, endet nur die Session im Backend (trotzdem 204); die
+  Sitzung bei Keycloak läuft dann von selbst ab.
 
 Die SPA muss das Backend über denselben Origin erreichen, lokal über den Angular-Dev-Proxy
 (`/api` auf `http://localhost:8080`). Nur dann schickt der Browser Session- und XSRF-Cookie mit;
@@ -98,7 +100,8 @@ Die Session im Backend speichert das Refresh Token von Keycloak. Läuft das Acce
 Lehnt Keycloak das ab (Sitzung abgelaufen oder in Keycloak beendet, Konto deaktiviert), wird
 die Session beendet und der Request erhält 401. Ein in Keycloak gesperrter Nutzer ist also
 spätestens nach Ablauf des Access Tokens abgemeldet. Ist Keycloak nicht erreichbar, bleibt die
-Session bestehen und die Erneuerung wird beim nächsten Request wiederholt.
+Session bestehen und die Erneuerung wird beim nächsten Request wiederholt; der Request wartet dabei
+höchstens den Timeout (siehe [Betrieb](betrieb.md#konfiguration)).
 
 Wie lange eine Anmeldung ohne Aktivität hält, bestimmt das Kürzere aus Session-Timeout des
 Backends (Standard 30 Minuten) und *SSO Session Idle* im Realm (Standard 30 Minuten).
@@ -193,6 +196,7 @@ enthält deren gesetzte Attribute (z.&nbsp;B. `min`, `max`).
 | `KONFLIKT`             | 409    | Daten wurden inzwischen geändert (veraltete `version`)        |
 | `WIEDERAUFNAHME_NICHT_MOEGLICH` | 409 | Vertrag ist weder gekündigt noch beendet, siehe [Wieder aufnehmen](#wieder-aufnehmen) |
 | `INTERNER_FEHLER`      | 500    | Unerwarteter Fehler; Details nur im Log                       |
+| `KEYCLOAK_NICHT_ERREICHBAR` | 503 | Keycloak antwortet nicht rechtzeitig (Anmeldung, Registrierung) |
 
 Dazu kommen die Codes der einzelnen Endpunkte (siehe [Anmeldung](#ablauf-für-die-spa) und
 [Registrierung](#registrierung)).
@@ -261,7 +265,9 @@ Regeln für alle Endpunkte der Fachmodule (Verträge, Buchungen …):
 
 Antworten: **201** angelegt, **400** ungültige Daten (`VALIDIERUNG`) oder von Keycloak abgelehnt,
 z.&nbsp;B. wegen der Passwort-Richtlinie (`REGISTRIERUNG_ABGELEHNT`), **409** E-Mail bereits vergeben
-(`EMAIL_BEREITS_VERGEBEN`). Nach 201 ist der Nutzer direkt angemeldet.
+(`EMAIL_BEREITS_VERGEBEN`), **503** Keycloak antwortet nicht rechtzeitig (`KEYCLOAK_NICHT_ERREICHBAR`).
+Nach 201 ist der Nutzer direkt angemeldet. Nach 503 kann das Konto in Keycloak trotzdem angelegt
+worden sein, siehe [Betrieb](betrieb.md#konten-und-registrierung).
 
 Alle Textfelder sind Pflicht und höchstens 255 Zeichen lang, das Passwort mindestens 8 Zeichen;
 die übrigen Regeln der Passwort-Richtlinie prüft Keycloak.

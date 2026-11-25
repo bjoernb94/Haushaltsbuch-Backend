@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.nutzer;
 
+import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -32,7 +33,7 @@ class KeycloakIdentitaetsanbieter implements Identitaetsanbieter {
 				"enabled", true,
 				"credentials", List.of(Map.of("type", "password", "value", passwort, "temporary", false)));
 
-		return restClient.post()
+		return KeycloakNichtErreichbarException.beiAufruf(() -> restClient.post()
 				.uri("/users")
 				.contentType(MediaType.APPLICATION_JSON)
 				.body(benutzer)
@@ -49,12 +50,13 @@ class KeycloakIdentitaetsanbieter implements Identitaetsanbieter {
 										.formatted(response.getStatusCode()));
 					}
 					return idAusLocation(response.getHeaders().getLocation());
-				});
+				}));
 	}
 
 	@Override
 	public void benutzerLoeschen(UUID id) {
-		restClient.delete().uri("/users/{id}", id).retrieve().toBodilessEntity();
+		KeycloakNichtErreichbarException.beiAufruf(
+				() -> restClient.delete().uri("/users/{id}", id).retrieve().toBodilessEntity());
 	}
 
 	/** Keycloak liefert die ID des neuen Kontos nur im Location-Header ({@code .../users/<id>}). */

@@ -76,6 +76,10 @@ python3 scripts/testdaten.py                        # local test accounts with c
   user in directly. Unauthenticated requests get 401; SPA CSRF cookie (`XSRF-TOKEN`). The token endpoint
   is configured explicitly (not via issuer discovery) so the app and tests start without Keycloak running.
   Keycloak roles are deliberately not mapped to authorities (no roles needed yet; see comment there).
+  Every HTTP call to Keycloak uses Boot's `ClientHttpRequestFactory` bean (timeouts `spring.http.clients.*`),
+  also the clients Spring Security builds itself (JWK set, client-credentials token), and runs inside
+  `shared.fehler.KeycloakNichtErreichbarException.beiAufruf(...)`, so an outage becomes 503
+  `KEYCLOAK_NICHT_ERREICHBAR` instead of a hanging request or a 500.
   Open follow-ups are tracked as GitHub issues (with milestones), not in the docs.
 - Access to business areas depends on the user's booked `Komponente` (stored in our DB, not as Keycloak
   roles): `SecurityConfig` maps `/api/buchungen|vertraege|versorgung|portfolio/**` to a component and

@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
+import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -57,7 +58,7 @@ class SitzungErneuernFilter extends OncePerRequestFilter {
 			log.info("Keycloak-Sitzung besteht nicht mehr ({}), Nutzer wird abgemeldet.", e.getMessage());
 			session.invalidate();
 		}
-		catch (RestClientException e) {
+		catch (KeycloakNichtErreichbarException | RestClientException e) {
 			// Keycloak nicht erreichbar: nicht alle abmelden, beim nächsten Request erneut versuchen.
 			log.warn("Keycloak-Sitzung konnte nicht erneuert werden.", e);
 		}
