@@ -58,6 +58,8 @@ class AnmeldungController {
 					"Account is disabled or temporarily locked.");
 			case NICHT_EINGERICHTET -> Probleme.problem(HttpStatus.FORBIDDEN, "ANMELDUNG_NICHT_EINGERICHTET",
 					"Account setup is not complete.");
+			case KONTO_UNVOLLSTAENDIG -> Probleme.problem(HttpStatus.FORBIDDEN, "KONTO_UNVOLLSTAENDIG",
+					"Account has no household in the backend.");
 		};
 	}
 

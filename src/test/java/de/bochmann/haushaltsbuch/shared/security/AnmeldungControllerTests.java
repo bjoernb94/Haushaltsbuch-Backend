@@ -6,8 +6,11 @@ import de.bochmann.haushaltsbuch.shared.Komponente;
 import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import de.bochmann.haushaltsbuch.shared.security.AnmeldungFehlgeschlagenException.Grund;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.http.client.HttpClientSettings;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -82,6 +85,49 @@ class AnmeldungControllerTests {
 				.andExpect(status().isServiceUnavailable())
 				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.code").value("KEYCLOAK_NICHT_ERREICHBAR"));
+	}
+
+	/**
+	 * Konto nur in Keycloak (#179): abgewiesen, bei Keycloak gleich wieder abgemeldet, keine Session im
+	 * Backend. Das Log nennt die Keycloak-ID, nicht die E-Mail.
+	 */
+	@Test
+	@ExtendWith(OutputCaptureExtension.class)
+	void kontoOhneHaushaltAbgewiesen(CapturedOutput ausgabe) throws Exception {
+		UUID kontoId = UUID.randomUUID();
+		when(tokenClient.anmelden("max@example.org", "Geheim123!")).thenReturn(anmeldedaten(kontoId, "rt-ohne-haushalt"));
+
+		var ergebnis = mockMvc.perform(post("/api/anmeldung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("KONTO_UNVOLLSTAENDIG"))
+				.andReturn();
+
+		verify(tokenClient).abmelden("rt-ohne-haushalt");
+		MockHttpSession session = (MockHttpSession) ergebnis.getRequest().getSession(false);
+		if (session != null) {
+			assertThat(session.getAttribute(KeycloakSitzung.ATTRIBUT)).isNull();
+			mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
+					.andExpect(status().isUnauthorized());
+		}
+		assertThat(ausgabe.getAll())
+				.contains("Konto " + kontoId + " hat keinen Haushalt, Anmeldung abgewiesen.")
+				.doesNotContain("max@example.org");
+	}
+
+	/** Die Sitzung bei Keycloak läuft dann von selbst ab; der Nutzer bleibt trotzdem abgewiesen. */
+	@Test
+	void kontoOhneHaushaltAuchOhneKeycloakAbmeldungAbgewiesen() throws Exception {
+		when(tokenClient.anmelden("max@example.org", "Geheim123!"))
+				.thenReturn(anmeldedaten(UUID.randomUUID(), "rt-ohne-haushalt"));
+		doThrow(new KeycloakNichtErreichbarException(new ResourceAccessException("Read timed out")))
+				.when(tokenClient).abmelden("rt-ohne-haushalt");
+
+		mockMvc.perform(post("/api/anmeldung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value("KONTO_UNVOLLSTAENDIG"));
 	}
 
 	@Test
@@ -188,19 +234,28 @@ class AnmeldungControllerTests {
 	private MockHttpSession anmelden(Instant accessTokenAblauf) throws Exception {
 		UUID nutzerId = UUID.randomUUID();
 		haushaltService.anlegen(nutzerId, Set.of(Komponente.PORTFOLIO));
-		var idToken = OidcIdToken.withTokenValue("id-token")
-				.subject(nutzerId.toString())
-				.issuedAt(Instant.now())
-				.expiresAt(Instant.now().plusSeconds(300))
-				.build();
 		when(tokenClient.anmelden("max@example.org", "Geheim123!"))
-				.thenReturn(new KeycloakTokenClient.Anmeldedaten(idToken, new KeycloakSitzung("rt", accessTokenAblauf)));
+				.thenReturn(new KeycloakTokenClient.Anmeldedaten(idToken(nutzerId),
+						new KeycloakSitzung("rt", accessTokenAblauf)));
 
 		var ergebnis = mockMvc.perform(post("/api/anmeldung").with(csrf())
 						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
 				.andExpect(status().isNoContent())
 				.andReturn();
 		return (MockHttpSession) ergebnis.getRequest().getSession(false);
+	}
+
+	private static KeycloakTokenClient.Anmeldedaten anmeldedaten(UUID kontoId, String refreshToken) {
+		return new KeycloakTokenClient.Anmeldedaten(idToken(kontoId),
+				new KeycloakSitzung(refreshToken, Instant.now().plusSeconds(300)));
+	}
+
+	private static OidcIdToken idToken(UUID kontoId) {
+		return OidcIdToken.withTokenValue("id-token")
+				.subject(kontoId.toString())
+				.issuedAt(Instant.now())
+				.expiresAt(Instant.now().plusSeconds(300))
+				.build();
 	}
 
 }

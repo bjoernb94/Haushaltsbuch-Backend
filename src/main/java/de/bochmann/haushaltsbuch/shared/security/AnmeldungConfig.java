@@ -1,5 +1,6 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
+import de.bochmann.haushaltsbuch.shared.fachdaten.HaushaltAbfrage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -54,8 +55,9 @@ class AnmeldungConfig {
 	}
 
 	@Bean
-	Anmeldung anmeldung(KeycloakTokenClient tokenClient, CsrfTokenRepository csrfTokenRepository) {
-		return new Anmeldung(tokenClient, new CompositeSessionAuthenticationStrategy(List.of(
+	Anmeldung anmeldung(KeycloakTokenClient tokenClient, HaushaltAbfrage haushaltAbfrage,
+			CsrfTokenRepository csrfTokenRepository) {
+		return new Anmeldung(tokenClient, haushaltAbfrage, new CompositeSessionAuthenticationStrategy(List.of(
 				new ChangeSessionIdAuthenticationStrategy(),
 				new CsrfAuthenticationStrategy(csrfTokenRepository))));
 	}

@@ -14,7 +14,13 @@ public class AnmeldungFehlgeschlagenException extends RuntimeException {
 		GESPERRT,
 
 		/** Für das Konto stehen in Keycloak noch Pflichtschritte aus ("Required actions"). */
-		NICHT_EINGERICHTET
+		NICHT_EINGERICHTET,
+
+		/**
+		 * Keycloak kennt das Konto, das Backend hat dazu aber keinen Haushalt, z.&nbsp;B. nach einem
+		 * Abbruch bei der Registrierung. Erneutes Anmelden hilft nicht, das Konto muss von Hand weg.
+		 */
+		KONTO_UNVOLLSTAENDIG
 
 	}
 
