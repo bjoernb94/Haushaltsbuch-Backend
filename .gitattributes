@@ -1,3 +1,4 @@
 /mvnw text eol=lf
-*.cmd text eol=crlf
+# Ohne Umwandlung: Maven Wrapper und Dependabot schreiben die Datei mit CRLF, so liegt sie auch im Repo (#175).
+*.cmd -text
 *.sh text eol=lf
