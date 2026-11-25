@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragswerte;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsstatus;
@@ -106,14 +107,18 @@ record VertragAntwort(
 
 	/** {@code betrag} siehe {@link Vertragsberechnung#aktuellerPreis}. */
 	static VertragAntwort aus(Vertrag vertrag, Vertragsberechnung berechnung) {
+		return aus(vertrag, berechnung.werte(vertrag.grundlage()), berechnung.heute().getYear());
+	}
+
+	/** Mit schon berechneten {@code werte} zur {@link Vertrag#grundlage}; {@code jahr} wie {@code berechnet.jahr}. */
+	static VertragAntwort aus(Vertrag vertrag, Vertragswerte werte, int jahr) {
 		// Gespeichert ist alles vollständig, die Werte also gesetzt, wo die API keine null kennt.
-		var werte = berechnung.werte(vertrag.grundlage());
 		var berechnet = new VertragBerechnet(
 				werte.status(),
 				werte.kostenProMonat(),
 				werte.kostenImJahr(),
 				werte.kostenImJahrMitPrognose(),
-				berechnung.heute().getYear(),
+				jahr,
 				werte.eigenerAnteilBetrag() != null
 						? new VertragEigenerAnteil(werte.eigenerAnteilBetrag(), werte.eigenerAnteilProMonat(),
 								werte.eigenerAnteilImJahr())

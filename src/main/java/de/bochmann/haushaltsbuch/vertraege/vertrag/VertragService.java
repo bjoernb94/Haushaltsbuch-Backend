@@ -5,12 +5,11 @@ import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisherkunft;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.uebersicht.Vertragsuebersicht;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieService;
 import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Unterbrechungsregeln;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Wiederaufnahmeregeln;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +19,6 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 
 /** Verträge des aktuellen Haushalts; die Trennung der Haushalte übernimmt {@code FachEntity}. */
@@ -91,7 +89,7 @@ class VertragService {
 					aenderung.unterbrechungIds().indexOf(unbekannt.getFirst())), "Unbekannt",
 					"Interruption %s not found in contract %s.".formatted(unbekannt.getFirst(), id));
 		}
-		pruefeUnterbrechungen(aenderung, vertrag.daten().unterbrechungen());
+		Unterbrechungsregeln.pruefe(aenderung, vertrag.daten().unterbrechungen());
 		var berechnung = berechnung();
 		vertrag.setzen(aenderung, kategorie(aenderung.kategorieId()), berechnung);
 		// Hibernate erhöht die Version erst beim Schreiben; die Antwort braucht schon die neue.
@@ -119,7 +117,7 @@ class VertragService {
 					"Contract %s with status %s cannot be resumed.".formatted(id, berechnung.laufzeit().status(daten)));
 		}
 		LocalDate vertragsende = berechnung.laufzeit().vertragsende(daten).orElseThrow();
-		pruefeWiederaufnahme(vertrag, wiederaufnahme, vertragsende);
+		Wiederaufnahmeregeln.pruefe(wiederaufnahme, vertrag.isKuendbar(), vertrag.preisliste(), vertragsende);
 		vertrag.wiederaufnehmen(wiederaufnahme.datum(), vertragsende, wiederaufnahme.laufzeitende(),
 				wiederaufnahme.verlaengerung(), wiederaufnahme.kuendigungsfristMonate(), wiederaufnahme.betrag(),
 				berechnung);
@@ -127,70 +125,22 @@ class VertragService {
 		return VertragAntwort.aus(vertrag, berechnung);
 	}
 
-	/** Die Regeln der Wiederaufnahme, die den gespeicherten Vertrag brauchen; die Reihenfolge der Felder im Dialog. */
-	private static void pruefeWiederaufnahme(Vertrag vertrag, VertragWiederaufnahme wiederaufnahme,
-			LocalDate vertragsende) {
-		LocalDate datum = wiederaufnahme.datum();
-		if (!datum.isAfter(vertragsende)) {
-			throw new UngueltigeEingabeException("datum", "NachVertragsende", Map.of("vertragsende", vertragsende),
-					"Resumption %s must be after the end of the contract (%s).".formatted(datum, vertragsende));
-		}
-		if (vertrag.isKuendbar()) {
-			if (wiederaufnahme.verlaengerung() == null) {
-				throw new UngueltigeEingabeException("verlaengerung", "NotNull",
-						"A cancellable contract needs a renewal.");
-			}
-			if (wiederaufnahme.verlaengerung() == Verlaengerung.KEINE && wiederaufnahme.laufzeitende() == null) {
-				throw new UngueltigeEingabeException("verlaengerung", "LaufzeitendeBeiEnde",
-						"Without renewal the contract needs an end of term.");
-			}
-		}
-		if (wiederaufnahme.laufzeitende() != null && wiederaufnahme.laufzeitende().isBefore(datum)) {
-			throw new UngueltigeEingabeException("laufzeitende", "LaufzeitendeNachBeginn",
-					"End of term %s is before the resumption %s.".formatted(wiederaufnahme.laufzeitende(), datum));
-		}
-		var betrag = wiederaufnahme.betrag();
-		if (betrag != null) {
-			var waehrung = vertrag.preisliste().waehrung();
-			if (!betrag.waehrung().equals(waehrung)) {
-				throw new UngueltigeEingabeException("betrag.waehrung", "GleicheWaehrung",
-						"Currency %s differs from the prices (%s).".formatted(betrag.waehrung(), waehrung));
-			}
-			// Ein automatischer Preis an dem Tag wird ersetzt, ein eingetragener nicht.
-			if (vertrag.preisliste().preise().stream().anyMatch(preis -> preis.gueltigAb().equals(datum)
-					&& preis.herkunft() == Preisherkunft.EINGETRAGEN)) {
-				throw new UngueltigeEingabeException("betrag", "GueltigAbEindeutig",
-						"There is already a price on %s.".formatted(datum));
-			}
-		}
-	}
-
-	/** Die {@link Unterbrechungsregeln} gegen die verbleibenden gespeicherten Unterbrechungen. */
-	private static void pruefeUnterbrechungen(VertragAenderung aenderung, List<Unterbrechung> unterbrechungen) {
-		if (!Unterbrechungsregeln.beginnVorUnterbrechung(aenderung.beginn(), unterbrechungen)) {
-			throw new UngueltigeEingabeException("beginn", "BeginnVorUnterbrechung",
-					"Start %s is not before the first interruption.".formatted(aenderung.beginn()));
-		}
-		if (!Unterbrechungsregeln.kuendigungNachUnterbrechung(aenderung.gekuendigtZum(), unterbrechungen)) {
-			throw new UngueltigeEingabeException("gekuendigtZum", "KuendigungNachUnterbrechung",
-					"Cancellation %s is before the last resumption.".formatted(aenderung.gekuendigtZum()));
-		}
-		if (!Unterbrechungsregeln.laufzeitendeNachAktuellemBeginn(aenderung.laufzeitende(), unterbrechungen)) {
-			throw new UngueltigeEingabeException("laufzeitende", "LaufzeitendeNachAktuellemBeginn",
-					"End of term %s is before the last resumption.".formatted(aenderung.laufzeitende()));
-		}
-	}
-
 	/** Alle Verträge des Haushalts in der {@link #REIHENFOLGE} der Vertragsliste; ohne Paging (überschaubar viele). */
 	@Transactional(readOnly = true)
 	List<VertragAntwort> auflisten() {
-		return auflisten(berechnung());
+		return eintraege(berechnung()).stream().map(Vertragsuebersicht.Eintrag::vertrag).toList();
 	}
 
-	private List<VertragAntwort> auflisten(Vertragsberechnung berechnung) {
+	/** Jeder Vertrag als Antwort mit Grundlage und Werten (einmal berechnet), in der {@link #REIHENFOLGE}. */
+	private List<Vertragsuebersicht.Eintrag<VertragAntwort>> eintraege(Vertragsberechnung berechnung) {
+		int jahr = berechnung.heute().getYear();
 		return repository.findAll().stream()
-				.map(vertrag -> VertragAntwort.aus(vertrag, berechnung))
-				.sorted(REIHENFOLGE)
+				.map(vertrag -> {
+					var grundlage = vertrag.grundlage();
+					var werte = berechnung.werte(grundlage);
+					return new Vertragsuebersicht.Eintrag<>(VertragAntwort.aus(vertrag, werte, jahr), grundlage, werte);
+				})
+				.sorted(Comparator.comparing(Vertragsuebersicht.Eintrag::vertrag, REIHENFOLGE))
 				.toList();
 	}
 
@@ -199,7 +149,8 @@ class VertragService {
 	VertragsuebersichtAntwort uebersicht() {
 		// Ein Stichtag für Liste und Jahr, auch um Mitternacht an Silvester.
 		var berechnung = berechnung();
-		return VertragsuebersichtAntwort.aus(auflisten(berechnung), berechnung.heute().getYear());
+		int jahr = berechnung.heute().getYear();
+		return VertragsuebersichtAntwort.aus(Vertragsuebersicht.aus(eintraege(berechnung), jahr), jahr);
 	}
 
 	/**
