@@ -80,6 +80,9 @@ Session-Cookie. Es gibt keine Weiterleitung zu Keycloak. Bearer-Tokens nimmt das
   - **401**, `code` `ANMELDUNG_UNGUELTIG`: E-Mail-Adresse oder Passwort falsch
   - **403**, `code` `ANMELDUNG_GESPERRT`: Konto deaktiviert oder nach Fehlversuchen vorübergehend gesperrt
   - **403**, `code` `ANMELDUNG_NICHT_EINGERICHTET`: in Keycloak stehen Pflichtschritte aus
+  - **403**, `code` `KONTO_UNVOLLSTAENDIG`: Passwort stimmt, aber das Konto hat im Backend keinen
+    Haushalt (z.&nbsp;B. nach einem Abbruch bei der Registrierung). Erneutes Anmelden hilft nicht, nur
+    der Support ([Betrieb](betrieb.md#konten-und-registrierung)); die SPA verweist darauf.
   - **400**, `code` `VALIDIERUNG`: Felder fehlen
   - **503**, `code` `KEYCLOAK_NICHT_ERREICHBAR`: Keycloak antwortet nicht rechtzeitig
 - **Registrierung:** Nach **201** ist der Nutzer direkt angemeldet. Scheitert nur die automatische

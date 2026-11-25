@@ -204,10 +204,15 @@ entfernt werden“*; das Konto dann in Keycloak unter *Users* löschen.
 
 Antwortet Keycloak beim Anlegen nicht rechtzeitig (503 `KEYCLOAK_NICHT_ERREICHBAR`), kann das Konto
 trotzdem entstanden sein, ohne dass das Backend davon weiß. Eine neue Registrierung scheitert dann mit
-`EMAIL_BEREITS_VERGEBEN`; auch hier das Konto in Keycloak löschen.
+`EMAIL_BEREITS_VERGEBEN`.
 
-Ein Konto, das direkt in Keycloak angelegt wird, hat keinen Nutzer in unserer Datenbank und
-damit keinen Haushalt und keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
+Ein Konto, das nur in Keycloak existiert (nach den Fällen oben oder direkt in Keycloak angelegt), hat
+keinen Nutzer und keinen Haushalt in unserer Datenbank. Die Anmeldung weist es nach der Passwortprüfung
+mit 403 `KONTO_UNVOLLSTAENDIG` ab und beendet die Sitzung bei Keycloak wieder; im Log steht
+*„Konto `<Keycloak-ID>` hat keinen Haushalt, Anmeldung abgewiesen.“* Meldet sich der Nutzer beim
+Support: Das Konto in Keycloak unter *Users* suchen (über die E-Mail-Adresse des Nutzers oder die ID aus
+dem Log) und löschen. Danach kann er sich neu registrieren. Konten deshalb nicht direkt in Keycloak
+anlegen, sondern über die Registrierung.
 
 ### Für prod zusätzlich
 
