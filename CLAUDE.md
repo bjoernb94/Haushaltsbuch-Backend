@@ -30,7 +30,7 @@ python3 scripts/testdaten.py                        # local test accounts with c
   "Could not find a valid Docker environment" otherwise. `ModularityTests` needs no containers.
 
 - Shared IntelliJ run configs live in `.run/` (not `.idea/`, which is gitignored). The local dev DB is
-  `jdbc:postgresql://localhost:5432/haushaltsbuch` as user `haushaltsbuch` (see `.run/Run_Backend.run.xml`), from
+  `jdbc:postgresql://localhost:5432/haushaltsbuch` as user `haushaltsbuch` (see `.run/Run Backend.run.xml`), from
   `compose.yaml`, started separately via the run configs "Umgebung starten"/"Umgebung stoppen".
   `flyway-maven-plugin` is in the pom only for manual `flyway:info`/`flyway:validate` runs.
 
