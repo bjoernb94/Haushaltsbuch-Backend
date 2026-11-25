@@ -23,8 +23,11 @@ dem eingecheckten Stand entspricht.
 ### Aufbau eines Fachmoduls
 
 Innerhalb eines Fachmoduls wird nach Themen in Unterpakete geteilt, jedes Thema mit allem, was
-dazugehört (Entity, Repository, Service, Controller, DTOs). Reine Berechnungen ohne Spring
-bekommen ein eigenes Unterpaket, bei mehreren Themen wieder mit Unterpaketen. Beispiel `vertraege`:
+dazugehört (Entity, Repository, Service, Controller, DTOs). Ein Thema bekommt ein eigenes Paket,
+sobald es eine eigene Entity oder einen eigenen Endpunkt hat oder eine in sich geschlossene fachliche
+Aufgabe ist: reine Berechnungen ohne Spring (`berechnung`, bei mehreren Themen wieder mit
+Unterpaketen) oder Regeln über mehrere Felder (`vertrag.regeln`). Nach technischer Schicht wird nie
+aufgeteilt, also keine Sammelpakete wie `dto` oder `validierung`. Beispiel `vertraege`:
 
 ```
 vertraege

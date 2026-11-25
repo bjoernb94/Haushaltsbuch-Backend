@@ -125,9 +125,10 @@ de.bochmann.haushaltsbuch
 ├── versorgung   Strom, Gas, Wasser, Abschläge, Zählerstände
 ├── portfolio    Depots, Positionen, Kurse
 ├── haushalt     Haushalt, Mitglieder, gebuchte Komponenten
-├── nutzer       Registrierung, Profil, Konto in Keycloak
+├── nutzer       Registrierung, Konto in Keycloak
 └── shared       Security, Fehlerbehandlung, Fach-Entities und Trennung der Haushalte (fachdaten),
-                 Betrag (geld), Clock (zeit), Systemstatus, gemeinsame Typen (z. B. Komponente)
+                 Betrag (geld), Clock (zeit), Systemstatus, OpenAPI-Beschreibung (openapi),
+                 gemeinsame Typen (z. B. Komponente)
 ```
 
 ### Module und Abhängigkeiten
@@ -157,10 +158,23 @@ Die Regeln für Module und ihren Aufbau stehen unter [Entwicklung](docs/entwickl
 Weitere Dateien:
 
 - `compose.yaml`: PostgreSQL und Keycloak für die lokale Entwicklung
+- `betrieb/compose.yaml`: Backend, Frontend, PostgreSQL und Keycloak für den Betrieb, siehe
+  [Betrieb per Compose](docs/betrieb.md#betrieb-per-compose)
 - `docker/keycloak/import/`: Realm `haushaltsbuch` für den Import beim Start von Keycloak
 - `docker/postgres/init/`: Init-Skript, das die Keycloak-Datenbank anlegt
 - `docs/`: Dokumentation, siehe [oben](#dokumentation)
+- `scripts/testdaten.py`: legt lokale Testkonten an, siehe [Testkonten](docs/entwicklung.md#testkonten)
+- `scripts/betrieb-paket.sh`: packt das Paket für den Betrieb per Compose, das am Release hängt
+- `.run/`: gemeinsame IntelliJ Run Configurations, siehe
+  [IntelliJ Run Configurations](docs/entwicklung.md#intellij-run-configurations)
 - `.github/workflows/build.yml`: Build und Tests in GitHub Actions
+- `.github/workflows/release.yml`: der Release-Workflow, siehe [Veröffentlichen](#veröffentlichen)
+- `.github/release.yml`: kein Workflow, sondern die Gruppen der generierten Release Notes nach den Labels
+  der Pull Requests
+- `.github/dependabot.yml`: Updates der Abhängigkeiten per Pull Request (Maven wöchentlich, GitHub Actions und
+  Images monatlich)
+- `.github/pull_request_template.md`: Vorlage für Pull Requests, siehe
+  [Arbeitsweise mit Git](docs/entwicklung.md#arbeitsweise-mit-git)
 
 ## Offene Aufgaben
 
