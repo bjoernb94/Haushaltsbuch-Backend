@@ -105,6 +105,7 @@ ab 1.0 kommt `latest` dazu. Die Images sind öffentlich und nur für amd64.
 | [`docs/entscheidungen/`](docs/entscheidungen/README.md) | Architekturentscheidungen mit Begründung, auch die des Frontends               |
 | [`docs/openapi.json`](docs/openapi.json)               | von `OpenApiExportTests` erzeugte OpenAPI-Beschreibung der API                 |
 | [`docs/module/`](docs/module)                          | von `ModularityTests` erzeugte Modul-Dokumentation                             |
+| [`docs/datenmodell.md`](docs/datenmodell.md)           | von `DatenmodellExportTests` aus dem Schema erzeugtes Datenmodell (ER-Diagramm) |
 
 Die Dokumentation liegt nur in den Repos, ein Wiki gibt es nicht: So wird sie im selben Pull Request wie der
 Code geändert und geprüft und passt zu jedem Release-Tag ([ADR 0021](docs/entscheidungen/0021-doku-im-repo.md)).

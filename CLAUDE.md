@@ -153,6 +153,9 @@ python3 scripts/testdaten.py                        # local test accounts with c
   `KeycloakAdminApiTests`/`KeycloakAnbindungTests` without extra mocks or properties, unique emails per test.
 - `ModularityTests` also writes Modulith docs (PlantUML/AsciiDoc) to `docs/module` (checked in, line order normalised);
   commit regenerated files and keep the Mermaid diagram in the README in sync when modules or dependencies change.
+- `DatenmodellExportTests` writes a Mermaid `erDiagram` of the Flyway schema (main migrations only, own DB in the
+  shared container, no Spring context) to `docs/datenmodell.md` (checked in; CI fails if stale). Commit it with
+  every migration; a new table prefix needs an entry in its `MODUL_JE_PRAEFIX`.
 - `OpenApiExportTests` writes the springdoc output to `docs/openapi.json` (checked in, sorted keys; CI fails if stale; the contract with the SPA, ADR 0013).
   DTO fields that can be `null` get JSpecify `@Nullable` (requests and responses); without it a field is never `null`.
   springdoc turns that into nullable types, enums become named schemas (`ModelResolver.enumsAsRef`), and all fields of

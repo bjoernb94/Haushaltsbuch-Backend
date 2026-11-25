@@ -19,7 +19,6 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
@@ -71,7 +70,7 @@ class PreisGueltigAbMigrationTests {
 
 	@BeforeAll
 	static void migrieren() {
-		DataSource datenbank = neueDatenbank();
+		DataSource datenbank = TestcontainersConfiguration.neueDatenbank("migration");
 		migrieren(datenbank, "10");
 		jdbc = new JdbcTemplate(datenbank);
 		vertrag(NUR_OHNE_DATUM, "2024-03-10", "MONATLICH", null, preis(null, "10.00"));
@@ -130,7 +129,7 @@ class PreisGueltigAbMigrationTests {
 
 	@Test
 	void brichtBeiPreisVorDemBeginnAb() {
-		DataSource datenbank = neueDatenbank();
+		DataSource datenbank = TestcontainersConfiguration.neueDatenbank("migration");
 		migrieren(datenbank, "10");
 		vertrag(new JdbcTemplate(datenbank), UUID.randomUUID(), "2025-01-01", "MONATLICH", null,
 				preis("2024-12-01", "10.00"));
@@ -139,20 +138,6 @@ class PreisGueltigAbMigrationTests {
 				.hasMessageContaining("Preis vor dem Vertragsbeginn");
 	}
 
-	private static DataSource neueDatenbank() {
-		var container = TestcontainersConfiguration.postgres();
-		String name = "migration_" + UUID.randomUUID().toString().replace("-", "");
-		var standard = new PGSimpleDataSource();
-		standard.setUrl(container.getJdbcUrl());
-		standard.setUser(container.getUsername());
-		standard.setPassword(container.getPassword());
-		new JdbcTemplate(standard).execute("CREATE DATABASE " + name);
-		var datenbank = new PGSimpleDataSource();
-		datenbank.setUrl(container.getJdbcUrl().replace("/" + container.getDatabaseName(), "/" + name));
-		datenbank.setUser(container.getUsername());
-		datenbank.setPassword(container.getPassword());
-		return datenbank;
-	}
 
 	private static void migrieren(DataSource datenbank, String bis) {
 		Flyway.configure().dataSource(datenbank).locations("classpath:db/migration").target(bis).load().migrate();
