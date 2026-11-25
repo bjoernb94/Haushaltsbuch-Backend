@@ -41,10 +41,10 @@ jobs:
       # vergessen, die neu erzeugten Dateien zu committen.
       - name: Erzeugte Doku aktuell
         run: |
-          if [ -n "$(git status --porcelain -- docs/module docs/openapi.json)" ]; then
-            echo "::error::docs/module oder docs/openapi.json ist nicht aktuell. Lokal ./mvnw test -Dtest='ModularityTests,OpenApiExportTests' ausführen und die Änderungen committen."
-            git status --short -- docs/module docs/openapi.json
-            git diff -- docs/module docs/openapi.json
+          if [ -n "$(git status --porcelain -- docs/module docs/openapi.json docs/datenmodell.md)" ]; then
+            echo "::error::docs/module, docs/openapi.json oder docs/datenmodell.md ist nicht aktuell. Lokal ./mvnw test -Dtest='ModularityTests,OpenApiExportTests,DatenmodellExportTests' ausführen und die Änderungen committen."
+            git status --short -- docs/module docs/openapi.json docs/datenmodell.md
+            git diff -- docs/module docs/openapi.json docs/datenmodell.md
             exit 1
           fi
 

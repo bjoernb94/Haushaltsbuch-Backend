@@ -229,6 +229,12 @@ Namenskonvention: `V<n>__<modul>_<beschreibung>.sql` mit der nächsten freien Nu
 `V<n>__vertraege_vertrag.sql`.
 Bereits ausgelieferte Migrationen nicht mehr ändern, sondern eine neue anlegen.
 
+Das Datenmodell steht in [`docs/datenmodell.md`](datenmodell.md). `DatenmodellExportTests` erzeugt es
+aus dem Schema der Migrationen (ohne die Testmigrationen); die Datei ist eingecheckt wie `docs/module`,
+gehört nach einer neuen Migration mit in den Commit, und die GitHub Action schlägt fehl, wenn sie nicht
+aktuell ist. Tabellennamen beginnen mit dem Präfix ihres Moduls (`vertrag_…` in `vertraege`); ein neues
+Präfix gehört in `MODUL_JE_PRAEFIX` des Tests, sonst schlägt er fehl.
+
 Spalten für Geldbeträge und Datum:
 
 | Java                       | Spalte(n)                                                |
