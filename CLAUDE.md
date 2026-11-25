@@ -104,6 +104,8 @@ python3 scripts/testdaten.py                        # local test accounts with c
   (e.g. unknown/foreign category) throw `UngueltigeEingabeException(feld, code, detail)` → same `VALIDIERUNG` +
   `felder` format; field codes are PascalCase like constraint names (`Unbekannt`). Cross-field rules are class-level
   constraints whose validator attaches the violation to a field (`addPropertyNode`), otherwise `feld` is null.
+- Logs never contain personal data (email, names, notes, request bodies), also not in exception messages
+  that may get logged; name users by their Keycloak ID (`sub`). See `docs/entwicklung.md` "Logs".
 - Money is always `shared.geld.Betrag` (value + `Currency`, `@Embedded`, columns `<feld>_wert NUMERIC(19, 2)` and
   `<feld>_waehrung VARCHAR(3)` via `ImplicitNamingStrategyComponentPathImpl`; JSON `{"wert": 12.34, "waehrung": "EUR"}`,
   value as number). Only EUR is allowed for now (`ErlaubteWaehrung`, foreign currencies in #30), but never assume
