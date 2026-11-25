@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.1.2</version>
+		<version>4.2.0</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>de.bochmann</groupId>
@@ -32,7 +32,7 @@
 	</scm>
 	<properties>
 		<java.version>25</java.version>
-		<spring-modulith.version>2.1.2</spring-modulith.version>
+		<spring-modulith.version>2.2.0</spring-modulith.version>
 		<springdoc-openapi.version>3.2.0</springdoc-openapi.version>
 		<jacoco.version>0.8.16</jacoco.version>
 		<!-- Unter rootless Podman true: Die Buildpacks brauchen dann den Socket aus DOCKER_HOST (README, Hinweis für Podman). -->
