@@ -1,5 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Berechnungsangaben;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

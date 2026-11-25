@@ -1,9 +1,9 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Erhoehungsrhythmus;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preissteigerung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Steigerungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Erhoehungsrhythmus;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preissteigerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Steigerungsart;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.Embedded;

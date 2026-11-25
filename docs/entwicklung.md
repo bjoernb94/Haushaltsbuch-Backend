@@ -24,21 +24,33 @@ dem eingecheckten Stand entspricht.
 
 Innerhalb eines Fachmoduls wird nach Themen in Unterpakete geteilt, jedes Thema mit allem, was
 dazugehört (Entity, Repository, Service, Controller, DTOs). Reine Berechnungen ohne Spring
-bekommen ein eigenes Unterpaket. Beispiel `vertraege`:
+bekommen ein eigenes Unterpaket, bei mehreren Themen wieder mit Unterpaketen. Beispiel `vertraege`:
 
 ```
 vertraege
 ├── package-info.java   Modul-Deklaration; im Wurzelpaket nur, was andere Module nutzen dürfen
-├── vertrag             Vertrag, VertragRepository, VertragService, VertragController,
-│                       VertragAnfrage, VertragAntwort, Zahlungsweg
+├── vertrag             Vertrag mit seinen Teilen (VertragPreis, VertragUnterbrechung …),
+│   │                   VertragRepository, VertragService, VertragController, Anfragen und Antworten
+│   ├── regeln          Constraints über mehrere Felder (GleicheWaehrung, LaufzeitendeNachBeginn …)
+│   │                   und die Schnittstellen, gegen die sie prüfen (Berechnungsangaben, Preisangabe …)
+│   └── vorschau        POST /api/vertraege/vorschau: Controller, Service, Anfrage und Antwort
 ├── kategorie           VertragKategorie, Repository, Service, Controller
-└── berechnung          Vertragsberechnung, Kosten und die Enums, die sie braucht (Zahlweise,
-                        Verlaengerung …); ohne Spring, mit Unit-Tests
+└── berechnung          Vertragsberechnung (Fassade: werte, wieGespeichert), Berechnungsgrundlage,
+    │                   Vertragswerte; ohne Spring, mit Unit-Tests
+    ├── laufzeit        Laufzeitberechnung (Status, Vertragsende, Kündigung, Wiederaufnahme),
+    │                   Vertragsdaten, Zahlweise, Unterbrechung, Monate …
+    ├── preis           Preisberechnung (aktueller Preis, Stufen, Prognose), Preisliste, Preisprognose …
+    └── kosten          Kostenberechnung (Abbuchungen und Kosten im Jahr), Kosten, Anteil, Einmalkosten
 ```
 
 - Klassen, die nur im eigenen Unterpaket gebraucht werden, bleiben package-private; was ein anderes
   Unterpaket braucht, ist `public`. Von außerhalb des Moduls sind Unterpakete trotzdem nicht
   erreichbar, das prüft `ModularityTests`.
+- Unterpakete hängen nur in eine Richtung voneinander ab, ohne Zyklen: `vertrag` → `regeln` →
+  `berechnung`, `vorschau` → `regeln`/`berechnung`, in `berechnung` `kosten` → `preis` → `laufzeit`.
+  Das gilt auch für Javadoc: Gegen die Richtung `{@code …}` statt `{@link …}`, sonst braucht es einen Import.
+- Teile eines Aggregats (z.&nbsp;B. `VertragPreis` in `vertrag_preis`) bleiben im Paket der Entity, weil
+  sie nur über sie geladen und geändert werden; eigene Pakete hießen, ihre Felder `public` zu machen.
 - Braucht ein anderes Modul etwas, liegt es im Wurzelpaket (Service-Fassade, Ereignisse). Ist das
   nicht sinnvoll, ein Unterpaket mit `@NamedInterface` freigeben.
 - Kleine Module ohne Themen (wie `nutzer`) liegen flach im Wurzelpaket.

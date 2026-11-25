@@ -1,8 +1,8 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preis;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisherkunft;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preis;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisherkunft;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.Embedded;

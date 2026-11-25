@@ -2,15 +2,15 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
 import de.bochmann.haushaltsbuch.shared.fachdaten.FachEntity;
 import de.bochmann.haushaltsbuch.shared.geld.Betrag;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Anteil;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Berechnungsgrundlage;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisliste;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisprognose;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechungsart;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsdaten;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.kosten.Anteil;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Vertragsdaten;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Zahlweise;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisliste;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisprognose;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.CollectionTable;
@@ -32,8 +32,8 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -265,7 +265,7 @@ class Vertrag extends FachEntity {
 		var bisher = getPreise();
 		var preise = mitFaelligenStufen(angefragt, berechnung);
 		if (preissteigerung != null) {
-			this.preissteigerungBetrachtetBis = preisprognose().betrachtetBis(berechnung.faelligBis(daten()))
+			this.preissteigerungBetrachtetBis = preisprognose().betrachtetBis(berechnung.preise().faelligBis(daten()))
 					.betrachtetBis();
 		}
 		// Nur bei einer Änderung ersetzen, sonst erhöht Hibernate die Version ohne Grund.
@@ -277,7 +277,7 @@ class Vertrag extends FachEntity {
 
 	/** Die Preise ergänzt um die fälligen Stufen, sortiert. */
 	private List<VertragPreis> mitFaelligenStufen(List<VertragPreis> preise, Vertragsberechnung berechnung) {
-		var stufen = berechnung.faelligeStufen(daten(), new Preisliste(preise.stream().map(VertragPreis::preis).toList()),
+		var stufen = berechnung.preise().faelligeStufen(daten(), new Preisliste(preise.stream().map(VertragPreis::preis).toList()),
 				preisprognose());
 		return Stream.concat(preise.stream(), stufen.stream().map(VertragPreis::stufe)).sorted(REIHENFOLGE).toList();
 	}

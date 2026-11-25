@@ -1,7 +1,7 @@
 package de.bochmann.haushaltsbuch.vertraege.vertrag;
 
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechungsart;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechungsart;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.EnumType;

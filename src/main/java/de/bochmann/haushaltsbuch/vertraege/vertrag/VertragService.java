@@ -3,13 +3,14 @@ package de.bochmann.haushaltsbuch.vertraege.vertrag;
 import de.bochmann.haushaltsbuch.shared.fehler.KonfliktException;
 import de.bochmann.haushaltsbuch.shared.fehler.NichtGefundenException;
 import de.bochmann.haushaltsbuch.shared.fehler.UngueltigeEingabeException;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Kuendigung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Preisherkunft;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Unterbrechung;
-import de.bochmann.haushaltsbuch.vertraege.berechnung.Verlaengerung;
 import de.bochmann.haushaltsbuch.vertraege.berechnung.Vertragsberechnung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Kuendigung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Unterbrechung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.laufzeit.Verlaengerung;
+import de.bochmann.haushaltsbuch.vertraege.berechnung.preis.Preisherkunft;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorie;
 import de.bochmann.haushaltsbuch.vertraege.kategorie.VertragKategorieService;
+import de.bochmann.haushaltsbuch.vertraege.vertrag.regeln.Unterbrechungsregeln;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -113,11 +114,11 @@ class VertragService {
 		vertrag.pruefeVersion(wiederaufnahme.version());
 		var berechnung = berechnung();
 		var daten = vertrag.daten();
-		if (berechnung.wiederaufnahme(daten).isEmpty()) {
+		if (berechnung.laufzeit().wiederaufnahme(daten).isEmpty()) {
 			throw new WiederaufnahmeNichtMoeglichException(
-					"Contract %s with status %s cannot be resumed.".formatted(id, berechnung.status(daten)));
+					"Contract %s with status %s cannot be resumed.".formatted(id, berechnung.laufzeit().status(daten)));
 		}
-		LocalDate vertragsende = berechnung.vertragsende(daten).orElseThrow();
+		LocalDate vertragsende = berechnung.laufzeit().vertragsende(daten).orElseThrow();
 		pruefeWiederaufnahme(vertrag, wiederaufnahme, vertragsende);
 		vertrag.wiederaufnehmen(wiederaufnahme.datum(), vertragsende, wiederaufnahme.laufzeitende(),
 				wiederaufnahme.verlaengerung(), wiederaufnahme.kuendigungsfristMonate(), wiederaufnahme.betrag(),
@@ -199,16 +200,6 @@ class VertragService {
 		// Ein Stichtag für Liste und Jahr, auch um Mitternacht an Silvester.
 		var berechnung = berechnung();
 		return VertragsuebersichtAntwort.aus(auflisten(berechnung), berechnung.heute().getYear());
-	}
-
-	/**
-	 * Die berechneten Werte zu den Formularwerten, ohne zu speichern; dieselbe Berechnung wie für gespeicherte
-	 * Verträge, mit den Preisen, wie sie nach dem Speichern wären (samt den Stufen, die das Speichern anlegt).
-	 */
-	VertragVorschauAntwort vorschau(VertragVorschauAnfrage anfrage) {
-		var berechnung = berechnung();
-		var grundlage = berechnung.wieGespeichert(anfrage.grundlage());
-		return VertragVorschauAntwort.aus(berechnung.werte(grundlage), grundlage, anfrage);
 	}
 
 	/**
