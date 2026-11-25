@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 /**
  * Öffentlicher Endpunkt für das eigene Registrierungsformular der SPA. Nach erfolgreicher
  * Registrierung ist der Nutzer direkt angemeldet (Session-Cookie in der Antwort).
@@ -43,15 +45,15 @@ class RegistrierungController {
 	@ResponseStatus(HttpStatus.CREATED)
 	void registrieren(@Valid @RequestBody RegistrierungAnfrage anfrage, HttpServletRequest request,
 			HttpServletResponse response) {
-		registrierungService.registrieren(anfrage);
+		UUID id = registrierungService.registrieren(anfrage);
 		try {
 			anmeldung.anmelden(anfrage.email(), anfrage.passwort(), request, response);
 		}
 		catch (RuntimeException e) {
 			// Das Konto ist angelegt; die SPA merkt an der 401 von /api/nutzer/ich/komponenten,
 			// dass sich der Nutzer selbst anmelden muss.
-			log.warn("Registrierung von {} erfolgreich, automatische Anmeldung fehlgeschlagen.",
-					anfrage.email(), e);
+			// Keine E-Mail ins Log, nur die Keycloak-ID (docs/entwicklung.md, „Logs“).
+			log.warn("Konto {} registriert, automatische Anmeldung fehlgeschlagen.", id, e);
 		}
 	}
 

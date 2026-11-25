@@ -6,7 +6,10 @@ import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import de.bochmann.haushaltsbuch.shared.security.GemockteAnmeldung;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ApplicationContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
@@ -84,10 +87,13 @@ class RegistrierungControllerTests {
 		verify(anmeldung).anmelden(eq("max@example.org"), eq("geheim123"), any(), any());
 	}
 
+	/** Das Log nennt das Konto über die Keycloak-ID, nicht über die E-Mail (#124). */
 	@Test
-	void registrierungGelingtAuchWennAnmeldungScheitert() throws Exception {
+	@ExtendWith(OutputCaptureExtension.class)
+	void registrierungGelingtAuchWennAnmeldungScheitert(CapturedOutput ausgabe) throws Exception {
+		UUID id = UUID.randomUUID();
 		when(identitaetsanbieter.benutzerAnlegen(eq("ohne-anmeldung@example.org"), any(), any(), any()))
-				.thenReturn(UUID.randomUUID());
+				.thenReturn(id);
 		doThrow(new IllegalStateException("Keycloak nicht erreichbar"))
 				.when(anmeldung).anmelden(eq("ohne-anmeldung@example.org"), any(), any(), any());
 
@@ -95,6 +101,10 @@ class RegistrierungControllerTests {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(anfrage("ohne-anmeldung@example.org", "[\"PORTFOLIO\"]")))
 				.andExpect(status().isCreated());
+
+		assertThat(ausgabe.getAll())
+				.contains("Konto " + id + " registriert, automatische Anmeldung fehlgeschlagen.")
+				.doesNotContain("ohne-anmeldung@example.org");
 	}
 
 	@Test

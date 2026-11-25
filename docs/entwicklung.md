@@ -192,6 +192,17 @@ Das Format für die SPA steht unter [Fehlerantworten](api.md#fehlerantworten).
   Beispiel: `FehlerBehandlungTests`.
 - `detail` ist englisch und für Entwickler; Texte für Nutzer bildet die SPA aus `code`.
 
+## Logs
+
+- Logs enthalten keine personenbezogenen Daten: keine E-Mail-Adressen, Namen, Notizen oder
+  Request-Bodies. Nutzer und Konten werden über ihre Keycloak-ID (`sub`) genannt; wer dahintersteht,
+  lässt sich bei Bedarf in Keycloak nachsehen.
+- Das gilt auch für Texte von Exceptions, die geloggt werden können: nur IDs und technische Angaben
+  hineinschreiben. Wo ein Text Eingaben des Nutzers enthält (z.&nbsp;B. `EmailBereitsVergebenException`),
+  geht er nur als `detail` an den Absender selbst, nicht ins Log.
+- Was Keycloak, Reverse Proxy und nginx loggen und wie lange das aufbewahrt wird, ist Sache des
+  Betriebs (#83).
+
 ## Geldbeträge und Datum im Code
 
 - Geldbeträge sind immer `shared.geld.Betrag` (Wert und `Currency`, `@Embedded`). Request-DTOs
