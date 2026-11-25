@@ -6,6 +6,7 @@ public enum Zahlungsweg {
 	LASTSCHRIFT,
 	KREDITKARTE,
 	PAYPAL,
+	WERO,
 	UEBERWEISUNG,
 	DAUERAUFTRAG
 

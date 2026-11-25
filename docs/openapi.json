@@ -2113,7 +2113,7 @@
       },
       "Zahlungsweg" : {
         "type" : "string",
-        "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG" ]
+        "enum" : [ "LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "WERO", "UEBERWEISUNG", "DAUERAUFTRAG" ]
       },
       "Zahlweise" : {
         "type" : "string",

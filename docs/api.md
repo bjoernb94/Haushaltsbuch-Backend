@@ -328,7 +328,7 @@ Standardkategorien haben einen `schluessel`, den die SPA übersetzt: `STREAMING_
 | `vertragsnummer` | nein | höchstens 100 Zeichen |
 | `preise` | ja | 1–1200 Einträge `{ gueltigAb, betrag, automatisch }` in beliebiger Reihenfolge, siehe [Preise](#preise) |
 | `zahlweise` | ja | `MONATLICH`, `VIERTELJAEHRLICH`, `HALBJAEHRLICH`, `JAEHRLICH` |
-| `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
+| `zahlungsweg` | nein | `LASTSCHRIFT`, `KREDITKARTE`, `PAYPAL`, `WERO`, `UEBERWEISUNG`, `DAUERAUFTRAG` |
 | `anteilProzent` | nein | eigener Anteil an einem geteilten Vertrag, z.&nbsp;B. `50` oder `33.3`; leer = 100&nbsp;%. Zahl von 1 bis 100 mit höchstens einer Nachkommastelle (Feldfehler `DecimalMin`, `DecimalMax`, `Digits`). Gespeichert wie eingegeben, auch `100`; die Antwort liefert ihn mit einer Nachkommastelle (`50.0`). Übersichten zählen nur diesen Anteil der Kosten, siehe [Antwort](#antwort) |
 | `einmalkosten` | ja | 0–100 Einträge `{ bezeichnung, betrag, faelligAm }` in beliebiger Reihenfolge, leer `[]`; siehe [Einmalkosten](#einmalkosten) |
 | `preissteigerung` | nein | „Preis steigt regelmäßig“, `null` wenn nicht; siehe [Preissteigerung](#preissteigerung) |
