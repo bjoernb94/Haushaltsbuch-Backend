@@ -32,7 +32,7 @@ ALLE_KOMPONENTEN = {"FINANZUEBERSICHT", "VERTRAGSUEBERSICHT", "VERSORGUNGSVERTRA
 
 ALLE_ZAHLWEISEN = {"MONATLICH", "VIERTELJAEHRLICH", "HALBJAEHRLICH", "JAEHRLICH"}
 
-ALLE_ZAHLUNGSWEGE = {"LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "UEBERWEISUNG", "DAUERAUFTRAG"}
+ALLE_ZAHLUNGSWEGE = {"LASTSCHRIFT", "KREDITKARTE", "PAYPAL", "WERO", "UEBERWEISUNG", "DAUERAUFTRAG"}
 
 ALLE_KATEGORIEN = {"STREAMING_ABOS", "SOFTWARE_APPS", "VERSICHERUNG", "MOBILFUNK_INTERNET", "MITGLIEDSCHAFTEN",
                    "GEBUEHREN_BEITRAEGE", "SONSTIGES"}
@@ -481,7 +481,7 @@ def faelle_alles(heute):
         Fall("Kündigen bis – ohne Frist", "KUENDIGEN_BIS", kategorie="SOFTWARE_APPS",
              felder={"laufzeitende": tage(120), "verlaengerung": "ZWOELF_MONATE", "zahlungsweg": "DAUERAUFTRAG"}),
         Fall("Kündigen bis – ohne Angabe zur Verlängerung", "KUENDIGEN_BIS", kategorie="STREAMING_ABOS",
-             felder={"laufzeitende": tage(90), "kuendigungsfristMonate": 1}),
+             felder={"laufzeitende": tage(90), "kuendigungsfristMonate": 1, "zahlungsweg": "WERO"}),
         Fall("Kündigen bis – vierteljährlich", "KUENDIGEN_BIS", zahlweise="VIERTELJAEHRLICH", dringend=True,
              felder={"laufzeitende": tage(40), "verlaengerung": "ZAHLUNGSINTERVALL", "kuendigungsfristMonate": 1,
                      "bezeichnung": "Mit Bezeichnung"}),
