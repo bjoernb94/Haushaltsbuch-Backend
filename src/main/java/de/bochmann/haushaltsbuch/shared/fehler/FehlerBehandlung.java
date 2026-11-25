@@ -110,6 +110,14 @@ class FehlerBehandlung extends ResponseEntityExceptionHandler {
 		return Probleme.problem(HttpStatus.CONFLICT, Probleme.KONFLIKT, "The data was modified in the meantime.");
 	}
 
+	/** Erwartbarer Ausfall, daher nur WARN; die Ursache (Timeout o.&nbsp;ä.) steht im Log. */
+	@ExceptionHandler
+	ProblemDetail keycloakNichtErreichbar(KeycloakNichtErreichbarException e, HttpServletRequest request) {
+		log.warn("Keycloak nicht erreichbar bei {} {}", request.getMethod(), request.getRequestURI(), e);
+		return Probleme.problem(HttpStatus.SERVICE_UNAVAILABLE, Probleme.KEYCLOAK_NICHT_ERREICHBAR,
+				"Keycloak is not reachable.");
+	}
+
 	/** Unerwartete Fehler: ohne Interna antworten, Details nur ins Log. */
 	@ExceptionHandler
 	ProblemDetail unerwartet(Exception e, HttpServletRequest request) {

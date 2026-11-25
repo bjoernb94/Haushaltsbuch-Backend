@@ -3,15 +3,18 @@ package de.bochmann.haushaltsbuch.shared.security;
 import de.bochmann.haushaltsbuch.IntegrationTest;
 import de.bochmann.haushaltsbuch.haushalt.HaushaltService;
 import de.bochmann.haushaltsbuch.shared.Komponente;
+import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import de.bochmann.haushaltsbuch.shared.security.AnmeldungFehlgeschlagenException.Grund;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.http.client.HttpClientSettings;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +47,10 @@ class AnmeldungControllerTests {
 	@Autowired
 	private HaushaltService haushaltService;
 
+	/** Aus {@code spring.http.clients.*}; daraus baut Boot die Request-Factory der Keycloak-Clients. */
+	@Autowired
+	private HttpClientSettings httpClientSettings;
+
 	@Test
 	void anmeldungLegtSessionAn() throws Exception {
 		MockHttpSession session = anmelden(Instant.now().plusSeconds(300));
@@ -63,6 +70,24 @@ class AnmeldungControllerTests {
 				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.code").value("ANMELDUNG_UNGUELTIG"))
 				.andExpect(jsonPath("$.detail").value("Invalid email or password."));
+	}
+
+	@Test
+	void nichtErreichbaresKeycloakBeiAnmeldung() throws Exception {
+		when(tokenClient.anmelden("max@example.org", "Geheim123!"))
+				.thenThrow(new KeycloakNichtErreichbarException(new ResourceAccessException("Read timed out")));
+
+		mockMvc.perform(post("/api/anmeldung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON).content(ANFRAGE))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("KEYCLOAK_NICHT_ERREICHBAR"));
+	}
+
+	@Test
+	void timeoutsFuerKeycloakKonfiguriert() {
+		assertThat(httpClientSettings.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
+		assertThat(httpClientSettings.readTimeout()).isEqualTo(Duration.ofSeconds(5));
 	}
 
 	@Test
@@ -122,7 +147,8 @@ class AnmeldungControllerTests {
 	@Test
 	void nichtErreichbaresKeycloakBeimErneuernMeldetNichtAb() throws Exception {
 		MockHttpSession session = anmelden(Instant.now().minusSeconds(1));
-		when(tokenClient.erneuern("rt")).thenThrow(new ResourceAccessException("Connection refused"));
+		when(tokenClient.erneuern("rt"))
+				.thenThrow(new KeycloakNichtErreichbarException(new ResourceAccessException("Read timed out")));
 
 		mockMvc.perform(get("/api/nutzer/ich/komponenten").session(session))
 				.andExpect(status().isOk());
@@ -136,7 +162,8 @@ class AnmeldungControllerTests {
 	@Test
 	void abmeldungGelingtAuchOhneKeycloak() throws Exception {
 		MockHttpSession session = anmelden(Instant.now().plusSeconds(300));
-		doThrow(new ResourceAccessException("Connection refused")).when(tokenClient).abmelden("rt");
+		doThrow(new KeycloakNichtErreichbarException(new ResourceAccessException("Read timed out")))
+				.when(tokenClient).abmelden("rt");
 
 		mockMvc.perform(post("/api/abmeldung").with(csrf()).session(session))
 				.andExpect(status().isNoContent());

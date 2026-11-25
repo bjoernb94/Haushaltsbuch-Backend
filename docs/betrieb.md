@@ -202,6 +202,10 @@ Transaktion der Nutzer und sein Haushalt mit den Komponenten gespeichert. Schlä
 auch das Löschen fehl, steht im Log *„Konto … konnte nicht gelöscht werden und muss manuell
 entfernt werden“*; das Konto dann in Keycloak unter *Users* löschen.
 
+Antwortet Keycloak beim Anlegen nicht rechtzeitig (503 `KEYCLOAK_NICHT_ERREICHBAR`), kann das Konto
+trotzdem entstanden sein, ohne dass das Backend davon weiß. Eine neue Registrierung scheitert dann mit
+`EMAIL_BEREITS_VERGEBEN`; auch hier das Konto in Keycloak löschen.
+
 Ein Konto, das direkt in Keycloak angelegt wird, hat keinen Nutzer in unserer Datenbank und
 damit keinen Haushalt und keine Komponenten: Login klappt, alle Fachbereiche antworten mit 403.
 
@@ -243,6 +247,13 @@ Admin API nutzen denselben Client und dasselbe Secret.
 
 Die Keycloak-Endpunkte sind explizit konfiguriert statt über OIDC-Discovery. Dadurch startet
 das Backend auch, wenn Keycloak (noch) nicht erreichbar ist.
+
+Aufrufe an Keycloak (Token-Endpunkt, Schlüssel des Realms, Admin API samt Token des Service Accounts)
+brechen nach `spring.http.clients.connect-timeout` (2&nbsp;s) bzw. `spring.http.clients.read-timeout`
+(5&nbsp;s) ab. Anmeldung und Registrierung antworten dann mit 503 `KEYCLOAK_NICHT_ERREICHBAR`, im Log
+steht *„Keycloak nicht erreichbar bei …“* mit der Ursache. Ändern lassen sich die Werte über
+`SPRING_HTTP_CLIENTS_CONNECT_TIMEOUT` und `SPRING_HTTP_CLIENTS_READ_TIMEOUT` (z.&nbsp;B. `10s`). Der
+Health-Check hat eigene 2&nbsp;s (siehe [Systemstatus](#systemstatus)).
 
 Produktiv starten mit `SPRING_PROFILES_ACTIVE=prod`. Dort sind der Docker Compose Support
 sowie Swagger UI und die OpenAPI-Dokumentation deaktiviert.

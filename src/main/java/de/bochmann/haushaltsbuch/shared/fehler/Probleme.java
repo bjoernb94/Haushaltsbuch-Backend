@@ -40,6 +40,9 @@ public final class Probleme {
 
 	public static final String INTERNER_FEHLER = "INTERNER_FEHLER";
 
+	/** Keycloak antwortet nicht, siehe {@link KeycloakNichtErreichbarException}. */
+	public static final String KEYCLOAK_NICHT_ERREICHBAR = "KEYCLOAK_NICHT_ERREICHBAR";
+
 	private Probleme() {
 	}
 

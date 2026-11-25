@@ -1,6 +1,7 @@
 package de.bochmann.haushaltsbuch.shared.security;
 
 import de.bochmann.haushaltsbuch.shared.security.AnmeldungFehlgeschlagenException.Grund;
+import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
@@ -43,8 +44,14 @@ class KeycloakTokenClient {
 
 	/**
 	 * @throws AnmeldungFehlgeschlagenException wenn Keycloak die Anmeldedaten ablehnt
+	 * @throws KeycloakNichtErreichbarException wenn Keycloak nicht rechtzeitig antwortet, auch beim
+	 *         Laden der Schlüssel für das ID-Token
 	 */
 	Anmeldedaten anmelden(String benutzername, String passwort) {
+		return KeycloakNichtErreichbarException.beiAufruf(() -> anmeldenBeiKeycloak(benutzername, passwort));
+	}
+
+	private Anmeldedaten anmeldenBeiKeycloak(String benutzername, String passwort) {
 		var formular = formular("password");
 		formular.add("username", benutzername);
 		formular.add("password", passwort);
@@ -60,23 +67,28 @@ class KeycloakTokenClient {
 	/**
 	 * @throws AnmeldungFehlgeschlagenException wenn die Sitzung bei Keycloak nicht mehr besteht,
 	 *         z.&nbsp;B. abgelaufen, beendet oder Konto deaktiviert
+	 * @throws KeycloakNichtErreichbarException wenn Keycloak nicht rechtzeitig antwortet
 	 */
 	KeycloakSitzung erneuern(String refreshToken) {
 		var formular = formular("refresh_token");
 		formular.add("refresh_token", refreshToken);
-		return sitzung(tokenAnfrage(formular));
+		return KeycloakNichtErreichbarException.beiAufruf(() -> sitzung(tokenAnfrage(formular)));
 	}
 
-	/** Beendet die Sitzung bei Keycloak, ohne Weiterleitung über den Browser. */
+	/**
+	 * Beendet die Sitzung bei Keycloak, ohne Weiterleitung über den Browser.
+	 *
+	 * @throws KeycloakNichtErreichbarException wenn Keycloak nicht rechtzeitig antwortet
+	 */
 	void abmelden(String refreshToken) {
 		var formular = formular(null);
 		formular.add("refresh_token", refreshToken);
-		restClient.post()
+		KeycloakNichtErreichbarException.beiAufruf(() -> restClient.post()
 				.uri("/logout")
 				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
 				.body(formular)
 				.retrieve()
-				.toBodilessEntity();
+				.toBodilessEntity());
 	}
 
 	private MultiValueMap<String, String> formular(String grantType) {

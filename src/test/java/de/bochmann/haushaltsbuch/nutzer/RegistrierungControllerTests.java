@@ -2,6 +2,7 @@ package de.bochmann.haushaltsbuch.nutzer;
 
 import de.bochmann.haushaltsbuch.IntegrationTest;
 import de.bochmann.haushaltsbuch.shared.Komponente;
+import de.bochmann.haushaltsbuch.shared.fehler.KeycloakNichtErreichbarException;
 import de.bochmann.haushaltsbuch.shared.security.Anmeldung;
 import de.bochmann.haushaltsbuch.shared.security.GemockteAnmeldung;
 import de.bochmann.haushaltsbuch.shared.security.KomponentenAbfrage;
@@ -15,6 +16,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.Set;
 import java.util.UUID;
@@ -205,6 +207,20 @@ class RegistrierungControllerTests {
 				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.code").value("EMAIL_BEREITS_VERGEBEN"))
 				.andExpect(jsonPath("$.detail").value("An account already exists for email address vergeben@example.org."));
+	}
+
+	/** Das Konto kann trotzdem angelegt worden sein; das fängt die Anmeldung ab (#179). */
+	@Test
+	void nichtErreichbaresKeycloakBeimAnlegen() throws Exception {
+		when(identitaetsanbieter.benutzerAnlegen(eq("timeout@example.org"), any(), any(), any()))
+				.thenThrow(new KeycloakNichtErreichbarException(new ResourceAccessException("Read timed out")));
+
+		mockMvc.perform(post("/api/registrierung").with(csrf())
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(anfrage("timeout@example.org", "[\"PORTFOLIO\"]")))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.code").value("KEYCLOAK_NICHT_ERREICHBAR"));
 	}
 
 	@Test
